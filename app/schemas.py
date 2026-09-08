@@ -1,0 +1,166 @@
+from datetime import datetime
+from typing import List, Optional, Literal
+from pydantic import BaseModel, ConfigDict, Field
+
+# --- Auth & Session ---
+class VerifyPasswordRequest(BaseModel):
+    password: str
+
+class CreateSessionRequest(BaseModel):
+    room_code: str
+    password: str
+    title: Optional[str] = "Wyprawa do Przeklętej Twierdzy"
+    setting_theme: Optional[str] = "Mroczne Podziemia"
+    campaign_intro: Optional[str] = ""
+
+class GenerateIntroRequest(BaseModel):
+    scenario_type: str = Field(
+        ...,
+        description="Typ scenariusza, np. 'Krypta Pradawnego Króla', 'Nawiedzony Las Cieni', 'Krasnoludzka Twierdza opanowana przez demony'"
+    )
+    tone: Optional[str] = "Dark Fantasy, brutalne i tajemnicze"
+
+class GenerateIntroResponse(BaseModel):
+    title: str
+    setting_theme: str
+    campaign_intro: str
+    first_challenge: str
+
+# --- Character & Inventory ---
+class CreateCharacterRequest(BaseModel):
+    player_name: str
+    name: str
+    character_class: str = "Wojownik"
+    strength: int = Field(ge=0, le=4, default=2)
+    agility: int = Field(ge=0, le=4, default=1)
+    intellect: int = Field(ge=0, le=4, default=1)
+    charisma: int = Field(ge=0, le=4, default=0)
+
+class InventoryItemDto(BaseModel):
+    id: int
+    name: str
+    description: str
+    item_type: str
+    target_stat: str
+    stat_bonus: int
+    is_equipped: bool
+    quantity: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+class CharacterDto(BaseModel):
+    id: int
+    player_name: str
+    name: str
+    character_class: str
+    level: int
+    xp: int
+    current_hp: int
+    max_hp: int
+    strength: int
+    agility: int
+    intellect: int
+    charisma: int
+    is_alive: bool
+    inventory: List[InventoryItemDto] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+# --- Actions & Turns ---
+class SubmitActionRequest(BaseModel):
+    character_id: int
+    action_text: str
+
+class PlayerActionDto(BaseModel):
+    id: int
+    character_id: int
+    character_name: str
+    action_text: str
+    tested_stat: str
+    dice_roll_raw: int
+    stat_modifier: int
+    item_modifier: int
+    dice_total: int
+    dc: int
+    outcome_tier: str
+    gm_individual_summary: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+class TurnDto(BaseModel):
+    id: int
+    turn_number: int
+    status: str
+    gm_narration: str
+    next_turn_prompt: str
+    image_url: Optional[str] = None
+    is_generating_image: bool
+    actions: List[PlayerActionDto] = []
+    created_at: datetime
+    resolved_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+# --- Gemini Structured Output Schemas ---
+class NewItemSchema(BaseModel):
+    name: str = Field(description="Nazwa znalezionego przedmiotu")
+    description: str = Field(description="Krótki, klimatyczny opis")
+    item_type: Literal["weapon", "armor", "accessory", "consumable", "misc"]
+    target_stat: Literal["strength", "agility", "intellect", "charisma", "hp_max", "none"]
+    stat_bonus: int = Field(description="Bonus do statystyki lub wartość leczenia dla consumable")
+
+class PlayerConsequenceSchema(BaseModel):
+    character_id: int = Field(description="ID postaci, której dotyczy konsekwencja")
+    individual_summary: str = Field(description="Bezpośredni, zwięzły opis tego, co stało się z tą postacią na skutek jej rzutu i akcji")
+    hp_delta: int = Field(description="Wartość zmiany HP: np. -5 przy ranach, 0 przy braku zmian, +10 przy uleczeniu")
+    xp_gained: int = Field(description="Liczba przyznanych punktów XP (np. 50-100 za turę)")
+    new_items: List[NewItemSchema] = Field(default_factory=list, description="Nowo zdobyte przedmioty")
+    removed_item_names: List[str] = Field(default_factory=list, description="Nazwy zużytych lub utraconych przedmiotów")
+
+class NamingOpportunitySchema(BaseModel):
+    category: Literal["boss", "location", "weapon", "attack"] = Field(description="Kategoria: boss, location (lokacja), weapon (broń/artefakt) lub attack (zespołowy atak)")
+    description: str = Field(description="Opis odkrytego elementu, np. 'Monstrualny demon o płonących rogach' lub 'Ukryta komnata pełna starych ksiąg'")
+    prompt_for_player: str = Field(description="Pytanie zachęcające gracza do nazwania, np. 'Jak nazwiesz tego przerażającego władcę cieni?'")
+
+class GeminiTurnResolutionSchema(BaseModel):
+    gm_story_narration: str = Field(description="Główna, nastrojowa narracja Mistrza Gry łącząca akcje wszystkich graczy i ich rzuty kośćmi")
+    player_consequences: List[PlayerConsequenceSchema] = Field(description="Szczegółowe skutki mechaniczne i fabularne dla każdego gracza")
+    scene_image_prompt: str = Field(description="Precyzyjny prompt w języku angielskim dla modelu Imagen 3 przedstawiający scenę tury (Dark Fantasy oil painting)")
+    next_turn_prompt: str = Field(description="Sytuacja wyjściowa i wyzwanie na otwarcie kolejnej tury")
+    naming_opportunity: Optional[NamingOpportunitySchema] = Field(default=None, description="Opcjonalna okazja do nazwania nowego bossa, niezwykłej lokacji, potężnej broni lub ataku zespołowego przez gracza")
+
+class GenerateImageRequest(BaseModel):
+    turn_id: int
+
+class NameEntityRequest(BaseModel):
+    session_id: int
+    character_id: int
+    custom_name: str
+
+class TriggerNamingRequest(BaseModel):
+    session_id: int
+    category: str
+    description: str
+    prompt_for_player: Optional[str] = "Jak nazwiesz to odkrycie?"
+
+class NamedLoreEntityDto(BaseModel):
+    id: int
+    category: str
+    original_description: str
+    custom_name: str
+    named_by_character_name: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class PrologueRequest(BaseModel):
+    room_code: str = "kampania-1"
+    scenario_type: str = "Krasnoludzka Twierdza opanowana przez demony ognia"
+    tone: Optional[str] = "Dark Fantasy, brutalne i tajemnicze"
+
+class PrologueResponse(BaseModel):
+    title: str
+    setting_theme: str
+    prologue_story: str
+    suggested_actions: List[str] = Field(description="Trzy konkretne ścieżki działania dla drużyny na start")
+    first_challenge: str

@@ -1,0 +1,40 @@
+# Środowisko i sekrety (BARDZO WAŻNE)
+.env
+*.env
+!.env.example
+
+# Wirtualne środowisko Pythona
+.venv/
+venv/
+ENV/
+env/
+
+# Pamięć podręczna Pythona i testów
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Bazy danych (SQLite)
+*.db
+*.sqlite
+*.sqlite3
+ttrpg_game.db
+
+# Pliki generowane / uploady (np. wygenerowane obrazy Imagen 3)
+uploads/*
+!uploads/.gitkeep
+data/
+
+# Pliki systemowe macOS i edytorów
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.idea/
+.vscode/
+*.swp
+*.swo

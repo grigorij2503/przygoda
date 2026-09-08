@@ -1,0 +1,49 @@
+from typing import AsyncGenerator
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import declarative_base
+from app.config import settings
+
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=False,
+    connect_args={"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {}
+)
+
+AsyncSessionLocal = async_sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autocommit=False,
+    autoflush=False
+)
+
+Base = declarative_base()
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
+
+from sqlalchemy import text
+
+async def init_db():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+        # Bezpieczna automatyczna migracja nowych kolumn
+        new_columns = [
+            ("game_sessions", "active_boss_name", "VARCHAR(100)"),
+            ("game_sessions", "active_boss_title", "VARCHAR(150)"),
+            ("game_sessions", "active_boss_hp", "INTEGER"),
+            ("game_sessions", "active_boss_max_hp", "INTEGER"),
+            ("game_sessions", "pending_naming_category", "VARCHAR(50)"),
+            ("game_sessions", "pending_naming_prompt", "TEXT"),
+            ("game_sessions", "pending_naming_character_id", "INTEGER"),
+            ("game_sessions", "pending_naming_character_name", "VARCHAR(100)"),
+        ]
+        for table, col, col_type in new_columns:
+            try:
+                await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type};"))
+            except Exception:
+                pass

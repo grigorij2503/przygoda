@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="pl" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TTRPG Gemini Master • Wieloosobowy RPG</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            gold: {
+              300: '#f6e05e',
+              400: '#ecc94b',
+              500: '#d4af37',
+              600: '#b7950b',
+            },
+            parchment: '#161922',
+            darkslate: '#0a0c10',
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="/static/css/style.css">
+
+  <!-- Alpine.js CDN -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
+  <!-- App Logic -->
+  <script src="/static/js/app.js"></script>
+</head>
+<body x-data="rpgGame" class="min-h-screen text-gray-200 antialiased selection:bg-amber-600 selection:text-white">
+
+  <!-- ==================== TOAST NOTIFICATIONS ==================== -->
+  <div class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
+    <template x-for="t in toasts" :key="t.id">
+      <div class="pointer-events-auto p-4 rounded-lg shadow-xl text-sm font-medium border flex items-center gap-3 transition-all duration-300 transform translate-y-0"
+           :class="{
+             'bg-emerald-950 border-emerald-600 text-emerald-100': t.type === 'success',
+             'bg-rose-950 border-rose-600 text-rose-100': t.type === 'error',
+             'bg-amber-950 border-amber-600 text-amber-100': t.type === 'warning',
+             'bg-slate-900 border-indigo-500 text-indigo-100': t.type === 'info'
+           }">
+        <span x-text="t.type === 'success' ? '⚔️' : t.type === 'error' ? '☠️' : t.type === 'warning' ? '⚠️' : '📜'"></span>
+        <span x-text="t.message" class="flex-1"></span>
+      </div>
+    </template>
+  </div>
+
+  <!-- ==================== EKRAN 1: BRAMA / HASŁO ==================== -->
+  <div x-show="!isAuthenticated" class="min-h-screen flex items-center justify-center p-4">
+    <div class="fantasy-card p-8 rounded-2xl max-w-md w-full text-center border border-amber-900/40 relative overflow-hidden">
+      <div class="absolute -top-12 -left-12 w-32 h-32 bg-amber-600/10 rounded-full blur-3xl pointer-events-none"></div>
+      
+      <div class="w-16 h-16 mx-auto mb-4 rounded-full border-2 border-amber-500/40 flex items-center justify-center bg-amber-500/10 text-amber-400 text-2xl font-fantasy shadow-lg shadow-amber-500/10">
+        🎲
+      </div>
+      <h1 class="text-3xl font-fantasy font-bold text-amber-300 tracking-wider mb-2">BRAMA PRZYGODY</h1>
+      <p class="text-gray-400 text-sm mb-6">Wpisz hasło do stołu gry, aby dołączyć do drużyny i rozpocząć sesję z Mistrzem Gry Gemini.</p>
+
+      <form @submit.prevent="login()" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-amber-400/80 uppercase tracking-widest text-left mb-1">Hasło do Pokoju</label>
+          <input type="password" x-model="roomPassword" placeholder="Wpisz hasło sesji..."
+                 class="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition">
+        </div>
+
+        <div x-show="authError" x-text="authError" class="text-red-400 text-sm font-medium bg-red-950/50 border border-red-800/50 rounded-lg p-2.5"></div>
+
+        <button type="submit" :disabled="isLoggingIn"
+                class="w-full py-3.5 px-4 bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-500 text-slate-950 font-fantasy font-bold rounded-lg shadow-lg shadow-amber-900/30 transition transform hover:-translate-y-0.5 disabled:opacity-50">
+          <span x-show="!isLoggingIn">PRZEKROCZ BRAMĘ</span>
+          <span x-show="isLoggingIn">WERYFIKACJA...</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== EKRAN 2: WYBÓR / TWORZENIE POSTACI ==================== -->
+  <div x-show="isAuthenticated && !selectedCharacterId" class="min-h-screen p-6 max-w-4xl mx-auto flex flex-col justify-center">
+    <div class="fantasy-card p-8 rounded-2xl border border-amber-900/40 shadow-2xl">
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-8 pb-4 border-b border-slate-800">
+        <div>
+          <h2 class="text-2xl font-fantasy font-bold text-amber-300">WYBIERZ SWOJEGO BOHATERA</h2>
+          <p class="text-gray-400 text-sm">Dołącz do toczącej się przygody lub powołaj do życia nową postać.</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <button @click="showIntroModal = true" class="text-xs font-fantasy bg-slate-800 hover:bg-slate-700 border border-amber-500/30 text-amber-300 px-3 py-2 rounded-lg transition flex items-center gap-1.5">
+            <span>✨</span> Generator Scenariusza AI
+          </button>
+          <button @click="logout()" class="text-xs font-fantasy bg-red-950/60 hover:bg-red-900 border border-red-700/40 text-red-300 px-3 py-2 rounded-lg transition">
+            Wyloguj
+          </button>
+        </div>
+      </div>
+
+      <!-- Lista istniejących postaci -->
+      <div class="mb-8">
+        <h3 class="text-sm font-semibold uppercase tracking-wider text-gray-400 mb-4">Postacie w tej sesji:</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <template x-for="char in session?.characters || []" :key="char.id">
+            <div @click="selectCharacter(char.id)"
+                 class="group p-5 bg-slate-900/80 hover:bg-slate-800/90 border border-slate-800 hover:border-amber-500/60 rounded-xl cursor-pointer transition transform hover:-translate-y-1 relative overflow-hidden">
+              <div class="flex items-start justify-between mb-2">
+                <div>
+                  <h4 class="text-lg font-fantasy font-bold text-amber-200 group-hover:text-amber-400 transition" x-text="char.name"></h4>
+                  <p class="text-xs text-gray-400"><span x-text="char.character_class"></span> • Poziom <span x-text="char.level"></span></p>
+                </div>
+                <span class="text-xs bg-amber-500/10 border border-amber-500/30 text-amber-300 px-2.5 py-1 rounded-full font-mono">
+                  Gracz: <span x-text="char.player_name"></span>
+                </span>
+              </div>
+
+              <!-- Statystyki w pigułce -->
+              <div class="grid grid-cols-4 gap-2 text-center text-xs my-3 py-2 bg-slate-950/60 rounded-lg border border-slate-800">
+                <div><span class="text-gray-500 block">SIŁ</span><b class="text-amber-300" x-text="'+' + char.strength"></b></div>
+                <div><span class="text-gray-500 block">ZRĘ</span><b class="text-amber-300" x-text="'+' + char.agility"></b></div>
+                <div><span class="text-gray-500 block">ROZ</span><b class="text-amber-300" x-text="'+' + char.intellect"></b></div>
+                <div><span class="text-gray-500 block">CHA</span><b class="text-amber-300" x-text="'+' + char.charisma"></b></div>
+              </div>
+
+              <div class="flex items-center justify-between text-xs mt-3">
+                <span class="text-red-400 flex items-center gap-1">
+                  ❤️ <span x-text="char.current_hp + ' / ' + char.max_hp"></span> HP
+                </span>
+                <div class="flex items-center gap-3">
+                  <button @click.stop="deleteCharacter(char.id, char.name)"
+                    class="text-gray-600 hover:text-red-400 transition opacity-0 group-hover:opacity-100"
+                    title="Usuń postać">
+                    🗑️
+                  </button>
+                  <span class="text-amber-400 flex items-center gap-1 font-fantasy group-hover:translate-x-1 transition">
+                    Graj tą postacią →
+                  </span>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <div x-show="session?.characters?.length === 0" class="text-center py-10 bg-slate-900/40 rounded-xl border border-dashed border-slate-800">
+          <p class="text-gray-500 text-sm mb-2">Brak aktywnych postaci w tej sesji.</p>
+          <p class="text-xs text-amber-400/80">Stwórz pierwszego bohatera, by poprowadzić drużynę!</p>
+        </div>
+      </div>
+
+      <!-- Przycisk Nowej Postaci -->
+      <button @click="showCharModal = true"
+              class="w-full py-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 hover:border-amber-500 border border-amber-500/40 rounded-xl text-amber-300 font-fantasy font-semibold flex items-center justify-center gap-2 transition shadow-lg">
+        <span class="text-xl">⚔️</span> STWÓRZ NOWĄ POSTAĆ
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== EKRAN 3: GŁÓWNY STÓŁ GRY ==================== -->
+  <div x-show="isAuthenticated && selectedCharacterId" class="min-h-screen flex flex-col">
+    
+    <!-- HEADER -->
+    <header class="bg-slate-950/90 border-b border-amber-900/40 sticky top-0 z-30 backdrop-blur-md px-4 lg:px-8 py-3">
+      <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <span class="text-2xl">🏰</span>
+          <div>
+            <h1 class="text-lg font-fantasy font-bold text-amber-300 leading-tight" x-text="session?.title"></h1>
+            <p class="text-xs text-gray-400">
+              <span class="text-amber-500/90" x-text="session?.setting_theme"></span> • 
+              <span>Tura #<b class="text-white" x-text="session?.current_turn_number"></b></span>
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <!-- Status gotowości w turze -->
+          <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs">
+            <span class="w-2 h-2 rounded-full" :class="wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'"></span>
+            <span class="text-gray-400">Stan tury:</span>
+            <span class="font-semibold" :class="hasSubmittedCurrentTurn ? 'text-emerald-400' : 'text-amber-400'">
+              <span x-text="readyCount"></span> / <span x-text="totalAlivePlayers"></span> gotowych
+            </span>
+          </div>
+
+          <!-- Przycisk Kroniki Świata (Lore Book) -->
+          <button @click="showLoreBookModal = true" class="text-xs font-fantasy bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+            <span>📜</span> <span class="hidden md:inline">Kronika Świata</span>
+            <span class="bg-amber-500/20 text-amber-400 px-1.5 py-0.2 rounded-full text-[10px]" x-text="session?.lore_entities?.length || 0"></span>
+          </button>
+
+          <!-- Przycisk generatora scenariusza AI -->
+          <button @click="showIntroModal = true" title="Generator Kampanii AI" class="text-xs font-fantasy bg-slate-900 hover:bg-slate-800 border border-indigo-500/40 text-indigo-300 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5">
+            <span>✨</span> <span class="hidden md:inline">Scenariusz AI</span>
+          </button>
+
+          <!-- Przełącz postać / wyloguj -->
+          <button @click="selectedCharacterId = null" class="text-xs font-fantasy bg-slate-900 hover:bg-slate-800 border border-slate-700 text-gray-300 px-3 py-1.5 rounded-lg transition">
+            Zmień Postać
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- GŁÓWNA PRZESTRZEŃ (KRONIKA + KARTA POSTACI + CZAT) -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      
+      <!-- LEWA KOLUMNA: KRONIKA PRZYGODY (STORY LOG) -->
+      <section class="lg:col-span-8 flex flex-col gap-6">
+        
+        <!-- PASEK AKTYWNEGO BOSSA (JEŚLI OBECNY) -->
+        <div x-show="session?.active_boss" class="p-4 rounded-xl border border-red-700/60 bg-gradient-to-r from-red-950/80 via-black to-red-950/80 shadow-2xl relative overflow-hidden">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <span class="text-2xl animate-pulse">👑</span>
+              <div>
+                <span class="text-[10px] uppercase font-mono tracking-widest text-red-400 block" x-text="session?.active_boss?.title"></span>
+                <h3 class="text-lg font-fantasy font-bold text-red-200" x-text="session?.active_boss?.name"></h3>
+              </div>
+            </div>
+            <span class="text-xs font-mono text-red-300 bg-red-900/40 px-2.5 py-1 rounded-md border border-red-700/50">
+              HP: <span x-text="session?.active_boss?.hp + ' / ' + session?.active_boss?.max_hp"></span>
+            </span>
+          </div>
+          <div class="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-red-800/80 p-0.5">
+            <div class="h-full rounded-full bg-gradient-to-r from-red-700 via-rose-600 to-red-500 transition-all duration-500"
+                 :style="'width: ' + Math.max(0, Math.min(100, (session?.active_boss?.hp / session?.active_boss?.max_hp) * 100)) + '%'"></div>
+          </div>
+        </div>
+
+        <!-- BANER OCZEKIWANIA NA NAZWĘ (LORE NAMING) -->
+        <div x-show="pendingNaming" class="p-4 rounded-xl border border-amber-500/50 bg-amber-950/30 flex items-center justify-between gap-3 animate-pulse">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl" x-text="pendingNaming?.category === 'boss' ? '👑' : pendingNaming?.category === 'weapon' ? '🗡️' : pendingNaming?.category === 'location' ? '🏰' : '💥'"></span>
+            <div>
+              <span class="text-xs uppercase font-fantasy text-amber-400 font-bold block" x-text="'Odkrycie: ' + pendingNaming?.category"></span>
+              <p class="text-xs text-gray-200" x-text="pendingNaming?.prompt"></p>
+            </div>
+          </div>
+          <div>
+            <template x-if="pendingNaming?.character_id === selectedCharacterId">
+              <button @click="showNamingModal = true" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-slate-950 font-fantasy font-bold rounded-lg text-xs shadow-lg transition">
+                NADAJ NAZWĘ!
+              </button>
+            </template>
+            <template x-if="pendingNaming?.character_id !== selectedCharacterId">
+              <span class="text-[11px] font-mono text-amber-300 bg-amber-950/80 px-2.5 py-1 rounded border border-amber-600/40"
+                    x-text="'Czekamy na: ' + pendingNaming?.character_name"></span>
+            </template>
+          </div>
+        </div>
+
+        <!-- BANER BŁĘDU I PRZYCISK RETRY -->
+        <div x-show="turnError" class="p-4 rounded-xl border border-rose-600/70 bg-rose-950/50 flex items-center justify-between gap-3 shadow-lg">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">⚠️</span>
+            <div>
+              <h4 class="text-xs font-fantasy font-bold text-rose-300 uppercase">Wystąpił problem z odpowiedzią Gemini</h4>
+              <p class="text-xs text-rose-200/90" x-text="turnError"></p>
+              <span class="text-[10px] text-gray-400">Akcje graczy oraz rzuty są zachowane w bazie.</span>
+            </div>
+          </div>
+          <button @click="retryTurn()" :disabled="isRetryingTurn"
+                  class="px-4 py-2 bg-rose-700 hover:bg-rose-600 text-white font-fantasy font-bold rounded-lg text-xs shadow-md transition disabled:opacity-50 shrink-0">
+            <span x-show="!isRetryingTurn">🔄 PONÓW PRÓBĘ</span>
+            <span x-show="isRetryingTurn">PONAWIANIE...</span>
+          </button>
+        </div>
+
+        <!-- Wstęp do kampanii & Przycisk Prologu Zebranej Drużyny -->
+        <div class="fantasy-card p-6 rounded-2xl border border-amber-900/30">
+          <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
+            <div class="flex items-center gap-2 text-xs font-fantasy text-amber-400 uppercase tracking-wider">
+              <span>📜</span> KRONIKA PRZYGODY
+            </div>
+
+            <!-- Przycisk Generowania Prologu dla Zebranych Bohaterów -->
+            <button @click="startPartyPrologue()" :disabled="isGeneratingPrologue"
+                    class="text-xs font-fantasy bg-amber-600/20 hover:bg-amber-600/40 border border-amber-500/50 text-amber-300 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 disabled:opacity-50">
+              <span x-show="!isGeneratingPrologue">⚔️ Generuj Prolog dla Drużyny</span>
+              <span x-show="isGeneratingPrologue">Tworzenie Prologu...</span>
+            </button>
+          </div>
+          <p class="text-gray-300 text-sm leading-relaxed italic" x-text="session?.campaign_intro"></p>
+        </div>
+
+        <!-- LISTA TUR -->
+        <div id="story-log-container" class="space-y-6">
+          <template x-for="t in session?.turns || []" :key="t.id">
+            <article class="fantasy-card p-6 rounded-2xl border border-slate-800/80 hover:border-amber-900/50 transition">
+              
+              <!-- Nagłówek Tury -->
+              <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
+                <div class="flex items-center gap-2">
+                  <span class="px-2.5 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-fantasy rounded-md">
+                    TURA #<span x-text="t.turn_number"></span>
+                  </span>
+                  <span class="text-xs text-gray-500" x-text="t.status === 'completed' ? 'Rozstrzygnięta' : 'W toku...'"></span>
+                </div>
+                
+                <!-- Przycisk generowania ilustracji Imagen 3 -->
+                <div x-show="t.status === 'completed'">
+                  <template x-if="!t.image_url && !t.is_generating_image">
+                    <button @click="generateImage(t.id)" class="text-xs font-fantasy bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-500/50 text-indigo-300 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-md">
+                      <span>🎨</span> Generuj ilustrację sceny
+                    </button>
+                  </template>
+                  <template x-if="t.is_generating_image">
+                    <div class="text-xs font-fantasy text-indigo-400 flex items-center gap-2 animate-pulse">
+                      <svg class="animate-spin h-3.5 w-3.5 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                      Imagen 3 tworzy obraz...
+                    </div>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Wygenerowana Ilustracja -->
+              <div x-show="t.image_url" class="mb-5 rounded-xl overflow-hidden border border-amber-900/40 relative group cursor-pointer" @click="openLightbox(t.image_url)">
+                <img :src="t.image_url" alt="Scena z tury" class="w-full h-72 object-cover object-center group-hover:scale-102 transition duration-500">
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-4 opacity-0 group-hover:opacity-100 transition">
+                  <span class="text-xs font-fantasy text-amber-300 flex items-center gap-1.5">
+                    🔍 Kliknij, aby powiększyć ilustrację (Imagen 3)
+                  </span>
+                </div>
+              </div>
+
+              <!-- Narracja Mistrza Gry (Gemini) -->
+              <div x-show="t.gm_narration" class="mb-5 prose prose-invert max-w-none text-gray-200 text-sm leading-relaxed bg-slate-950/40 p-4 rounded-xl border border-slate-800/80">
+                <p x-text="t.gm_narration"></p>
+              </div>
+
+              <!-- Rzuty kośćmi i akcje graczy w tej turze -->
+              <div x-show="t.actions?.length > 0" class="space-y-3 my-4">
+                <h4 class="text-xs font-semibold uppercase tracking-wider text-gray-400">Akcje bohaterów i rzuty d20:</h4>
+                <div class="grid grid-cols-1 gap-3">
+                  <template x-for="act in t.actions" :key="act.id">
+                    <div class="dice-badge p-3.5 rounded-xl text-xs flex flex-col md:flex-row md:items-center justify-between gap-3"
+                         :class="{
+                           'dice-crit-success': act.outcome_tier === 'critical_success',
+                           'dice-crit-fail': act.outcome_tier === 'critical_failure'
+                         }">
+                      <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-1">
+                          <b class="text-amber-300 text-sm font-fantasy" x-text="act.character_name"></b>
+                          <span class="text-gray-400 italic">„<span x-text="act.action_text"></span>”</span>
+                        </div>
+                        <p x-show="act.gm_individual_summary" class="text-gray-300 text-xs mt-1" x-text="act.gm_individual_summary"></p>
+                      </div>
+
+                      <!-- Widget Rzutu Kością -->
+                      <div class="flex items-center gap-2 shrink-0 bg-slate-950/80 px-3 py-2 rounded-lg border border-slate-700/60 font-mono">
+                        <span class="text-lg">🎲</span>
+                        <div>
+                          <span class="text-amber-400 font-bold" x-text="'d20(' + act.dice_roll_raw + ')'"></span>
+                          <span class="text-gray-400" x-text="'+ ' + (act.stat_modifier + act.item_modifier)"></span>
+                          <span class="text-gray-400">=</span>
+                          <b class="text-white text-sm" x-text="act.dice_total"></b>
+                          <span class="text-gray-500 text-[10px]">vs DC <span x-text="act.dc"></span></span>
+                        </div>
+                        <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold"
+                              :class="{
+                                'bg-emerald-900 text-emerald-300': act.outcome_tier === 'success' || act.outcome_tier === 'critical_success',
+                                'bg-amber-900 text-amber-300': act.outcome_tier === 'partial_success',
+                                'bg-rose-900 text-rose-300': act.outcome_tier === 'failure' || act.outcome_tier === 'critical_failure'
+                              }"
+                              x-text="act.outcome_tier === 'critical_success' ? 'KRYTYK!' : act.outcome_tier === 'success' ? 'SUKCES' : act.outcome_tier === 'partial_success' ? 'CZĘŚCIOWY' : 'PORAŻKA'">
+                        </span>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Wyzwanie na kolejną turę -->
+              <div x-show="t.next_turn_prompt" class="mt-4 pt-3 border-t border-slate-800/80 flex items-start gap-2 text-xs text-amber-300/90 font-medium">
+                <span class="text-base">⚡</span>
+                <div>
+                  <span class="font-fantasy font-bold uppercase text-[11px] block text-amber-400">Wyzwanie od Mistrza Gry:</span>
+                  <p class="whitespace-pre-line leading-relaxed" x-text="t.next_turn_prompt"></p>
+                </div>
+              </div>
+            </article>
+          </template>
+        </div>
+
+        <!-- DOLNY PANEL AKCJI (ACTION BAR) -->
+        <div class="fantasy-card p-6 rounded-2xl border border-amber-900/50 sticky bottom-4 z-20 shadow-2xl backdrop-blur-lg">
+          
+          <!-- Stan przetwarzania tury przez Gemini -->
+          <div x-show="session?.is_turn_resolving" class="text-center py-6">
+            <div class="inline-flex items-center gap-3 px-6 py-3 rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-300 pulse-resolving">
+              <svg class="animate-spin h-5 w-5 text-amber-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+              <span class="font-fantasy text-sm font-bold tracking-wider">GEMINI MISTRZ GRY ROZSTRZYGA TURĘ...</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">Wszyscy gracze złożyli akcje. Czekamy na odpowiedź AI i podsumowanie konsekwencji.</p>
+          </div>
+
+          <!-- Gracz już złożył akcję i czeka -->
+          <div x-show="!session?.is_turn_resolving && hasSubmittedCurrentTurn" class="text-center py-4">
+            <div class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-950/60 border border-emerald-600/40 text-emerald-300 font-fantasy text-xs font-semibold">
+              <span>✓</span> TWOJA AKCJA ZOSTAŁA ZŁOŻONA NA TĘ TURĘ
+            </div>
+            <p class="text-xs text-gray-400 mt-2">
+              Oczekiwanie na resztę drużyny: 
+              <b class="text-amber-300"><span x-text="readyCount"></span> z <span x-text="totalAlivePlayers"></span></b> graczy gotowych.
+            </p>
+          </div>
+
+          <!-- Formularz złożenia akcji -->
+          <div x-show="!session?.is_turn_resolving && !hasSubmittedCurrentTurn">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs font-fantasy font-bold text-amber-300 tracking-wider flex items-center gap-1.5">
+                <span>⚔️</span> DEKLARACJA AKCJI BOHATERA (TURA #<span x-text="session?.current_turn_number"></span>)
+              </span>
+              <span class="text-xs text-gray-400">
+                Gotowi gracze: <b class="text-amber-400" x-text="readyCount + ' / ' + totalAlivePlayers"></b>
+              </span>
+            </div>
+
+            <!-- Sugestie szybkich akcji -->
+            <div class="flex flex-wrap gap-1.5 mb-3">
+              <button @click="setQuickAction('Atakuję wręcz z całą furią, celując w słaby punkt pancerza wroga.')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
+                ⚔️ Atak wręcz
+              </button>
+              <button @click="setQuickAction('Cofam się za osłonę i oddaję precyzyjny strzał z dystansu.')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
+                🏹 Strzał z dystansu
+              </button>
+              <button @click="setQuickAction('Splatając magiczne energie, rzucam zaklęcie ofensywne w stronę przeciwników.')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
+                ✨ Czar ofensywny
+              </button>
+              <button @click="setQuickAction('Wyciągam tarczę i zasłaniam sojusznika przed nadciągającym ciosem.')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
+                🛡️ Obrona sojusznika
+              </button>
+              <button @click="setQuickAction('Ostrożnie badam otoczenie w poszukiwaniu ukrytych mechanizmów lub słabych punktów komnaty.')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
+                🔍 Zwiad / Rozpoznanie
+              </button>
+            </div>
+
+            <div class="space-y-3">
+              <textarea x-model="actionText" rows="2" placeholder="Opisz dokładnie co zamierza zrobić Twoja postać... Silnik dedukuje atrybut i rzuci d20."
+                        class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 transition resize-none"></textarea>
+
+              <div x-show="actionError" x-text="actionError" class="text-xs text-rose-400"></div>
+
+              <button @click="submitAction()" :disabled="isSubmittingAction"
+                      class="w-full py-3 bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-500 text-slate-950 font-fantasy font-bold rounded-xl shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50">
+                <span x-show="!isSubmittingAction">ZATWIERDŹ AKCJĘ I RZUĆ KOŚCIĄ</span>
+                <span x-show="isSubmittingAction">ZAPISYWANIE...</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PRAWA KOLUMNA: KARTA POSTACI, DRUŻYNA & CZAT -->
+      <aside class="lg:col-span-4 space-y-6 lg:sticky lg:top-20">
+        
+        <!-- KARTA TWOJEJ POSTACI -->
+        <div class="fantasy-card p-6 rounded-2xl border border-amber-900/40">
+          <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
+            <div>
+              <h3 class="text-xl font-fantasy font-bold text-amber-300" x-text="currentCharacter?.name"></h3>
+              <p class="text-xs text-gray-400">
+                <span x-text="currentCharacter?.character_class"></span> • Poziom <b class="text-amber-400" x-text="currentCharacter?.level"></b>
+              </p>
+            </div>
+            <span class="px-2.5 py-1 rounded-full text-xs font-mono"
+                  :class="currentCharacter?.is_alive ? 'bg-emerald-950 border border-emerald-600/40 text-emerald-300' : 'bg-rose-950 border border-rose-600 text-rose-300'"
+                  x-text="currentCharacter?.is_alive ? 'ŻYWY' : 'POLEGŁY'">
+            </span>
+          </div>
+
+          <!-- Pasek Zdrowia (HP) -->
+          <div class="mb-4">
+            <div class="flex justify-between text-xs font-semibold mb-1">
+              <span class="text-red-400 flex items-center gap-1">❤️ Punkty Życia</span>
+              <span class="font-mono text-gray-300" x-text="currentCharacter?.current_hp + ' / ' + currentCharacter?.max_hp"></span>
+            </div>
+            <div class="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800 p-0.5">
+              <div class="hp-fill h-full rounded-full"
+                   :style="'width: ' + Math.max(0, Math.min(100, (currentCharacter?.current_hp / currentCharacter?.max_hp) * 100)) + '%'"></div>
+            </div>
+          </div>
+
+          <!-- Pasek Doświadczenia (XP) -->
+          <div class="mb-5">
+            <div class="flex justify-between text-xs font-semibold mb-1">
+              <span class="text-amber-400 flex items-center gap-1">⭐ Doświadczenie</span>
+              <span class="font-mono text-gray-300" x-text="currentCharacter?.xp + ' XP'"></span>
+            </div>
+            <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800 p-0.5">
+              <div class="xp-fill h-full rounded-full"
+                   :style="'width: ' + Math.min(100, ((currentCharacter?.xp % 500) / 500) * 100) + '%'"></div>
+            </div>
+          </div>
+
+          <!-- Atrybuty Postaci -->
+          <div class="mb-6">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 block mb-2">Atrybuty bazowe:</span>
+            <div class="grid grid-cols-2 gap-2">
+              <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 text-center">
+                <span class="text-[10px] text-gray-500 block uppercase">Siła (STR)</span>
+                <span class="text-base font-bold text-amber-300" x-text="'+' + currentCharacter?.strength"></span>
+              </div>
+              <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 text-center">
+                <span class="text-[10px] text-gray-500 block uppercase">Zręczność (AGI)</span>
+                <span class="text-base font-bold text-amber-300" x-text="'+' + currentCharacter?.agility"></span>
+              </div>
+              <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 text-center">
+                <span class="text-[10px] text-gray-500 block uppercase">Rozum (INT)</span>
+                <span class="text-base font-bold text-amber-300" x-text="'+' + currentCharacter?.intellect"></span>
+              </div>
+              <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 text-center">
+                <span class="text-[10px] text-gray-500 block uppercase">Charyzma (CHA)</span>
+                <span class="text-base font-bold text-amber-300" x-text="'+' + currentCharacter?.charisma"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Ekwipunek i Przedmioty -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Ekwipunek:</span>
+              <span class="text-[10px] text-gray-500" x-text="(currentCharacter?.inventory?.length || 0) + ' przedmiotów'"></span>
+            </div>
+
+            <div class="space-y-2 max-h-52 overflow-y-auto pr-1">
+              <template x-for="item in currentCharacter?.inventory || []" :key="item.id">
+                <div class="p-2.5 bg-slate-950/90 rounded-lg border flex items-center justify-between gap-2 text-xs"
+                     :class="item.is_equipped ? 'border-amber-500/50 bg-amber-950/10' : 'border-slate-800'">
+                  <div>
+                    <div class="flex items-center gap-1.5 font-medium text-gray-200">
+                      <span x-text="item.item_type === 'weapon' ? '🗡️' : item.item_type === 'armor' ? '🛡️' : item.item_type === 'consumable' ? '🧪' : '💍'"></span>
+                      <span x-text="item.name"></span>
+                    </div>
+                    <p class="text-[10px] text-gray-400" x-text="item.description"></p>
+                    <span x-show="item.stat_bonus > 0" class="text-[10px] text-amber-400 font-mono"
+                          x-text="'+' + item.stat_bonus + ' do ' + (item.target_stat === 'none' ? 'leczenia' : item.target_stat)"></span>
+                  </div>
+
+                  <div class="shrink-0 flex items-center gap-1">
+                    <template x-if="item.item_type === 'consumable'">
+                      <button @click="useItem(item.id)" class="px-2 py-1 bg-emerald-950 hover:bg-emerald-900 border border-emerald-600/50 text-emerald-300 rounded text-[10px] transition">
+                        Użyj
+                      </button>
+                    </template>
+                    <template x-if="item.item_type !== 'consumable'">
+                      <button @click="toggleEquip(item.id)" class="px-2 py-1 rounded text-[10px] transition"
+                              :class="item.is_equipped ? 'bg-amber-950/60 border border-amber-500/40 text-amber-300 hover:bg-amber-900' : 'bg-slate-800 border border-slate-700 text-gray-300 hover:bg-slate-700'"
+                              x-text="item.is_equipped ? 'Założony' : 'Załóż'">
+                      </button>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- CZAT DRUŻYNY (NARADA TAKTYCZNA PRZED AKCJĄ) -->
+        <div class="fantasy-card p-5 rounded-2xl border border-indigo-950/80 shadow-xl">
+          <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
+            <h4 class="text-xs font-fantasy font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-2">
+              <span>💬</span> CZAT DRUŻYNY (NARADA)
+            </h4>
+            <span class="text-[10px] text-gray-500">Na żywo</span>
+          </div>
+
+          <!-- Okno Wiadomości -->
+          <div id="chat-messages-container" class="h-48 overflow-y-auto space-y-2 pr-1 text-xs mb-3">
+            <template x-for="(msg, idx) in chatMessages" :key="idx">
+              <div class="p-2 rounded-lg bg-slate-950/70 border border-slate-800/80">
+                <div class="flex items-center justify-between text-[10px] mb-1">
+                  <span class="font-bold text-amber-300 font-fantasy" x-text="msg.author"></span>
+                  <div class="flex items-center gap-1.5 text-gray-500">
+                    <span class="bg-indigo-950 text-indigo-300 px-1 rounded text-[9px]" x-text="msg.character_class"></span>
+                    <span x-text="msg.time"></span>
+                  </div>
+                </div>
+                <p class="text-gray-300 leading-snug break-words" x-text="msg.text"></p>
+              </div>
+            </template>
+
+            <div x-show="chatMessages.length === 0" class="text-center py-8 text-gray-500 text-xs italic">
+              Narada milczy. Ustalcie plan działania przed złożeniem akcji na tę turę!
+            </div>
+          </div>
+
+          <!-- Szybkie Okrzyki -->
+          <div class="flex flex-wrap gap-1 mb-2">
+            <button @click="sendQuickChat('🛡️ Trzymajcie szyk! Ja przyjmuję pierwsze uderzenie.')" class="text-[10px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2 py-0.5 rounded transition">
+              🛡️ Trzymać szyk!
+            </button>
+            <button @click="sendQuickChat('✨ Przygotowuję potężne zaklęcie, dajcie mi chwilę!')" class="text-[10px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2 py-0.5 rounded transition">
+              ✨ Gotuję czar!
+            </button>
+            <button @click="sendQuickChat('🏹 Osłaniam was z tyłu, idźcie pierwsi!')" class="text-[10px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2 py-0.5 rounded transition">
+              🏹 Osłaniam was!
+            </button>
+          </div>
+
+          <!-- Pole wprowadzania -->
+          <form @submit.prevent="sendChatMessage()" class="flex gap-2">
+            <input type="text" x-model="chatInput" placeholder="Napisz do drużyny..."
+                   class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition">
+            <button type="submit" class="px-3 py-1.5 bg-indigo-900 hover:bg-indigo-800 text-indigo-200 rounded-lg text-xs font-fantasy font-bold transition">
+              Wyślij
+            </button>
+          </form>
+        </div>
+
+        <!-- STATUS DRUŻYNY (POZOSTALI GRACZE) -->
+        <div class="fantasy-card p-5 rounded-2xl border border-slate-800">
+          <h4 class="text-xs font-fantasy font-bold uppercase tracking-wider text-amber-300 mb-3 flex items-center gap-1.5">
+            <span>🛡️</span> DRUŻYNA PRZYGODY
+          </h4>
+          <div class="space-y-3">
+            <template x-for="p in session?.characters || []" :key="p.id">
+              <div class="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 flex items-center justify-between gap-3 text-xs">
+                <div>
+                  <div class="flex items-center gap-1.5 font-bold text-gray-200">
+                    <span x-text="p.name"></span>
+                    <span x-show="p.id === selectedCharacterId" class="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded">Ty</span>
+                  </div>
+                  <div class="text-[10px] text-gray-400">
+                    <span x-text="p.character_class"></span> • Lvl <span x-text="p.level"></span> • ❤️ <span x-text="p.current_hp + '/' + p.max_hp"></span>
+                  </div>
+                </div>
+
+                <div>
+                  <span class="px-2 py-1 rounded text-[10px] font-medium"
+                        :class="p.has_submitted_action ? 'bg-emerald-950/80 border border-emerald-600/40 text-emerald-300' : 'bg-amber-950/60 border border-amber-600/30 text-amber-300'"
+                        x-text="p.has_submitted_action ? '✓ Gotowy' : '⏳ Czeka...'">
+                  </span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <!-- ==================== MODAL: NAZWIJ ODKRYCIE (LORE NAMING) ==================== -->
+  <div x-show="showNamingModal && pendingNaming?.character_id === selectedCharacterId" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4" x-cloak>
+    <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-lg w-full border border-amber-500/60 shadow-2xl relative">
+      <div class="w-14 h-14 mx-auto mb-3 rounded-full bg-amber-500/20 border-2 border-amber-400 flex items-center justify-center text-3xl animate-bounce">
+        <span x-text="pendingNaming?.category === 'boss' ? '👑' : pendingNaming?.category === 'weapon' ? '🗡️' : pendingNaming?.category === 'location' ? '🏰' : '💥'"></span>
+      </div>
+
+      <h3 class="text-2xl font-fantasy font-bold text-amber-300 text-center mb-1">LOS WYBRAŁ CIEBIE!</h3>
+      <p class="text-xs text-center uppercase tracking-widest text-amber-400/80 mb-4" x-text="'Tworzenie Świata: ' + pendingNaming?.category"></p>
+
+      <div class="p-4 bg-slate-950/90 rounded-xl border border-slate-800 text-xs text-gray-300 mb-5 text-center italic">
+        „<span x-text="pendingNaming?.prompt"></span>”
+      </div>
+
+      <form @submit.prevent="submitEntityName()" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Wpisz trwałą nazwę</label>
+          <input type="text" x-model="namingInput" placeholder="np. Andrzej, Czarna Przełęcz, Pożeracz Dusz..." autofocus
+                 class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-white text-base font-fantasy placeholder-gray-500 focus:border-amber-500 focus:outline-none">
+          <span class="text-[10px] text-gray-400 mt-1 block">Ta nazwa zostanie zapamiętana przez Mistrza Gry i drużynę do końca przygody.</span>
+        </div>
+
+        <button type="submit" :disabled="isSubmittingNaming || !namingInput.trim()"
+                class="w-full py-3.5 bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-500 text-slate-950 font-fantasy font-bold rounded-xl shadow-lg transition disabled:opacity-50">
+          <span x-show="!isSubmittingNaming">ZATWIERDŹ NAZWĘ W KRONICE</span>
+          <span x-show="isSubmittingNaming">ZAPISYWANIE...</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: KRONIKA ŚWIATA (LORE BOOK) ==================== -->
+  <div x-show="showLoreBookModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
+    <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-2xl w-full border border-amber-900/50 shadow-2xl max-h-[85vh] flex flex-col">
+      <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
+        <h3 class="text-2xl font-fantasy font-bold text-amber-300 flex items-center gap-2">
+          <span>📜</span> KRONIKA ŚWIATA I NAZWANE LEGENDY
+        </h3>
+        <button @click="showLoreBookModal = false" class="text-gray-400 hover:text-white text-lg">✕</button>
+      </div>
+
+      <p class="text-xs text-gray-400 mb-4">Wszystkie elementy świata, potwory, lokacje i oręż, którym drużyna nadała własne miano:</p>
+
+      <div class="flex-1 overflow-y-auto space-y-3 pr-2">
+        <template x-for="ent in session?.lore_entities || []" :key="ent.id">
+          <div class="p-3.5 bg-slate-950/80 rounded-xl border border-slate-800 flex items-start gap-3">
+            <span class="text-2xl" x-text="ent.category === 'boss' ? '👑' : ent.category === 'weapon' ? '🗡️' : ent.category === 'location' ? '🏰' : '💥'"></span>
+            <div class="flex-1 text-xs">
+              <div class="flex items-center justify-between mb-1">
+                <h4 class="font-fantasy font-bold text-amber-300 text-sm" x-text="ent.custom_name"></h4>
+                <span class="text-[10px] uppercase font-mono text-gray-500" x-text="ent.category"></span>
+              </div>
+              <p class="text-gray-400 mb-1" x-text="ent.original_description"></p>
+              <span class="text-[10px] text-amber-500/80 font-mono" x-text="'Nazwał: ' + (ent.named_by_character_name || 'Bohater')"></span>
+            </div>
+          </div>
+        </template>
+
+        <div x-show="!session?.lore_entities || session?.lore_entities?.length === 0" class="text-center py-10 text-gray-500 text-xs italic">
+          Brak jeszcze nazwanych legend. Pojawią się w trakcie walk z bossami i odkrywania skarbów!
+        </div>
+      </div>
+
+      <!-- Szybkie Testowe Wywołanie Nazywania -->
+      <div class="pt-4 border-t border-slate-800 mt-4 flex items-center justify-between text-xs">
+        <span class="text-gray-500 text-[11px]">Chcesz sprawdzić jak to działa?</span>
+        <div class="flex gap-2">
+          <button @click="triggerManualNaming('boss', 'Ogromny trójgłowy demon lawy')" class="px-2.5 py-1 bg-red-950/60 hover:bg-red-900 border border-red-700/40 text-red-300 rounded transition text-[11px]">
+            👑 Test: Przyzwij Bossa
+          </button>
+          <button @click="triggerManualNaming('location', 'Zapomniana biblioteka wulkanicznych magów')" class="px-2.5 py-1 bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-700/40 text-indigo-300 rounded transition text-[11px]">
+            🏰 Test: Odkryj Lokację
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: TWORZENIE POSTACI ==================== -->
+  <div x-show="showCharModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
+    <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-lg w-full border border-amber-900/50 shadow-2xl relative">
+      <h3 class="text-2xl font-fantasy font-bold text-amber-300 mb-1">STWÓRZ BOHATERA</h3>
+      <p class="text-xs text-gray-400 mb-6">Wybierz klasę i rozdysponuj atrybuty (punkty modyfikatorów d20).</p>
+
+      <form @submit.prevent="createCharacter()" class="space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Twoje Imię (Gracz)</label>
+            <input type="text" x-model="newChar.player_name" placeholder="np. Tomek"
+                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Imię Postaci</label>
+            <input type="text" x-model="newChar.name" placeholder="np. Thorin Kamiennoręki"
+                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Archetyp / Klasa</label>
+          <select x-model="newChar.character_class" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none">
+            <option value="Wojownik">Wojownik (Start: Krasnoludzki Miecz + Zbroja)</option>
+            <option value="Łotrzyk">Łotrzyk (Start: Zatruty Sztylet + Wytrychy)</option>
+            <option value="Czarodziej">Czarodziej (Start: Runiczny Kostur + Amulet Ognia)</option>
+            <option value="Kleryk">Kleryk (Start: Srebrzysta Buława + Sygnet Wiary)</option>
+          </select>
+        </div>
+
+        <!-- Rozdział Atrybutów -->
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <label class="text-xs font-semibold text-amber-400/90 uppercase">Modyfikatory Atrybutów (0 do +4)</label>
+            <span class="text-xs font-bold" :class="statPointsRemaining >= 0 ? 'text-amber-400' : 'text-red-400'">
+              Pozostało punktów: <span x-text="statPointsRemaining"></span>
+            </span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-slate-950/90 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
+              <span class="text-xs text-gray-300">Siła (STR)</span>
+              <input type="number" min="0" max="4" x-model.number="newChar.strength" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
+            </div>
+            <div class="bg-slate-950/90 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
+              <span class="text-xs text-gray-300">Zręczność (AGI)</span>
+              <input type="number" min="0" max="4" x-model.number="newChar.agility" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
+            </div>
+            <div class="bg-slate-950/90 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
+              <span class="text-xs text-gray-300">Rozum (INT)</span>
+              <input type="number" min="0" max="4" x-model.number="newChar.intellect" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
+            </div>
+            <div class="bg-slate-950/90 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
+              <span class="text-xs text-gray-300">Charyzma (CHA)</span>
+              <input type="number" min="0" max="4" x-model.number="newChar.charisma" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
+            </div>
+          </div>
+        </div>
+
+        <div x-show="charError" x-text="charError" class="text-red-400 text-xs font-medium bg-red-950/40 p-2.5 rounded border border-red-800"></div>
+
+        <div class="flex gap-3 pt-3">
+          <button type="button" @click="showCharModal = false" class="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-gray-400 rounded-lg text-xs font-fantasy">
+            Anuluj
+          </button>
+          <button type="submit" :disabled="isCreatingChar || statPointsRemaining < 0"
+                  class="flex-1 py-2.5 bg-amber-600 hover:bg-amber-500 text-slate-950 rounded-lg text-xs font-fantasy font-bold transition disabled:opacity-50">
+            <span x-show="!isCreatingChar">POWOŁAJ DO ŻYCIA</span>
+            <span x-show="isCreatingChar">TWORZENIE...</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: GENERATOR KAMPANII & PROLOGU (AI) ==================== -->
+  <div x-show="showIntroModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
+    <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-xl w-full border border-amber-900/50 shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-2xl font-fantasy font-bold text-amber-300 flex items-center gap-2">
+          <span>✨</span> SCENARIUSZE GEMINI AI
+        </h3>
+        <button @click="showIntroModal = false" class="text-gray-400 hover:text-white text-lg">✕</button>
+      </div>
+      <p class="text-xs text-gray-400 mb-5">Wybierz motyw przygody. Możesz wygenerować natychmiastowy Prolog dla Zebranej Drużyny lub zresetować stół.</p>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Wybierz motyw / scenerię</label>
+          <select x-model="scenarioChoice" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none">
+            <option value="Krasnoludzka Twierdza opanowana przez demony ognia">Krasnoludzka Twierdza opanowana przez demony ognia</option>
+            <option value="Krypta Pradawnego Króla Lichów">Krypta Pradawnego Króla Lichów</option>
+            <option value="Nawiedzony Przeklęty Las Cieni">Nawiedzony Przeklęty Las Cieni</option>
+            <option value="Wieża Plugawego Nekromanty na Krwawym Wzgórzu">Wieża Plugawego Nekromanty na Krwawym Wzgórzu</option>
+            <option value="Wrak Widmowego Galeonu na Północnych Lodowcach">Wrak Widmowego Galeonu na Północnych Lodowcach</option>
+          </select>
+        </div>
+
+        <div class="flex gap-2">
+          <button @click="startPartyPrologue(); showIntroModal = false" :disabled="isGeneratingPrologue"
+                  class="flex-1 py-3 bg-amber-600 hover:bg-amber-500 text-slate-950 font-fantasy font-bold rounded-xl text-xs transition shadow-lg disabled:opacity-50">
+            <span x-show="!isGeneratingPrologue">⚔️ GENERUJ PROLOG DLA DRUŻYNY</span>
+            <span x-show="isGeneratingPrologue">GEMINI TWORZY PROLOG...</span>
+          </button>
+          <button @click="generateIntroAI()" :disabled="isGeneratingIntro"
+                  class="px-4 py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-gray-300 font-fantasy rounded-xl text-xs transition disabled:opacity-50">
+            Podgląd Zarysu
+          </button>
+        </div>
+
+        <!-- Podgląd zarysu -->
+        <div x-show="generatedIntro.title" class="p-4 bg-slate-950/80 rounded-xl border border-slate-800 text-xs space-y-2">
+          <h4 class="font-fantasy font-bold text-amber-300 text-sm" x-text="generatedIntro.title"></h4>
+          <p class="text-amber-500/90 font-mono text-[11px]" x-text="'Motyw: ' + generatedIntro.setting_theme"></p>
+          <p class="text-gray-300 italic" x-text="generatedIntro.campaign_intro"></p>
+          <p class="text-amber-400 font-semibold" x-text="'Pierwsze wyzwanie: ' + generatedIntro.first_challenge"></p>
+          <button @click="applyCampaignReset()" :disabled="isApplyingIntro"
+                  class="w-full py-2.5 mt-2 bg-red-950 hover:bg-red-900 border border-red-700/50 text-red-300 font-fantasy rounded-lg text-xs transition">
+            Zresetuj kampanię tym zarysem
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: LIGHTBOX DLA ILUSTRACJI ==================== -->
+  <div x-show="showLightbox" class="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 cursor-pointer" @click="showLightbox = false" x-cloak>
+    <div class="relative max-w-5xl w-full" @click.stop>
+      <button @click="showLightbox = false" class="absolute -top-10 right-0 text-white hover:text-amber-400 text-2xl font-bold">✕ Zamknij</button>
+      <img :src="lightboxImageUrl" alt="Powiększona ilustracja" class="w-full max-h-[85vh] object-contain rounded-xl shadow-2xl border border-amber-500/30">
+    </div>
+  </div>
+
+</body>
+</html>

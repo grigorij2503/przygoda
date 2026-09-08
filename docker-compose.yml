@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  ttrpg-game:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ttrpg-gemini-master
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./uploads:/app/uploads
+      - ./data:/app/data
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=sqlite+aiosqlite:////app/data/ttrpg_game.db
