@@ -15,6 +15,7 @@ async def setup_app_lifespan():
             if sess:
                 sess.is_turn_resolving = False
                 sess.current_turn_number = 1
+                sess.status = "in_progress"
                 # Wyczyść ewentualne postacie testowe z poprzednich uruchomień
                 c_res = await db.execute(select(Character).where(Character.name == "BohaterTestowy"))
                 for c in c_res.scalars().all():
@@ -22,7 +23,17 @@ async def setup_app_lifespan():
                 # Upewnij się, że tura 1 jest w stanie waiting_for_actions
                 t_res = await db.execute(select(Turn).where(Turn.session_id == sess.id, Turn.turn_number == 1))
                 turn1 = t_res.scalar_one_or_none()
-                if turn1:
+                if not turn1:
+                    turn1 = Turn(
+                        session_id=sess.id,
+                        turn_number=1,
+                        status="waiting_for_actions",
+                        gm_narration=sess.campaign_intro or "Wyprawa rozpoczęta",
+                        next_turn_prompt="Szkielety unoszą zardzewiałe miecze, a w ich pustych oczodołach płonie błękitny ogień. Co robicie?",
+                        suggested_actions=[]
+                    )
+                    db.add(turn1)
+                else:
                     turn1.status = "waiting_for_actions"
                 await db.commit()
             break

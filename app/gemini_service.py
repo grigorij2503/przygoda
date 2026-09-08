@@ -52,25 +52,38 @@ def clean_json_text(text: str) -> str:
     return text
 
 async def call_gemini_with_retry(client: genai.Client, contents: any, config: types.GenerateContentConfig, max_retries: int = 3):
-    """Wywołuje Gemini z zachowaniem wybranego modelu i ponawianiem próby przy błędach 503 / 429."""
+    """Wywołuje Gemini z rotacją modeli kandydatów i ponawianiem próby przy błędach 503 / 429."""
     config.automatic_function_calling = types.AutomaticFunctionCallingConfig(disable=True)
+    models_to_try = [settings.GEMINI_MODEL, getattr(settings, "GEMINI_FALLBACK_MODEL", "gemini-3.6-flash"), "gemini-3.8-flash", "gemini-3.6-flash"]
+    candidate_models = []
+    for m in models_to_try:
+        if m and m not in candidate_models:
+            candidate_models.append(m)
+
     last_err = None
-    for attempt in range(1, max_retries + 1):
-        try:
-            return client.models.generate_content(
-                model=settings.GEMINI_MODEL,
-                contents=contents,
-                config=config,
-            )
-        except Exception as e:
-            last_err = e
-            err_str = str(e).lower()
-            if ("503" in err_str or "unavailable" in err_str or "429" in err_str or "resource_exhausted" in err_str) and attempt < max_retries:
-                sleep_time = attempt * 1.5
-                logger.warning(f"Gemini API ({settings.GEMINI_MODEL}) chwilowo niedostępny (kod 503/429, próba {attempt}/{max_retries}). Ponawiam za {sleep_time}s...")
-                await asyncio.sleep(sleep_time)
-            else:
-                raise e
+    for model_name in candidate_models:
+        for attempt in range(1, max_retries + 1):
+            try:
+                return client.models.generate_content(
+                    model=model_name,
+                    contents=contents,
+                    config=config,
+                )
+            except Exception as e:
+                last_err = e
+                err_str = str(e).lower()
+                if "not_found" in err_str or "not found" in err_str or "404" in err_str:
+                    logger.warning(f"Model {model_name} nie istnieje lub brak dostępu (404). Próbuję kolejny model...")
+                    break  # Przejdź do kolejnego modelu z candidate_models
+                if ("503" in err_str or "unavailable" in err_str or "429" in err_str or "resource_exhausted" in err_str) and attempt < max_retries:
+                    sleep_time = attempt * 1.5
+                    logger.warning(f"Gemini API ({model_name}) chwilowo zajęty (próba {attempt}/{max_retries}). Ponawiam za {sleep_time}s...")
+                    await asyncio.sleep(sleep_time)
+                else:
+                    break
+        else:
+            continue
+        # Jeśli generate_content się powiodło, funkcja już zwróciła wynik. Jeśli wyszliśmy z pętli prób z sukcesem:
     raise last_err
 
 async def generate_party_prologue_ai(
@@ -265,20 +278,24 @@ async def resolve_turn_with_gemini(
         boss_info = f"\nAKTYWNY GŁÓWNY WRÓG / BOSS: {session.active_boss_title} o imieniu '{session.active_boss_name}' (HP: {session.active_boss_hp}/{session.active_boss_max_hp}). Pamiętaj, aby opisywać jego poczynania i odnosić się do niego pod tym imieniem!"
 
     system_instruction = (
-        "Jesteś surowym, bezstronnym i niezwykle immersyjnym Mistrzem Gry (Game Masterem) w mrocznym świecie Dark Fantasy TTRPG.\n"
-        "OTRZYMUJESZ WYNIKI DETERMINISTYCZNYCH RZUTÓW KOŚCIĄ D20 WYKONANYCH PRZEZ BEZSTRONNY SILNIK BACKENDU.\n"
-        "Twoim bezwzględnym obowiązkiem jest podporządkowanie fabuły i konsekwencji tym rzutom:\n"
-        "- critical_success (naturalne 20): Spektakularny sukces, premia, oszołomienie wroga lub znalezienie czegoś cennego.\n"
-        "- success (wynik >= DC): Pełne powodzenie zamiaru gracza.\n"
-        "- partial_success (wynik o 1-2 poniżej DC): Sukces z kosztem (cel osiągnięty, ale postać obrywa lekkie obrażenia, traci przedmiot lub zwraca uwagę potwora).\n"
-        "- failure (wynik poniżej DC): Porażka, nieudana próba, obrażenia dla gracza lub pogorszenie sytuacji taktycznej.\n"
-        "- critical_failure (naturalne 1): Katastrofalna porażka, poważne rany, upuszczenie broni lub krytyczna komplikacja.\n\n"
+        "Jesteś mistrzowskim, niezwykle immersyjnym Mistrzem Gry (Game Masterem) w mrocznym świecie Dark Fantasy RPG (stylistyka Wiedźmina, Dark Souls, Warhammera).\n"
+        "Twoim najwyższym priorytetem jest tworzenie wciągającej, kinowej fabuły, która bezlitośnie i bezpośrednio reaguje na KAŻDE słowo zadeklarowane przez graczy.\n\n"
+        "OTRZYMUJESZ WYNIKI DETERMINISTYCZNYCH RZUTÓW KOŚCIĄ D20 WYKONANYCH PRZEZ SILNIK BACKENDU DLA KAŻDEJ ZADEKLAROWANEJ AKCJI.\n\n"
+        "ZASADY FABULARNE MISTRZA GRY:\n"
+        "1. KONSEKWENCJE DECYZJI: Ściśle rozwijaj to, co zadeklarował gracz. "
+        "Jeśli gracz deklaruje ucieczkę ('uciekam', 'odwrót') – opisz dramatyczną ucieczkę, pościg w cieniach, czy udało się zerwać kontakt i jakie nowe fascynujące miejsce odkrył (np. zapomniana karczma na rozdrożach, zatęchła krypta, wąski zaułek w ruinach). "
+        "Jeśli gracz atakuje – opisz dynamikę starcia, dźwięk stali o kość, krew na pancerzu, rany i reakcję wroga. "
+        "Jeśli bada lub czaruje – opisz aurę, zapach ozonu, zgrzyt kamiennych płyt i odkryte tajemnice.\n"
+        "2. WYNIKI RZUTÓW: Bezwzględnie podporządkuj powodzenie zamiarów rzutom kości (critical_success, success, partial_success, failure, critical_failure).\n"
+        "3. STAN ZDROWIA I ZAGROŻENIA: W narracji wspominaj o stanie fizycznym bohaterów – ranach, krwawieniu, zmęczeniu, utracie tchu lub determinacji.\n"
+        "4. CIĄGŁOŚĆ OPOWIEŚCI: Nie twórz suchych raportów punktowych! Każda tura to żywy, emocjonujący fragment wciągającej powieści dark fantasy.\n\n"
         "ZASADY WYJŚCIA JSON:\n"
-        "1. gm_story_narration: Płynna, kinowa i mroczna narracja w języku polskim.\n"
-        "2. player_consequences: Dla KAŻDEGO gracza zwróć dokładny bilans: hp_delta (np. -4, +6, 0), xp_gained (50-120 XP), nowo znalezione przedmioty (new_items) lub zużyte (removed_item_names).\n"
-        "3. scene_image_prompt: Sugestywny prompt PO ANGIELSKU dla modelu Imagen 3 (Dark fantasy oil painting, gritty realism, atmospheric lighting).\n"
-        "4. next_turn_prompt: Nowa sytuacja i bezpośrednie wyzwanie rzucone drużynie na początek kolejnej tury.\n"
-        "5. naming_opportunity (opcjonalne): Jeśli w tej turze drużyna odkryła coś wyjątkowego – nowego groźnego wroga (boss), sekretne niezwykłe miejsce (location), potężny unikalny oręż (weapon) lub wykonała spektakularny wspólny atak dwóch graczy (attack) – wypełnij to pole, aby wyznaczony losowo gracz mógł nadać temu stałe imię/nazwę!"
+        "1. gm_story_narration: Głęboka, barwna i kinowa narracja Mistrza Gry w języku polskim podsumowująca akcje graczy i zmieniającą się sytuację (min. 3-5 soczystych zdań).\n"
+        "2. player_consequences: Dla KAŻDEGO gracza: individual_summary (fabularne podsumowanie jego losu), hp_delta (utracone/odzyskane HP), xp_gained (50-120 XP), new_items, removed_item_names.\n"
+        "3. next_turn_prompt: Nowa sytuacja fabularna i konkretne, bezpośrednie wyzwanie rzucone drużynie na otwarcie kolejnej tury (zawsze kończące się pytaniem 'Co robicie?').\n"
+        "4. suggested_actions: Dokładnie 3 zróżnicowane i konkretne ścieżki działania na otwarcie kolejnej tury dopasowane do NOWEJ sytuacji.\n"
+        "5. scene_image_prompt: Sugestywny prompt po angielsku dla Imagen 3 (Dark fantasy oil painting, gritty realism, atmospheric lighting, cinematic composition).\n"
+        "6. naming_opportunity (opcjonalne): Jeśli w tej turze drużyna odkryła coś wyjątkowego (nowy wróg, sekretne miejsce, oręż, unikalny manewr).\n"
         f"{boss_info}"
     )
 
@@ -293,80 +310,10 @@ async def resolve_turn_with_gemini(
     }
 
     if not client:
-        # Dynamiczny, bogaty fallback offline
-        logger.info("Brak klucza GEMINI_API_KEY – używam silnika symulacji fabuły offline.")
-        consequences = []
-        narrative_parts = []
+        logger.info("Brak klienta Gemini API – używam inteligentnej symulacji fabularnej offline.")
+        return _generate_rich_offline_resolution(session, turn, actions_with_rolls, characters)
 
-        for a in actions_with_rolls:
-            cid = a["character_id"]
-            name = a["character_name"]
-            tier = a["outcome_tier"]
-            total = a["dice_total"]
-            stat = a["tested_stat"]
-
-            if tier == "critical_success":
-                hp_delta = 0
-                xp = 120
-                desc = f"{name} wykonuje mistrzowski manewr! Rzut d20 dał naturalne 20 (suma {total}). Przeciwnicy cofają się w popłochu."
-            elif tier == "success":
-                hp_delta = 0
-                xp = 80
-                desc = f"{name} z powodzeniem realizuje swój zamiar (test {stat}: {total} vs DC {a['dc']}). Akcja zakończona pełnym sukcesem."
-            elif tier == "partial_success":
-                hp_delta = -3
-                xp = 60
-                desc = f"{name} osiąga cel, lecz chwila zawahania kosztuje 3 HP (test {stat}: {total} vs DC {a['dc']})."
-            elif tier == "critical_failure":
-                hp_delta = -8
-                xp = 40
-                desc = f"Katastrofalny błąd {name}! Naturalne 1 na kości. Broń wyślizguje się z dłoni, a cios wroga rani postać za 8 HP."
-            else:
-                hp_delta = -5
-                xp = 50
-                desc = f"Akcja {name} nie powiodła się (wynik {total} vs DC {a['dc']}). Wróg wykorzystuje lukę w obronie, zadając 5 obrażeń."
-
-            narrative_parts.append(desc)
-            consequences.append(PlayerConsequenceSchema(
-                character_id=cid,
-                individual_summary=desc,
-                hp_delta=hp_delta,
-                xp_gained=xp,
-                new_items=[
-                    NewItemSchema(
-                        name="Starożytny Sztylet Cienia",
-                        description="Błyszczący runami odłamek czarnego kamienia",
-                        item_type="weapon",
-                        target_stat="agility",
-                        stat_bonus=1
-                    )
-                ] if tier in ["critical_success"] else [],
-                removed_item_names=[]
-            ))
-
-        full_narrative = (
-            f"Tura {turn.turn_number} dobiegła końca. " + " ".join(narrative_parts) +
-            " Echo walki cichnie pośród zimnych sklepień, lecz w powietrzu wciąż czuć zapach niebezpieczeństwa."
-        )
-
-        # W turze 2 zasymuluj okazję do nazwania bossa
-        naming_opp = None
-        if turn.turn_number == 2 and not session.active_boss_name:
-            naming_opp = NamingOpportunitySchema(
-                category="boss",
-                description="Olbrzymi wódz demonów w napierśniku ze stopionej miedzi",
-                prompt_for_player="Pradawna bestia wyłania się z lawy. Jak nazwiesz tego potężnego wroga?"
-            )
-
-        return GeminiTurnResolutionSchema(
-            gm_story_narration=full_narrative,
-            player_consequences=consequences,
-            scene_image_prompt=f"Dark fantasy oil painting of adventurers fighting inside {session.title}, torchlight, cinematic shadows, gritty texture",
-            next_turn_prompt="Dym opada, a z głębi korytarza wyłania się kolejna przeszkoda. Jak reagujecie?",
-            naming_opportunity=naming_opp
-        )
-
-    # Zapytanie do Gemini API z ponawianiem próby
+    # Zapytanie do Gemini API z rotacją modeli i ponawianiem próby
     try:
         response = await call_gemini_with_retry(
             client=client,
@@ -375,73 +322,151 @@ async def resolve_turn_with_gemini(
                 system_instruction=system_instruction,
                 response_mime_type="application/json",
                 response_schema=GeminiTurnResolutionSchema,
-                temperature=0.7,
+                temperature=0.75,
             )
         )
         cleaned = clean_json_text(response.text)
         data = json.loads(cleaned)
         return GeminiTurnResolutionSchema(**data)
-    except (httpx.NetworkError, ConnectionError, OSError) as e:
-        # Błąd sieciowy (brak internetu, DNS, timeout) – fallback offline
-        logger.warning(f"Brak połączenia z Gemini API ({e}). Przełączam na symulację offline.")
     except Exception as e:
-        # Inne błędy API (np. 503, 429) które nie zostały obsłużone przez retry
-        logger.error(f"Krytyczny błąd wywołania Gemini API dla tury: {e}")
-        raise e
+        logger.warning(f"Gemini API niedostępne ({type(e).__name__}: {e}). Przełączam na dynamiczną symulację offline.")
+        return _generate_rich_offline_resolution(session, turn, actions_with_rolls, characters)
 
-    # --- Fallback offline (po złapaniu wyjątku sieciowego) ---
-    logger.info("Używam silnika symulacji fabuły offline (fallback po błędzie sieci).")
+def _generate_rich_offline_resolution(
+    session: GameSession,
+    turn: Turn,
+    actions_with_rolls: List[dict],
+    characters: List[Character]
+) -> GeminiTurnResolutionSchema:
+    """Generuje dynamiczną, wciągającą fabularnie narrację offline reagującą na akcje graczy."""
     consequences = []
-    narrative_parts = []
+    story_beats = []
 
     for a in actions_with_rolls:
         cid = a["character_id"]
         name = a["character_name"]
         tier = a["outcome_tier"]
-        total = a["dice_total"]
-        stat = a["tested_stat"]
+        act_text = (a.get("action_text") or "").lower()
+
+        is_escape = any(w in act_text for w in ["uciek", "odwrót", "spierdal", "bieg", "wycof", "kryj"])
+        is_attack = any(w in act_text for w in ["atak", "tnę", "miecz", "cios", "strzał", "wal", "zabij", "uderz", "topór", "łuk"])
+        is_search = any(w in act_text for w in ["szukam", "badam", "zwiad", "rozgląd", "otwier", "sprawdz"])
+        is_magic = any(w in act_text for w in ["czar", "magi", "zaklę", "lecz", "płomie", "aur", "tarcz"])
 
         if tier == "critical_success":
             hp_delta = 0
             xp = 120
-            desc = f"{name} wykonuje mistrzowski manewr! Rzut d20 dał naturalne 20 (suma {total}). Przeciwnicy cofają się w popłochu."
+            if is_escape:
+                desc = f"{name} wykonuje brawurowy odwrót! Zręcznie gubi pościg w labiryncie korytarzy i przez wyłamane dębowe wrota wpada wprost do starej, ukrytej podziemiach karczmy, gdzie tli się jeszcze bezpieczny kominek!"
+            elif is_attack:
+                desc = f"{name} wyprowadza morderczy cios! Naturalne 20 na kości. Ostrze przeszywa czuły punkt pancerza wroga, rzucając bestię na kolana w strugach czarnej posoki."
+            elif is_search:
+                desc = f"{name} odnajduje sekretne przejście w litej skale oraz schowek skrywający starożytny oręż!"
+            elif is_magic:
+                desc = f"Zaklęcie {name} eksploduje potężną falą czystej energii, odrzucając wrogów na kamienne filary i rozświetlając mrok jaskrawym blaskiem!"
+            else:
+                desc = f"{name} z mistrzowską precyzją realizuje swój zamysł, zyskując absolutną przewagę i oszałamiając przeciwników."
         elif tier == "success":
             hp_delta = 0
             xp = 80
-            desc = f"{name} z powodzeniem realizuje swój zamiar (test {stat}: {total} vs DC {a['dc']}). Akcja zakończona pełnym sukcesem."
+            if is_escape:
+                desc = f"{name} bierze nogi za pas! Przeskakując nad gruzami i gasnącymi pochodniami, urywa się pościgowi i znajduje bezpieczną osłonę za ciężkimi wrotami dawnej strażnicy."
+            elif is_attack:
+                desc = f"{name} trafia z impetem w cel! Przeciwnik chwieje się pod naporem ciosu, a jego gardłowy ryk bólu odbija się echem od sklepienia. Inicjatywa należy do was."
+            elif is_search:
+                desc = f"{name} dostrzega ślady świeżej krwi oraz bezpieczną ścieżkę omijającą zdradliwe zapadnie."
+            elif is_magic:
+                desc = f"Magia spleciona przez {name} bezbłędnie dosięga celu, spowijając pole walki osłabiającą wrogów aurą."
+            else:
+                desc = f"{name} zdecydowanym ruchem osiąga cel akcji, pewnie panując nad sytuacją."
         elif tier == "partial_success":
             hp_delta = -3
             xp = 60
-            desc = f"{name} osiąga cel, lecz chwila zawahania kosztuje 3 HP (test {stat}: {total} vs DC {a['dc']})."
+            if is_escape:
+                desc = f"{name} wyrywa się ze szponów wroga, lecz ostry odłamek skały rozcina mu ramię (-3 HP). Krwawiąc, dociera do nowego korytarza, słysząc za plecami wściekłe wycie pościgu."
+            elif is_attack:
+                desc = f"{name} rani wroga, lecz sam nadziewa się na rozpaczliwy kontratak (-3 HP). Ostrze ześlizguje się po napierśniku, zostawiając bolesne cięcie."
+            else:
+                desc = f"{name} dopina swego, lecz chwila dekoncentracji kosztuje 3 punkty życia w starciu z bezlitosnym otoczeniem."
         elif tier == "critical_failure":
             hp_delta = -8
             xp = 40
-            desc = f"Katastrofalny błąd {name}! Naturalne 1 na kości. Broń wyślizguje się z dłoni, a cios wroga rani postać za 8 HP."
+            if is_escape:
+                desc = f"Katastrofalny bieg! {name} potyka się o rumowisko i z impetem uderza o granit (-8 HP). Z trudem łapie dech, podczas gdy potwory zaciskają pierścień okrążenia!"
+            elif is_attack:
+                desc = f"Krytyczna pomyłka {name}! Broń grzęźnie w kamiennym filarze, a potężne uderzenie wroga łamie żebra (-8 HP) i ciska postacią o ścianę."
+            else:
+                desc = f"Fatalny zbieg okoliczności obraca zamiar {name} w ruinę, a bestie bezlitośnie zadają 8 obrażeń."
         else:
             hp_delta = -5
             xp = 50
-            desc = f"Akcja {name} nie powiodła się (wynik {total} vs DC {a['dc']}). Wróg wykorzystuje lukę w obronie, zadając 5 obrażeń."
+            if is_escape:
+                desc = f"Droga ucieczki zostaje odcięta! Przeciwnik zastępuje drogę {name}, tnąc bez wahania za 5 HP i zmuszając do obrony w ciasnym narożniku."
+            elif is_attack:
+                desc = f"Cios {name} przecina próżnię. Wróg błyskawicznie kontratakuje z flanki, zadając 5 obrażeń."
+            else:
+                desc = f"Próba {name} kończy się niepowodzeniem. Postać traci 5 HP i zostaje zepchnięta do defensywy."
 
-        narrative_parts.append(desc)
+        story_beats.append(desc)
         consequences.append(PlayerConsequenceSchema(
             character_id=cid,
             individual_summary=desc,
             hp_delta=hp_delta,
             xp_gained=xp,
-            new_items=[],
+            new_items=[
+                NewItemSchema(
+                    name="Starożytny Sztylet Cienia",
+                    description="Błyszczący runami odłamek czarnego kamienia",
+                    item_type="weapon",
+                    target_stat="agility",
+                    stat_bonus=1
+                )
+            ] if tier == "critical_success" else [],
             removed_item_names=[]
         ))
 
     full_narrative = (
-        f"Tura {turn.turn_number} dobiegła końca. " + " ".join(narrative_parts) +
-        " Echo walki cichnie pośród zimnych sklepień, lecz w powietrzu wciąż czuć zapach niebezpieczeństwa."
+        f"Rozstrzygnięcie wydarzeń Tury #{turn.turn_number}:\n\n" +
+        "\n\n".join(story_beats) +
+        "\n\nPowietrze gęstnieje od pyłu i zapachu żelaza. Wasze oddechy są ciężkie, a stan zdrowia przypomina o brutalności tego świata. Sytuacja uległa gwałtownej zmianie!"
     )
+
+    next_challenge = (
+        "Z mroku wyłaniają się nowe zarysy – metaliczny szczęk, gasnące pochodnie i echo kroków w głębi traktu. "
+        "Wasze pozycje uległy zmianie, a czas na reakcję kurczy się nieubłaganie. Co robicie dalej?"
+    )
+
+    suggested = [
+        "⚔️ Natarcie bezpośrednie z wykorzystaniem impetu i osłabienia przeciwnika",
+        "🛡️ Przegrupowanie, osłona rannych i przygotowanie pozycji obronnej",
+        "🔍 Wykorzystanie nowego otoczenia, zbadanie przejścia lub manewr z flanki"
+    ]
+
+    naming_opp = None
+    if turn.turn_number == 2 and not session.active_boss_name:
+        naming_opp = NamingOpportunitySchema(
+            category="boss",
+            description="Olbrzymi czempion ciemności o płonących ślepiach i okutym runami toporze",
+            prompt_for_player="Pradawna bestia staje na waszej drodze. Jak nazwiesz tego potężnego wroga?"
+        )
 
     return GeminiTurnResolutionSchema(
         gm_story_narration=full_narrative,
         player_consequences=consequences,
+        scene_image_prompt=f"Dark fantasy oil painting of adventurers inside {session.title}, cinematic shadows, gritty texture",
+        next_turn_prompt=next_challenge,
+        suggested_actions=suggested,
+        naming_opportunity=naming_opp
+    )
+        gm_story_narration=full_narrative,
+        player_consequences=consequences,
         scene_image_prompt=f"Dark fantasy oil painting of adventurers fighting inside {session.title}, torchlight, cinematic shadows, gritty texture",
         next_turn_prompt="Dym opada, a z głębi korytarza wyłania się kolejna przeszkoda. Jak reagujecie?",
+        suggested_actions=[
+            "⚔️ Natarcie bezpośrednie i próba przełamania wroga",
+            "🏹 Przegrupowanie na bezpieczną pozycję i osłona sojuszników",
+            "🔮 Użycie mikstur, magii ochronnej lub analiza słabości przeciwnika"
+        ],
         naming_opportunity=None
     )
 

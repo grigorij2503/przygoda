@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -13,6 +13,7 @@ class GameSession(Base):
     campaign_intro = Column(Text, default="")
     current_turn_number = Column(Integer, default=1)
     is_turn_resolving = Column(Boolean, default=False)
+    status = Column(String(50), default="in_progress")  # "lobby", "in_progress"
     active_boss_name = Column(String(100), nullable=True)
     active_boss_title = Column(String(150), nullable=True)
     active_boss_hp = Column(Integer, nullable=True)
@@ -47,6 +48,7 @@ class Character(Base):
     intellect = Column(Integer, default=1)
     charisma = Column(Integer, default=0)
     is_alive = Column(Boolean, default=True)
+    is_ready = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     session = relationship("GameSession", back_populates="characters")
@@ -79,6 +81,7 @@ class Turn(Base):
     status = Column(String(50), default="waiting_for_actions")  # waiting_for_actions, resolving, completed
     gm_narration = Column(Text, default="")
     next_turn_prompt = Column(Text, default="")
+    suggested_actions = Column(JSON, default=list)
     image_prompt = Column(Text, default="")
     image_url = Column(String(500), nullable=True)
     is_generating_image = Column(Boolean, default=False)
@@ -96,13 +99,13 @@ class PlayerAction(Base):
     turn_id = Column(Integer, ForeignKey("turns.id", ondelete="CASCADE"), nullable=False)
     character_id = Column(Integer, ForeignKey("characters.id", ondelete="CASCADE"), nullable=False)
     action_text = Column(Text, nullable=False)
-    tested_stat = Column(String(50), default="strength")
-    dice_roll_raw = Column(Integer, default=10)
-    stat_modifier = Column(Integer, default=0)
-    item_modifier = Column(Integer, default=0)
-    dice_total = Column(Integer, default=10)
-    dc = Column(Integer, default=12)
-    outcome_tier = Column(String(50), default="success")  # critical_success, success, partial_success, failure, critical_failure
+    tested_stat = Column(String(50), nullable=True, default=None)
+    dice_roll_raw = Column(Integer, nullable=True, default=None)
+    stat_modifier = Column(Integer, nullable=True, default=None)
+    item_modifier = Column(Integer, nullable=True, default=None)
+    dice_total = Column(Integer, nullable=True, default=None)
+    dc = Column(Integer, nullable=True, default=None)
+    outcome_tier = Column(String(50), nullable=True, default=None)  # critical_success, success, partial_success, failure, critical_failure
     gm_individual_summary = Column(Text, default="")
     submitted_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 

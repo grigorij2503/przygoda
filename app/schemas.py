@@ -62,11 +62,15 @@ class CharacterDto(BaseModel):
     intellect: int
     charisma: int
     is_alive: bool
+    is_ready: bool = False
     inventory: List[InventoryItemDto] = []
 
     model_config = ConfigDict(from_attributes=True)
 
 # --- Actions & Turns ---
+class ResolveTurnRequest(BaseModel):
+    room_code: str = "kampania-1"
+
 class SubmitActionRequest(BaseModel):
     character_id: int
     action_text: str
@@ -76,14 +80,14 @@ class PlayerActionDto(BaseModel):
     character_id: int
     character_name: str
     action_text: str
-    tested_stat: str
-    dice_roll_raw: int
-    stat_modifier: int
-    item_modifier: int
-    dice_total: int
-    dc: int
-    outcome_tier: str
-    gm_individual_summary: str
+    tested_stat: Optional[str] = None
+    dice_roll_raw: Optional[int] = None
+    stat_modifier: Optional[int] = None
+    item_modifier: Optional[int] = None
+    dice_total: Optional[int] = None
+    dc: Optional[int] = None
+    outcome_tier: Optional[str] = None
+    gm_individual_summary: Optional[str] = ""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -93,6 +97,7 @@ class TurnDto(BaseModel):
     status: str
     gm_narration: str
     next_turn_prompt: str
+    suggested_actions: List[str] = []
     image_url: Optional[str] = None
     is_generating_image: bool
     actions: List[PlayerActionDto] = []
@@ -127,6 +132,10 @@ class GeminiTurnResolutionSchema(BaseModel):
     player_consequences: List[PlayerConsequenceSchema] = Field(description="Szczegółowe skutki mechaniczne i fabularne dla każdego gracza")
     scene_image_prompt: str = Field(description="Precyzyjny prompt w języku angielskim dla modelu Imagen 3 przedstawiający scenę tury (Dark Fantasy oil painting)")
     next_turn_prompt: str = Field(description="Sytuacja wyjściowa i wyzwanie na otwarcie kolejnej tury")
+    suggested_actions: List[str] = Field(
+        default_factory=list,
+        description="Dokładnie 3 konkretne, zróżnicowane podpowiedzi taktyczne lub ścieżki działania dla drużyny na kolejną turę (np. natarcie/siła, spryt/flanka, wiedza/magia)"
+    )
     naming_opportunity: Optional[NamingOpportunitySchema] = Field(default=None, description="Opcjonalna okazja do nazwania nowego bossa, niezwykłej lokacji, potężnej broni lub ataku zespołowego przez gracza")
 
 class GenerateImageRequest(BaseModel):
@@ -152,6 +161,11 @@ class NamedLoreEntityDto(BaseModel):
     is_active: bool
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+class SetupScenarioRequest(BaseModel):
+    room_code: str = "kampania-1"
+    scenario_type: str = "Krasnoludzka Twierdza opanowana przez demony ognia"
+    tone: Optional[str] = "Dark Fantasy, brutalne i tajemnicze"
 
 class PrologueRequest(BaseModel):
     room_code: str = "kampania-1"

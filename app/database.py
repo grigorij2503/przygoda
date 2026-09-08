@@ -41,6 +41,9 @@ async def init_db():
             ("game_sessions", "pending_naming_prompt", "TEXT"),
             ("game_sessions", "pending_naming_character_id", "INTEGER"),
             ("game_sessions", "pending_naming_character_name", "VARCHAR(100)"),
+            ("game_sessions", "status", "VARCHAR(50)"),
+            ("characters", "is_ready", "BOOLEAN"),
+            ("turns", "suggested_actions", "TEXT"),
         ]
         for table, col, col_type in new_columns:
             try:

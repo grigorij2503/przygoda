@@ -18,6 +18,8 @@ document.addEventListener('alpine:init', () => {
     actionError: '',
     turnError: '',
     isRetryingTurn: false,
+    isResolvingTurn: false,
+    isEditingSubmittedAction: false,
 
     // Modals
     showCharModal: false,
@@ -105,9 +107,7 @@ document.addEventListener('alpine:init', () => {
         this.isAuthenticated = true;
         localStorage.setItem('rpg_room_pw', this.roomPassword);
         await this.fetchSession();
-        if (this.selectedCharacterId) {
-          this.initWebSocket();
-        }
+        this.initWebSocket();
       } catch (err) {
         if (!isAuto) this.authError = err.message;
         this.isAuthenticated = false;
@@ -195,6 +195,7 @@ document.addEventListener('alpine:init', () => {
     },
 
     get hasSubmittedCurrentTurn() {
+      if (this.isEditingSubmittedAction) return false;
       if (!this.session || !this.selectedCharacterId) return false;
       const curTurn = this.session.turns.find(t => t.turn_number === this.session.current_turn_number);
       if (!curTurn) return false;
@@ -213,6 +214,29 @@ document.addEventListener('alpine:init', () => {
       return this.session.characters.filter(c => c.is_alive).length;
     },
 
+    get isCurrentCharacterReady() {
+      if (!this.currentCharacter) return false;
+      return Boolean(this.currentCharacter.is_ready);
+    },
+
+    get lobbyAliveCharacters() {
+      if (!this.session?.characters) return [];
+      return this.session.characters.filter(c => c.is_alive);
+    },
+
+    get lobbyReadyCount() {
+      return this.lobbyAliveCharacters.filter(c => c.is_ready).length;
+    },
+
+    get allLobbyCharactersReady() {
+      const chars = this.lobbyAliveCharacters;
+      return chars.length > 0 && chars.every(c => c.is_ready);
+    },
+
+    get unreadyCharacterNames() {
+      return this.lobbyAliveCharacters.filter(c => !c.is_ready).map(c => c.name);
+    },
+
     get statPointsRemaining() {
       const sum = Number(this.newChar.strength) + Number(this.newChar.agility) + Number(this.newChar.intellect) + Number(this.newChar.charisma);
       return 4 - sum;
@@ -220,13 +244,14 @@ document.addEventListener('alpine:init', () => {
 
     // --- WebSockets ---
     initWebSocket() {
-      if (!this.session || !this.selectedCharacterId) return;
+      if (!this.session) return;
+      const charId = this.selectedCharacterId || 0;
       if (this.ws) {
         try { this.ws.close(); } catch (e) {}
       }
 
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws/${this.session.session_id}/${this.selectedCharacterId}`;
+      const wsUrl = `${protocol}//${window.location.host}/ws/${this.session.session_id}/${charId}`;
 
       this.ws = new WebSocket(wsUrl);
 
@@ -297,6 +322,21 @@ document.addEventListener('alpine:init', () => {
           await this.fetchSession();
           break;
 
+        case 'LOBBY_STARTED':
+          this.addToast(`🏰 Mistrz Gry otworzył Zbiórkę Drużyny dla nowego scenariusza: ${msg.title}!`, 'info');
+          await this.fetchSession();
+          break;
+
+        case 'CHARACTER_READY_TOGGLED':
+          this.addToast(
+            msg.is_ready 
+              ? `✓ Bohater ${msg.character_name} jest gotowy do drogi!`
+              : `⏳ Bohater ${msg.character_name} jeszcze się naradza...`,
+            msg.is_ready ? 'success' : 'info'
+          );
+          await this.fetchSession();
+          break;
+
         case 'PROLOGUE_STARTED':
           this.addToast('⚔️ Mistrz Gry Gemini wygłosił Prolog dla Zebranej Drużyny!', 'success');
           await this.fetchSession();
@@ -311,14 +351,23 @@ document.addEventListener('alpine:init', () => {
           await this.fetchSession();
           break;
 
+        case 'ALL_PLAYERS_READY':
+          this.addToast('⚔️ Wszyscy gracze zatwierdzili akcje! Można wygenerować kolejną turę.', 'success');
+          await this.fetchSession();
+          break;
+
         case 'TURN_RESOLVING':
           this.turnError = '';
+          this.isResolvingTurn = true;
+          this.isEditingSubmittedAction = false;
           this.addToast(msg.message, 'warning');
           if (this.session) this.session.is_turn_resolving = true;
           break;
 
         case 'TURN_COMPLETED':
           this.turnError = '';
+          this.isResolvingTurn = false;
+          this.isEditingSubmittedAction = false;
           this.addToast(`Tura #${msg.completed_turn_number} zakończona! Mistrz Gry wydał werdykt.`, 'success');
           this.actionText = '';
           await this.fetchSession();
@@ -441,7 +490,7 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
-    // --- Prolog Drużyny ---
+    // --- Prolog Drużyny & Lobby ---
     async startPartyPrologue() {
       this.isGeneratingPrologue = true;
       try {
@@ -454,13 +503,55 @@ document.addEventListener('alpine:init', () => {
             tone: this.scenarioTone
           })
         });
-        if (!res.ok) throw new Error('Nie udało się wygenerować prologu.');
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Nie udało się wygenerować prologu.');
+        }
         await this.fetchSession();
-        this.addToast('Prolog dla Zebranej Drużyny wygenerowany pomyślnie!', 'success');
+        this.addToast('⚔️ Przygoda rozpoczęta! Prolog wygłoszony.', 'success');
       } catch (err) {
         this.addToast(err.message, 'error');
       } finally {
         this.isGeneratingPrologue = false;
+      }
+    },
+
+    async toggleReady() {
+      if (!this.selectedCharacterId) {
+        this.addToast('Wybierz lub stwórz postać, by oznaczyć gotowość!', 'warning');
+        return;
+      }
+      try {
+        const res = await fetch(`/api/characters/${this.selectedCharacterId}/toggle-ready`, {
+          method: 'POST'
+        });
+        if (!res.ok) throw new Error('Błąd zmiany statusu gotowości.');
+        await this.fetchSession();
+      } catch (err) {
+        this.addToast(err.message, 'error');
+      }
+    },
+
+    async setupScenarioLobby() {
+      this.isGeneratingIntro = true;
+      try {
+        const res = await fetch('/api/session/setup-scenario', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            room_code: this.roomCode,
+            scenario_type: this.scenarioChoice,
+            tone: this.scenarioTone
+          })
+        });
+        if (!res.ok) throw new Error('Błąd inicjowania poczekalni.');
+        this.showIntroModal = false;
+        this.addToast('🏰 Otwarto Zbiórkę Drużyny dla nowego scenariusza!', 'success');
+        await this.fetchSession();
+      } catch (err) {
+        this.addToast(err.message, 'error');
+      } finally {
+        this.isGeneratingIntro = false;
       }
     },
 
@@ -544,7 +635,12 @@ document.addEventListener('alpine:init', () => {
           throw new Error(errData.detail || 'Nie udało się złożyć akcji.');
         }
         const data = await res.json();
-        this.addToast(`Akcja zatwierdzona! Oczekujemy na resztę drużyny (${data.ready_count}/${data.total_players}).`, 'success');
+        this.isEditingSubmittedAction = false;
+        if (data.ready_count >= data.total_players && data.total_players > 0) {
+          this.addToast(`Wszyscy gracze (${data.ready_count}/${data.total_players}) zatwierdzili akcje! Możesz teraz wygenerować kolejną turę.`, 'success');
+        } else {
+          this.addToast(`Akcja zatwierdzona! Oczekujemy na resztę drużyny (${data.ready_count}/${data.total_players}).`, 'success');
+        }
         await this.fetchSession();
       } catch (err) {
         this.actionError = err.message;
@@ -553,8 +649,56 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
+    // --- Ręczne rozstrzyganie tury ---
+    async triggerTurnResolution() {
+      if (this.session?.is_turn_resolving || this.isResolvingTurn) return;
+      this.isResolvingTurn = true;
+      try {
+        const res = await fetch('/api/session/resolve-turn', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room_code: this.roomCode })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.detail || 'Błąd rozstrzygania tury.');
+        }
+        this.addToast('⚔️ Mistrz Gry rozstrzyga turę! Rzut kośćmi i generowanie fabuły w toku...', 'info');
+      } catch (err) {
+        this.addToast(err.message, 'error');
+      } finally {
+        this.isResolvingTurn = false;
+      }
+    },
+
+    editCurrentAction() {
+      const curTurn = this.session?.turns?.find(t => t.turn_number === this.session?.current_turn_number);
+      if (curTurn) {
+        const myAction = curTurn.actions?.find(a => a.character_id === this.selectedCharacterId);
+        if (myAction) {
+          this.actionText = myAction.action_text;
+        }
+      }
+      this.isEditingSubmittedAction = true;
+      this.$nextTick(() => {
+        const textarea = document.querySelector('textarea[x-model="actionText"]');
+        if (textarea) {
+          textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          textarea.focus();
+        }
+      });
+    },
+
     setQuickAction(text) {
       this.actionText = text;
+      this.$nextTick(() => {
+        const textarea = document.querySelector('textarea[x-model="actionText"]');
+        if (textarea) {
+          textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          textarea.focus();
+        }
+      });
+      this.addToast('⚡ Wybrano ścieżkę działania – możesz ją dostosować przed zatwierdzeniem!', 'info');
     },
 
     // --- Ekwipunek ---

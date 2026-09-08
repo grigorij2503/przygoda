@@ -38,6 +38,8 @@ from app.schemas import (
     NameEntityRequest,
     PrologueRequest,
     PrologueResponse,
+    ResolveTurnRequest,
+    SetupScenarioRequest,
     SubmitActionRequest,
     TriggerNamingRequest,
     TurnDto,
@@ -84,6 +86,11 @@ async def lifespan(app: FastAPI):
                 status="waiting_for_actions",
                 gm_narration=new_session.campaign_intro,
                 next_turn_prompt="Szkielety unoszą zardzewiałe miecze, a w ich pustych oczodołach płonie błękitny ogień. Co robicie?",
+                suggested_actions=[
+                    "⚔️ Ścieżka Siły: Bezpośredni atak na szkielety z wykorzystaniem przewagi zaskoczenia.",
+                    "🏹 Ścieżka Sprytu: Przyjęcie pozycji obronnej i próba zwabienia strażników w wąskie przejście.",
+                    "🔮 Ścieżka Magii/Wiedzy: Zbadanie aury relikwiarza i próba rozproszenia magii ożywiającej kości."
+                ],
                 image_prompt="Dark fantasy oil painting of four fantasy adventurers entering a Gothic crypt with glowing blue-eyed skeletal guardians, atmospheric torchlight and mist, cinematic composition",
             )
             db.add(initial_turn)
@@ -164,6 +171,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
             "intellect": c.intellect,
             "charisma": c.charisma,
             "is_alive": c.is_alive,
+            "is_ready": bool(getattr(c, "is_ready", False)),
             "has_submitted_action": c.id in submitted_character_ids,
             "inventory": [
                 {
@@ -182,12 +190,29 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
 
     turns_dto = []
     for t in sorted(game_session.turns, key=lambda x: x.turn_number):
+        clean_prompt = t.next_turn_prompt or ""
+        actions_list = t.suggested_actions if isinstance(t.suggested_actions, list) else []
+        if not actions_list and isinstance(t.suggested_actions, str):
+            try:
+                parsed = json.loads(t.suggested_actions)
+                if isinstance(parsed, list):
+                    actions_list = parsed
+            except Exception:
+                pass
+
+        if "Sugerowane ścieżki działania:" in clean_prompt:
+            parts = clean_prompt.split("Sugerowane ścieżki działania:", 1)
+            clean_prompt = parts[0].strip()
+            if not actions_list:
+                actions_list = [line.strip() for line in parts[1].strip().split("\n") if line.strip()]
+
         turns_dto.append({
             "id": t.id,
             "turn_number": t.turn_number,
             "status": t.status,
             "gm_narration": t.gm_narration,
-            "next_turn_prompt": t.next_turn_prompt,
+            "next_turn_prompt": clean_prompt,
+            "suggested_actions": actions_list,
             "image_url": t.image_url,
             "is_generating_image": t.is_generating_image,
             "created_at": t.created_at.isoformat() if t.created_at else None,
@@ -219,6 +244,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
         "campaign_intro": game_session.campaign_intro,
         "current_turn_number": game_session.current_turn_number,
         "is_turn_resolving": game_session.is_turn_resolving,
+        "status": getattr(game_session, "status", "in_progress") or "in_progress",
         "active_boss": {
             "name": game_session.active_boss_name,
             "title": game_session.active_boss_title,
@@ -278,6 +304,11 @@ async def reset_campaign(payload: CreateSessionRequest, db: AsyncSession = Depen
             status="waiting_for_actions",
             gm_narration=payload.campaign_intro,
             next_turn_prompt="Co zamierzacie uczynić?",
+            suggested_actions=[
+                "⚔️ Ścieżka Siły: Bezpośrednie natarcie i zabezpieczenie terenu.",
+                "🏹 Ścieżka Zręczności: Ciche podejście i rekonesans pozycji wroga.",
+                "🔮 Ścieżka Magii/Wiedzy: Zbadanie otoczenia w poszukiwaniu śladów lub pułapek."
+            ],
             image_prompt=f"Dark fantasy oil painting of adventurers in {payload.setting_theme}",
         )
         db.add(initial_turn)
@@ -290,6 +321,84 @@ async def reset_campaign(payload: CreateSessionRequest, db: AsyncSession = Depen
         return {"success": True, "message": "Kampania zresetowana pomyślnie"}
 
     return {"success": False, "message": "Nie znaleziono sesji"}
+
+@app.post("/api/session/setup-scenario")
+async def setup_scenario(payload: SetupScenarioRequest, db: AsyncSession = Depends(get_db)):
+    stmt = (
+        select(GameSession)
+        .where(GameSession.room_code == payload.room_code)
+        .options(selectinload(GameSession.characters))
+    )
+    session = (await db.execute(stmt)).scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Sesja nie została znaleziona")
+
+    session.title = f"Wyprawa: {payload.scenario_type}"
+    session.setting_theme = payload.tone or "Dark Fantasy"
+    session.campaign_intro = ""
+    session.status = "lobby"
+    session.current_turn_number = 1
+    session.is_turn_resolving = False
+    session.active_boss_name = None
+    session.active_boss_title = None
+    session.active_boss_hp = None
+    session.active_boss_max_hp = None
+    session.pending_naming_category = None
+    session.pending_naming_prompt = None
+    session.pending_naming_character_id = None
+    session.pending_naming_character_name = None
+
+    # Wyczyść postacie z poprzedniej wyprawy, aby drużyna mogła stworzyć świeże postacie pod nowy scenariusz
+    for c in list(session.characters):
+        await db.delete(c)
+
+    # Zresetuj lub utwórz turę 1, aby sesja zawsze miała aktywną strukturę tur
+    t_stmt = select(Turn).where(Turn.session_id == session.id)
+    t_res = await db.execute(t_stmt)
+    existing_turns = t_res.scalars().all()
+    for t in existing_turns:
+        if t.turn_number != 1:
+            await db.delete(t)
+
+    turn1 = next((t for t in existing_turns if t.turn_number == 1), None)
+    if not turn1:
+        turn1 = Turn(session_id=session.id, turn_number=1)
+        db.add(turn1)
+
+    turn1.status = "waiting_for_actions"
+    turn1.gm_narration = ""
+    turn1.next_turn_prompt = "Drużyna zbiera się w karczmie przed wyruszeniem na wyprawę..."
+    turn1.suggested_actions = []
+
+    await db.commit()
+
+    await ws_manager.broadcast_to_session(session.id, {
+        "type": "LOBBY_STARTED",
+        "title": session.title,
+        "setting_theme": session.setting_theme,
+        "status": "lobby"
+    })
+
+    return {"success": True, "status": "lobby"}
+
+@app.post("/api/characters/{character_id}/toggle-ready")
+async def toggle_character_ready(character_id: int, db: AsyncSession = Depends(get_db)):
+    stmt = select(Character).where(Character.id == character_id)
+    char = (await db.execute(stmt)).scalar_one_or_none()
+    if not char:
+        raise HTTPException(status_code=404, detail="Postać nie została znaleziona")
+
+    char.is_ready = not bool(char.is_ready)
+    await db.commit()
+
+    await ws_manager.broadcast_to_session(char.session_id, {
+        "type": "CHARACTER_READY_TOGGLED",
+        "character_id": char.id,
+        "character_name": char.name,
+        "is_ready": char.is_ready
+    })
+
+    return {"success": True, "character_id": char.id, "is_ready": char.is_ready}
 
 @app.post("/api/session/start-prologue")
 async def start_prologue(payload: PrologueRequest, db: AsyncSession = Depends(get_db)):
@@ -306,9 +415,22 @@ async def start_prologue(payload: PrologueRequest, db: AsyncSession = Depends(ge
     if not session:
         raise HTTPException(status_code=404, detail="Sesja nie została znaleziona")
 
+    alive_chars = [c for c in session.characters if c.is_alive]
+    if not alive_chars:
+        raise HTTPException(status_code=400, detail="Brak postaci w drużynie. Stwórz postać przed wyruszeniem!")
+
+    # Walidacja gotowości drużyny, jeśli jesteśmy w lobby
+    if getattr(session, "status", "in_progress") == "lobby":
+        not_ready = [c.name for c in alive_chars if not c.is_ready]
+        if not_ready:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Nie wszyscy gracze są gotowi do drogi! Oczekujemy na: {', '.join(not_ready)}"
+            )
+
     prologue_data = await generate_party_prologue_ai(
         session=session,
-        characters=session.characters,
+        characters=alive_chars,
         scenario_type=payload.scenario_type,
         tone=payload.tone or "Dark Fantasy"
     )
@@ -316,6 +438,7 @@ async def start_prologue(payload: PrologueRequest, db: AsyncSession = Depends(ge
     session.title = prologue_data.title
     session.setting_theme = prologue_data.setting_theme
     session.campaign_intro = prologue_data.prologue_story
+    session.status = "in_progress"
     session.current_turn_number = 1
     session.is_turn_resolving = False
 
@@ -325,10 +448,8 @@ async def start_prologue(payload: PrologueRequest, db: AsyncSession = Depends(ge
         db.add(turn1)
 
     turn1.gm_narration = prologue_data.prologue_story
-    turn1.next_turn_prompt = (
-        f"{prologue_data.first_challenge}\n\n"
-        f"Sugerowane ścieżki działania:\n" + "\n".join(prologue_data.suggested_actions)
-    )
+    turn1.next_turn_prompt = prologue_data.first_challenge
+    turn1.suggested_actions = prologue_data.suggested_actions
     turn1.status = "waiting_for_actions"
 
     await db.commit()
@@ -471,6 +592,40 @@ async def retry_turn(room_code: str = "kampania-1", db: AsyncSession = Depends(g
     asyncio.create_task(resolve_turn_background(session.id, turn.id))
     return {"success": True, "message": "Zadanie ponowione"}
 
+@app.post("/api/session/resolve-turn")
+async def resolve_turn_endpoint(payload: ResolveTurnRequest = ResolveTurnRequest(), db: AsyncSession = Depends(get_db)):
+    s_stmt = (
+        select(GameSession)
+        .where(GameSession.room_code == payload.room_code)
+        .options(selectinload(GameSession.turns).selectinload(Turn.actions))
+    )
+    session = (await db.execute(s_stmt)).scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Sesja nie istnieje")
+
+    if session.is_turn_resolving:
+        raise HTTPException(status_code=400, detail="Mistrz Gry właśnie rozpatruje tę turę. Poczekaj na zakończenie.")
+
+    turn = next((t for t in session.turns if t.turn_number == session.current_turn_number), None)
+    if not turn:
+        raise HTTPException(status_code=404, detail="Brak aktywnej tury w sesji")
+
+    if not turn.actions:
+        raise HTTPException(status_code=400, detail="Żaden gracz nie złożył jeszcze akcji w tej turze")
+
+    session.is_turn_resolving = True
+    turn.status = "resolving"
+    await db.commit()
+
+    await ws_manager.broadcast_to_session(session.id, {
+        "type": "TURN_RESOLVING",
+        "turn_number": turn.turn_number,
+        "message": "Wszyscy gracze zatwierdzili swoje akcje! Mistrz Gry rzuca kośćmi i tworzy narrację..."
+    })
+
+    asyncio.create_task(resolve_turn_background(session.id, turn.id))
+    return {"success": True, "message": "Rozstrzyganie tury rozpoczęte"}
+
 # --- Characters Endpoints ---
 @app.post("/api/characters")
 async def create_character(
@@ -504,6 +659,7 @@ async def create_character(
         intellect=payload.intellect,
         charisma=payload.charisma,
         is_alive=True,
+        is_ready=False,
     )
     db.add(char)
     await db.commit()
@@ -682,19 +838,13 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
 
     # SPRAWDŹ CZY WSZYSCY ZŁOŻYLI AKCJE (TURN GATING)
     if ready_count >= total_alive_players and total_alive_players > 0:
-        # Blokujemy turę i uruchamiamy procedurę rozstrzygnięcia
-        session.is_turn_resolving = True
-        turn.status = "resolving"
-        await db.commit()
-
         await ws_manager.broadcast_to_session(session.id, {
-            "type": "TURN_RESOLVING",
+            "type": "ALL_PLAYERS_READY",
             "turn_number": turn.turn_number,
-            "message": "Wszyscy gracze zatwierdzili swoje akcje! Gemini rzuca kośćmi i tworzy narrację..."
+            "message": "Wszyscy gracze zatwierdzili akcje! Możesz teraz wygenerować kolejną turę.",
+            "ready_count": ready_count,
+            "total_players": total_alive_players,
         })
-
-        # Uruchamiamy zadanie w tle z nową niezależną sesją DB
-        asyncio.create_task(resolve_turn_background(session.id, turn.id))
 
     return {
         "success": True,
@@ -715,14 +865,20 @@ async def resolve_turn_background(session_id: int, turn_id: int):
     async for db in get_db():
         try:
             s_stmt = select(GameSession).where(GameSession.id == session_id)
-            session = (await db.execute(s_stmt)).scalar_one()
+            session = (await db.execute(s_stmt)).scalar_one_or_none()
+            if not session:
+                logger.error(f"resolve_turn_background: sesja #{session_id} nie istnieje – przerywam")
+                break
 
             t_stmt = (
                 select(Turn)
                 .options(selectinload(Turn.actions).selectinload(PlayerAction.character))
                 .where(Turn.id == turn_id)
             )
-            turn = (await db.execute(t_stmt)).scalar_one()
+            turn = (await db.execute(t_stmt)).scalar_one_or_none()
+            if not turn:
+                logger.error(f"resolve_turn_background: tura #{turn_id} nie istnieje – przerywam")
+                break
 
             c_stmt = (
                 select(Character)
@@ -856,6 +1012,7 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             # Zapisz turę
             turn.gm_narration = gemini_result.gm_story_narration
             turn.next_turn_prompt = gemini_result.next_turn_prompt
+            turn.suggested_actions = gemini_result.suggested_actions
             turn.image_prompt = gemini_result.scene_image_prompt
             turn.status = "completed"
 
@@ -870,6 +1027,7 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                 status="waiting_for_actions",
                 gm_narration="",
                 next_turn_prompt=gemini_result.next_turn_prompt,
+                suggested_actions=gemini_result.suggested_actions,
                 image_prompt="",
             )
             db.add(next_turn)
@@ -882,6 +1040,7 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                 "new_turn_number": new_turn_number,
                 "gm_narration": gemini_result.gm_story_narration,
                 "next_turn_prompt": gemini_result.next_turn_prompt,
+                "suggested_actions": gemini_result.suggested_actions,
             })
             logger.info(f"Tura #{turn.turn_number} zakończona i zsynchronizowana.")
         except Exception as e:
