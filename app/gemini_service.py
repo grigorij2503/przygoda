@@ -294,7 +294,7 @@ async def resolve_turn_with_gemini(
         "2. player_consequences: Dla KAŻDEGO gracza: individual_summary (fabularne podsumowanie jego losu), hp_delta (utracone/odzyskane HP), xp_gained (50-120 XP), new_items, removed_item_names.\n"
         "3. next_turn_prompt: Nowa sytuacja fabularna i konkretne, bezpośrednie wyzwanie rzucone drużynie na otwarcie kolejnej tury (zawsze kończące się pytaniem 'Co robicie?').\n"
         "4. suggested_actions: Dokładnie 3 zróżnicowane i konkretne ścieżki działania na otwarcie kolejnej tury dopasowane do NOWEJ sytuacji.\n"
-        "5. scene_image_prompt: Sugestywny prompt po angielsku dla Imagen 3 (Dark fantasy oil painting, gritty realism, atmospheric lighting, cinematic composition).\n"
+        "5. scene_image_prompt: Sugestywny prompt po angielsku dla modelu generującego obraz (Gemini 2.5 Flash Image)...\n"
         "6. naming_opportunity (opcjonalne): Jeśli w tej turze drużyna odkryła coś wyjątkowego (nowy wróg, sekretne miejsce, oręż, unikalny manewr).\n"
         f"{boss_info}"
     )
@@ -461,68 +461,81 @@ def _generate_rich_offline_resolution(
 
 async def generate_scene_image_ai(prompt: str, turn_id: int) -> str:
     """
-    Generuje ilustrację z tury za pomocą Imagen 3 na żądanie.
-    Zwraca relatywną ścieżkę do pliku graficznego serwowanego przez aplikację.
+    Generuje ilustrację z tury za pomocą modelu Nano Banana (gemini-2.5-flash-image)
+    w Google AI Studio (Pay-As-You-Go).
     """
     client = get_genai_client()
     filename = f"turn_{turn_id}_{int(time.time())}.png"
     filepath = UPLOADS_DIR / filename
 
     if not client:
-        logger.info("Brak GEMINI_API_KEY dla Imagen 3 – tworzę grafikę wektorową SVG.")
-        svg_content = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" width="1200" height="675">
-          <defs>
-            <radialGradient id="vignette" cx="50%" cy="50%" r="70%">
-              <stop offset="0%" stop-color="#2d1b4e" stop-opacity="0.8"/>
-              <stop offset="60%" stop-color="#120c1f" stop-opacity="0.95"/>
-              <stop offset="100%" stop-color="#07040d" stop-opacity="1"/>
-            </radialGradient>
-            <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#e6c35c"/>
-              <stop offset="100%" stop-color="#8a6d2b"/>
-            </linearGradient>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#vignette)"/>
-          <circle cx="600" cy="300" r="180" fill="none" stroke="#d4b483" stroke-width="2" stroke-dasharray="8 4" opacity="0.3"/>
-          <polygon points="600,160 720,380 480,380" fill="none" stroke="url(#gold)" stroke-width="3" opacity="0.6"/>
-          <text x="600" y="320" font-family="'Cinzel', serif, Georgia" font-size="28" fill="#e6c35c" text-anchor="middle" letter-spacing="4">MISTRZ GRY • IMAGEN 3</text>
-          <text x="600" y="360" font-family="'Cinzel', serif, Georgia" font-size="16" fill="#a79a86" text-anchor="middle" letter-spacing="2">ILUSTRACJA SCENY Z TURY #{turn_id}</text>
-          <foreignObject x="150" y="440" width="900" height="180">
-            <div xmlns="http://www.w3.org/1999/xhtml" style="color: #d4b483; font-family: Georgia, serif; font-style: italic; font-size: 17px; text-align: center; line-height: 1.5; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">
-              „{prompt}”
-            </div>
-          </foreignObject>
-        </svg>"""
-        svg_filename = f"turn_{turn_id}_{int(time.time())}.svg"
-        svg_filepath = UPLOADS_DIR / svg_filename
-        with open(svg_filepath, "w", encoding="utf-8") as f:
-            f.write(svg_content)
-        return f"/uploads/{svg_filename}"
+        logger.info("Brak GEMINI_API_KEY – tworzę grafikę wektorową SVG.")
+        return _generate_fallback_svg(prompt, turn_id)
+
+    # Nano Banana (dawniej Gemini Flash Image / Nano Banana 2)
+    # Jeśli w settings masz inną nazwę, używamy aktualnej nazwy modelu
+    model_name = getattr(settings, "IMAGEN_MODEL", "gemini-2.5-flash-image")
+    if "imagen" in model_name.lower():
+        model_name = "gemini-2.5-flash-image"
 
     try:
-        response = client.models.generate_images(
-            model=settings.IMAGEN_MODEL,
-            prompt=prompt,
-            config=types.GenerateImagesConfig(
-                number_of_images=1,
-                aspect_ratio="16:9",
-                person_generation="ALLOW_ADULT",
-            )
+        # W Nano Banana wywołanie odbywa się przez generate_content
+        # bez przekazywania zbędnych bloków konfiguracji, które powodują błędy Pydantica
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt,
         )
-        if response.generated_images:
-            image_bytes = response.generated_images[0].image.image_bytes
-            with open(filepath, "wb") as f:
-                f.write(image_bytes)
-            return f"/uploads/{filename}"
-        else:
-            raise ValueError("Brak zwróconych obrazów z Imagen 3")
+
+        # Odczytujemy obraz zwrócony w częściach odpowiedzi (parts)
+        if response.parts:
+            for part in response.parts:
+                # 1. Próba zapisania, jeśli SDK udostępnia wyciąganie obrazu
+                if hasattr(part, "as_image") and callable(part.as_image):
+                    img = part.as_image()
+                    if img:
+                        img.save(filepath)
+                        return f"/uploads/{filename}"
+
+                # 2. Odczyt bajtów z inline_data
+                if hasattr(part, "inline_data") and part.inline_data and part.inline_data.data:
+                    with open(filepath, "wb") as f:
+                        f.write(part.inline_data.data)
+                    return f"/uploads/{filename}"
+
+        raise ValueError("API odpowiedziało, ale w response.parts nie ma obiektu obrazu")
+
     except Exception as e:
-        logger.error(f"Nie udało się wygenerować obrazu przez Imagen 3: {e}")
-        svg_filename = f"turn_{turn_id}_{int(time.time())}.svg"
-        svg_filepath = UPLOADS_DIR / svg_filename
-        with open(svg_filepath, "w", encoding="utf-8") as f:
-            f.write(f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" width="1200" height="675">
-              <rect width="100%" height="100%" fill="#0e0e14"/>
-              <text x="600" y="320" font-family="serif" font-size="22" fill="#d4b483" text-anchor="middle">Ilustracja: {e}</text>
-            </svg>""")
-        return f"/uploads/{svg_filename}"
+        logger.error(f"Nie udało się wygenerować obrazu przez Nano Banana: {e}")
+        return _generate_fallback_svg(prompt, turn_id)
+
+
+def _generate_fallback_svg(prompt: str, turn_id: int) -> str:
+    """Fallback generujący plik SVG w przypadku braku klucza lub błędu API."""
+    svg_filename = f"turn_{turn_id}_{int(time.time())}.svg"
+    svg_filepath = UPLOADS_DIR / svg_filename
+    svg_content = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" width="1200" height="675">
+      <defs>
+        <radialGradient id="vignette" cx="50%" cy="50%" r="70%">
+          <stop offset="0%" stop-color="#2d1b4e" stop-opacity="0.8"/>
+          <stop offset="60%" stop-color="#120c1f" stop-opacity="0.95"/>
+          <stop offset="100%" stop-color="#07040d" stop-opacity="1"/>
+        </radialGradient>
+        <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#e6c35c"/>
+          <stop offset="100%" stop-color="#8a6d2b"/>
+        </linearGradient>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#vignette)"/>
+      <circle cx="600" cy="300" r="180" fill="none" stroke="#d4b483" stroke-width="2" stroke-dasharray="8 4" opacity="0.3"/>
+      <polygon points="600,160 720,380 480,380" fill="none" stroke="url(#gold)" stroke-width="3" opacity="0.6"/>
+      <text x="600" y="320" font-family="'Cinzel', serif, Georgia" font-size="28" fill="#e6c35c" text-anchor="middle" letter-spacing="4">MISTRZ GRY • NANO BANANA</text>
+      <text x="600" y="360" font-family="'Cinzel', serif, Georgia" font-size="16" fill="#a79a86" text-anchor="middle" letter-spacing="2">ILUSTRACJA SCENY Z TURY #{turn_id}</text>
+      <foreignObject x="150" y="440" width="900" height="180">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="color: #d4b483; font-family: Georgia, serif; font-style: italic; font-size: 17px; text-align: center; line-height: 1.5; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">
+          „{prompt}”
+        </div>
+      </foreignObject>
+    </svg>"""
+    with open(svg_filepath, "w", encoding="utf-8") as f:
+        f.write(svg_content)
+    return f"/uploads/{svg_filename}"
