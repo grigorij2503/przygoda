@@ -136,3 +136,26 @@ body {
   background-size: 200% 100%;
   animation: shimmer 1.8s infinite;
 }
+
+/* ==================== PWA & Mobile Standalone Enhancements ==================== */
+@supports (padding-top: env(safe-area-inset-top)) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* Prevent unwanted callouts and gray highlight on mobile taps */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* PWA Standalone Mode adjustments */
+@media all and (display-mode: standalone) {
+  header {
+    padding-top: max(0.75rem, env(safe-area-inset-top));
+  }
+}
+

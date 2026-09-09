@@ -2,8 +2,25 @@
 <html lang="pl" class="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <title>TTRPG Gemini Master • Wieloosobowy RPG</title>
+
+  <!-- PWA & Mobile Meta Tags -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0a0c10">
+  <meta name="background-color" content="#0a0c10">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="TTRPG Gemini">
+  <meta name="application-name" content="TTRPG Gemini Master">
+  <meta name="description" content="Wieloosobowy turowy RPG prowadzony przez Gemini AI z deterministycznymi rzutami kością">
+
+  <!-- PWA Icons & Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/static/icons/icon.svg">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/static/icons/icon-512.png">
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -36,6 +53,12 @@
   <script src="/static/js/app.js"></script>
 </head>
 <body x-data="rpgGame" class="min-h-screen text-gray-200 antialiased selection:bg-amber-600 selection:text-white">
+
+  <!-- ==================== OFFLINE BANNER ==================== -->
+  <div x-show="isOffline" x-cloak class="fixed top-0 left-0 right-0 z-50 bg-amber-950/95 border-b border-amber-500/50 text-amber-200 px-4 py-2 text-xs font-fantasy text-center shadow-lg flex items-center justify-center gap-2">
+    <span>⚠️</span>
+    <span>Tryb Offline: Brak połączenia z siecią. Aplikacja działa z pamięci podręcznej (PWA).</span>
+  </div>
 
   <!-- ==================== TOAST NOTIFICATIONS ==================== -->
   <div class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
@@ -78,6 +101,16 @@
           <span x-show="!isLoggingIn">PRZEKROCZ BRAMĘ</span>
           <span x-show="isLoggingIn">WERYFIKACJA...</span>
         </button>
+
+        <!-- Przycisk Instalacji PWA na ekranie logowania -->
+        <template x-if="canInstallPWA">
+          <div class="pt-2">
+            <button type="button" @click="installPWA()"
+                    class="w-full py-2.5 px-4 bg-slate-900/90 hover:bg-slate-800 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-fantasy flex items-center justify-center gap-2 transition shadow-md">
+              <span>📲</span> ZAINSTALUJ JAKO APLIKACJĘ (PWA)
+            </button>
+          </div>
+        </template>
       </form>
     </div>
   </div>
@@ -98,6 +131,11 @@
           </p>
         </div>
         <div class="flex items-center gap-3">
+          <template x-if="canInstallPWA">
+            <button @click="installPWA()" class="text-xs font-fantasy bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/50 text-amber-300 px-3.5 py-2 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+              <span>📲</span> Zainstaluj PWA
+            </button>
+          </template>
           <button @click="showIntroModal = true" class="text-xs font-fantasy bg-slate-900 hover:bg-slate-800 border border-indigo-500/40 text-indigo-300 px-3.5 py-2 rounded-lg transition flex items-center gap-1.5 shadow-sm">
             <span>✨</span> Zmień Scenariusz
           </button>
@@ -273,6 +311,11 @@
           <p class="text-gray-400 text-sm">Dołącz do toczącej się przygody lub powołaj do życia nową postać.</p>
         </div>
         <div class="flex items-center gap-3">
+          <template x-if="canInstallPWA">
+            <button @click="installPWA()" class="text-xs font-fantasy bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/50 text-amber-300 px-3 py-2 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+              <span>📲</span> Zainstaluj PWA
+            </button>
+          </template>
           <button @click="showIntroModal = true" class="text-xs font-fantasy bg-slate-800 hover:bg-slate-700 border border-amber-500/30 text-amber-300 px-3 py-2 rounded-lg transition flex items-center gap-1.5">
             <span>✨</span> Generator Scenariusza AI
           </button>
@@ -385,6 +428,14 @@
           <button @click="showIntroModal = true" title="Generator Kampanii AI" class="text-xs font-fantasy bg-slate-900 hover:bg-slate-800 border border-indigo-500/40 text-indigo-300 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5">
             <span>✨</span> <span class="hidden md:inline">Scenariusz AI</span>
           </button>
+
+          <!-- Przycisk instalacji PWA w Headerze -->
+          <template x-if="canInstallPWA">
+            <button @click="installPWA()" title="Zainstaluj na urządzeniu"
+                    class="text-xs font-fantasy bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/50 text-amber-300 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+              <span>📲</span> <span class="hidden md:inline">Zainstaluj PWA</span>
+            </button>
+          </template>
 
           <!-- Przełącz postać / wyloguj -->
           <button @click="selectedCharacterId = null" class="text-xs font-fantasy bg-slate-900 hover:bg-slate-800 border border-slate-700 text-gray-300 px-3 py-1.5 rounded-lg transition">

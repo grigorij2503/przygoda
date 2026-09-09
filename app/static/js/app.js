@@ -69,7 +69,45 @@ document.addEventListener('alpine:init', () => {
     wsConnected: false,
     toasts: [],
 
+    // PWA & Network
+    deferredInstallPrompt: null,
+    canInstallPWA: false,
+    isPWAInstalled: false,
+    isOffline: !navigator.onLine,
+
     init() {
+      // Rejestracja Service Workera
+      this.registerServiceWorker();
+
+      // Nasłuchiwanie zdarzeń sieciowych (Online/Offline)
+      window.addEventListener('online', () => {
+        this.isOffline = false;
+        this.addToast('Połączenie z siecią zostało przywrócone!', 'success');
+        if (this.isAuthenticated) this.fetchSession();
+      });
+      window.addEventListener('offline', () => {
+        this.isOffline = true;
+        this.addToast('Utracono połączenie z siecią. Jesteś w trybie offline.', 'warning');
+      });
+
+      // Obsługa instalacji PWA
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        this.deferredInstallPrompt = e;
+        this.canInstallPWA = true;
+      });
+
+      window.addEventListener('appinstalled', () => {
+        this.canInstallPWA = false;
+        this.deferredInstallPrompt = null;
+        this.isPWAInstalled = true;
+        this.addToast('Aplikacja RPG została zainstalowana!', 'success');
+      });
+
+      if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+        this.isPWAInstalled = true;
+      }
+
       // Sprawdź zapisaną sesję w localStorage
       const savedPw = localStorage.getItem('rpg_room_pw');
       const savedChar = localStorage.getItem('rpg_selected_char');
@@ -80,6 +118,28 @@ document.addEventListener('alpine:init', () => {
       if (savedChar) {
         this.selectedCharacterId = parseInt(savedChar, 10);
       }
+    },
+
+    // --- Rejestracja Service Workera i Instalacja PWA ---
+    async registerServiceWorker() {
+      if ('serviceWorker' in navigator) {
+        try {
+          const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+          logger('Service Worker zarejestrowany, scope:', registration.scope);
+        } catch (err) {
+          console.warn('Rejestracja Service Workera nie powiodła się:', err);
+        }
+      }
+    },
+
+    async installPWA() {
+      if (!this.deferredInstallPrompt) return;
+      this.deferredInstallPrompt.prompt();
+      const choice = await this.deferredInstallPrompt.userChoice;
+      if (choice && choice.outcome === 'accepted') {
+        this.canInstallPWA = false;
+      }
+      this.deferredInstallPrompt = null;
     },
 
     // --- Powiadomienia Toast ---

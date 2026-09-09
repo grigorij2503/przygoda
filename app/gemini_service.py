@@ -458,17 +458,6 @@ def _generate_rich_offline_resolution(
         suggested_actions=suggested,
         naming_opportunity=naming_opp
     )
-        gm_story_narration=full_narrative,
-        player_consequences=consequences,
-        scene_image_prompt=f"Dark fantasy oil painting of adventurers fighting inside {session.title}, torchlight, cinematic shadows, gritty texture",
-        next_turn_prompt="Dym opada, a z głębi korytarza wyłania się kolejna przeszkoda. Jak reagujecie?",
-        suggested_actions=[
-            "⚔️ Natarcie bezpośrednie i próba przełamania wroga",
-            "🏹 Przegrupowanie na bezpieczną pozycję i osłona sojuszników",
-            "🔮 Użycie mikstur, magii ochronnej lub analiza słabości przeciwnika"
-        ],
-        naming_opportunity=None
-    )
 
 async def generate_scene_image_ai(prompt: str, turn_id: int) -> str:
     """

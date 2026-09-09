@@ -6,7 +6,7 @@ from typing import List
 
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
@@ -120,6 +120,33 @@ app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "app" / "static")), name="static")
 
 templates = Jinja2Templates(directory=str(BASE_DIR / "app" / "templates"))
+
+# --- PWA & Static Root Endpoints ---
+@app.get("/manifest.json", include_in_schema=False)
+async def serve_manifest():
+    manifest_path = BASE_DIR / "app" / "static" / "manifest.json"
+    return FileResponse(
+        manifest_path,
+        media_type="application/manifest+json",
+        headers={"Cache-Control": "public, max-age=3600"}
+    )
+
+@app.get("/sw.js", include_in_schema=False)
+async def serve_service_worker():
+    sw_path = BASE_DIR / "app" / "static" / "sw.js"
+    return FileResponse(
+        sw_path,
+        media_type="application/javascript",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Service-Worker-Allowed": "/"
+        }
+    )
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def serve_favicon():
+    fav_path = BASE_DIR / "app" / "static" / "icons" / "favicon.png"
+    return FileResponse(fav_path, media_type="image/png")
 
 # --- HTML View ---
 @app.get("/", response_class=HTMLResponse)
