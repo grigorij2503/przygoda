@@ -58,6 +58,9 @@ document.addEventListener('alpine:init', () => {
     // Party Chat
     chatMessages: [],
     chatInput: '',
+    chatSessionId: null,
+    chatMention: null,
+    chatMentionIndex: 0,
 
     // Lore Naming System
     pendingNaming: null, // {category, description, prompt, character_id, character_name}
@@ -67,6 +70,7 @@ document.addEventListener('alpine:init', () => {
     // WebSockets
     ws: null,
     wsConnected: false,
+    wsReconnectTimer: null,
     toasts: [],
 
     // PWA & Network
@@ -182,7 +186,9 @@ document.addEventListener('alpine:init', () => {
       this.selectedCharacterId = null;
       localStorage.removeItem('rpg_room_pw');
       localStorage.removeItem('rpg_selected_char');
-      if (this.ws) this.ws.close();
+      this.closeWebSocket();
+      this.chatMessages = [];
+      this.chatSessionId = null;
     },
 
     // --- Pobieranie Stanu Sesji ---
@@ -303,24 +309,49 @@ document.addEventListener('alpine:init', () => {
     },
 
     // --- WebSockets ---
-    initWebSocket() {
-      if (!this.session) return;
-      const charId = this.selectedCharacterId || 0;
-      if (this.ws) {
-        try { this.ws.close(); } catch (e) {}
+    closeWebSocket() {
+      clearTimeout(this.wsReconnectTimer);
+      this.wsReconnectTimer = null;
+      const socket = this.ws;
+      this.ws = null;
+      this.wsConnected = false;
+      if (socket) {
+        socket.onopen = null;
+        socket.onmessage = null;
+        socket.onclose = null;
+        socket.close();
       }
+    },
+
+    destroy() {
+      this.closeWebSocket();
+    },
+
+    initWebSocket() {
+      if (!this.session || !this.isAuthenticated) return;
+      const charId = this.selectedCharacterId || 0;
 
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl = `${protocol}//${window.location.host}/ws/${this.session.session_id}/${charId}`;
 
-      this.ws = new WebSocket(wsUrl);
+      if (this.ws && this.ws.url === wsUrl &&
+          [WebSocket.CONNECTING, WebSocket.OPEN].includes(this.ws.readyState)) return;
+      this.closeWebSocket();
+      if (this.chatSessionId !== this.session.session_id) {
+        this.chatMessages = [];
+        this.chatSessionId = this.session.session_id;
+      }
+      const socket = new WebSocket(wsUrl);
+      this.ws = socket;
 
-      this.ws.onopen = () => {
+      socket.onopen = () => {
+        if (this.ws !== socket) return;
         this.wsConnected = true;
         logger('Połączono z WebSockets gry');
       };
 
-      this.ws.onmessage = (event) => {
+      socket.onmessage = (event) => {
+        if (this.ws !== socket) return;
         try {
           const data = JSON.parse(event.data);
           this.handleWsMessage(data);
@@ -329,10 +360,14 @@ document.addEventListener('alpine:init', () => {
         }
       };
 
-      this.ws.onclose = () => {
+      socket.onclose = () => {
+        if (this.ws !== socket) return;
+        this.ws = null;
         this.wsConnected = false;
-        setTimeout(() => {
-          if (this.isAuthenticated && this.selectedCharacterId) {
+        clearTimeout(this.wsReconnectTimer);
+        this.wsReconnectTimer = setTimeout(() => {
+          this.wsReconnectTimer = null;
+          if (this.isAuthenticated) {
             this.initWebSocket();
           }
         }, 3000);
@@ -340,22 +375,13 @@ document.addEventListener('alpine:init', () => {
     },
 
     async handleWsMessage(msg) {
-      console.log('WS Event:', msg);
       switch (msg.type) {
         case 'CHAT_HISTORY':
-          this.chatMessages = msg.messages || [];
-          this.$nextTick(() => {
-            const el = document.getElementById('chat-messages-container');
-            if (el) el.scrollTop = el.scrollHeight;
-          });
+          this.appendChatMessages(msg.messages || [], true);
           break;
 
         case 'CHAT_MESSAGE':
-          this.chatMessages.push(msg);
-          this.$nextTick(() => {
-            const el = document.getElementById('chat-messages-container');
-            if (el) el.scrollTop = el.scrollHeight;
-          });
+          this.appendChatMessages([msg]);
           break;
 
         case 'NAMING_REQUESTED':
@@ -478,6 +504,107 @@ document.addEventListener('alpine:init', () => {
     },
 
     // --- Czat Drużyny ---
+    get chatMentionOptions() {
+      if (!this.chatMention) return [];
+      const query = this.chatMention.query.normalize('NFC').toLocaleLowerCase('pl-PL');
+      return [{ id: 'all', name: 'all', label: 'Wszyscy gracze' },
+        ...(this.session?.characters || []).map(character => ({
+          id: character.id, name: character.name, label: character.name
+        }))
+      ].filter(option => option.name.normalize('NFC').toLocaleLowerCase('pl-PL').startsWith(query));
+    },
+
+    updateChatMention(input) {
+      const end = input.selectionStart;
+      const before = input.value.slice(0, end);
+      const match = before.match(/(^|[^\p{L}\p{N}\p{M}_@])@([^@\n]*)$/u);
+      this.chatMention = match && input.selectionStart === input.selectionEnd
+        ? { start: match.index + match[1].length, end, query: match[2] }
+        : null;
+      this.chatMentionIndex = 0;
+    },
+
+    selectChatMention(option) {
+      if (!this.chatMention || !option) return;
+      const { start, end } = this.chatMention;
+      const insertion = `@${option.name} `;
+      this.chatInput = this.chatInput.slice(0, start) + insertion + this.chatInput.slice(end);
+      this.chatMention = null;
+      this.$nextTick(() => {
+        const input = this.$refs.chatInput;
+        input.focus();
+        input.setSelectionRange(start + insertion.length, start + insertion.length);
+      });
+    },
+
+    handleChatMentionKey(event) {
+      if (event.isComposing) return;
+      const options = this.chatMentionOptions;
+      if (!options.length) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        this.chatMention = null;
+      } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const step = event.key === 'ArrowDown' ? 1 : -1;
+        this.chatMentionIndex = (this.chatMentionIndex + step + options.length) % options.length;
+        this.$nextTick(() => {
+          document.getElementById(`chat-mention-${this.chatMentionIndex}`)
+            ?.scrollIntoView({ block: 'nearest' });
+        });
+      } else if (event.key === 'Enter' || event.key === 'Tab') {
+        event.preventDefault();
+        this.selectChatMention(options[this.chatMentionIndex]);
+      }
+    },
+
+    isMentionedInChat(message) {
+      const currentName = this.currentCharacter?.name?.normalize('NFC').toLocaleLowerCase('pl-PL');
+      if (!currentName || !message.text) return false;
+      if (/(^|[^\p{L}\p{N}\p{M}_@])@all(?=$|[^\p{L}\p{N}\p{M}_])/iu.test(message.text)) return true;
+      // Match complete character names, preferring longer names with spaces.
+      const names = (this.session?.characters || [])
+        .map(character => character.name.normalize('NFC'))
+        .sort((a, b) => b.length - a.length)
+        .map(name => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      if (!names.length) return false;
+      const mentions = new RegExp(
+        `(^|[^\\p{L}\\p{N}\\p{M}_@])@(${names.join('|')})(?=$|[^\\p{L}\\p{N}\\p{M}_])`, 'giu'
+      );
+      return Array.from(message.text.normalize('NFC').matchAll(mentions))
+        .some(match => match[2].toLocaleLowerCase('pl-PL') === currentName);
+    },
+
+    formatChatTime(value) {
+      // Older servers only supplied HH:mm, without a date or timezone.
+      if (!value || /^\d{2}:\d{2}$/.test(value)) return value || '';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '';
+      return date.toLocaleTimeString('pl-PL', {
+        timeZone: 'Europe/Warsaw', hour: '2-digit', minute: '2-digit'
+      });
+    },
+
+    appendChatMessages(messages, isHistory = false) {
+      const el = document.getElementById('chat-messages-container');
+      const followLatest = !this.chatMessages.length ||
+        (el && el.scrollHeight - el.clientHeight - el.scrollTop <= 32);
+      // Merge reconnect history without replacing rows the player is reading.
+      const known = new Set(this.chatMessages.map(msg => JSON.stringify(msg)));
+      const incoming = isHistory
+        ? messages.filter(msg => !known.has(JSON.stringify(msg)))
+        : messages;
+      if (!incoming.length) return;
+      this.chatMessages.push(...incoming);
+      if (followLatest && el) {
+        const previousTop = el.scrollTop;
+        this.$nextTick(() => {
+          // Do not override a scroll made while Alpine was rendering.
+          if (el.scrollTop === previousTop) el.scrollTop = el.scrollHeight;
+        });
+      }
+    },
+
     sendChatMessage() {
       const text = this.chatInput.trim();
       if (!text || !this.currentCharacter) return;
@@ -497,6 +624,7 @@ document.addEventListener('alpine:init', () => {
 
       this.ws.send(JSON.stringify(payload));
       this.chatInput = '';
+      this.chatMention = null;
     },
 
     sendQuickChat(quickText) {

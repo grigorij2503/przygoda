@@ -16,7 +16,7 @@ from starlette.requests import Request
 
 import secrets
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.config import UPLOADS_DIR, settings
 from app.database import get_db, init_db
@@ -1163,7 +1163,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: int, character_id
                             "author": msg.get("author", "Gracz"),
                             "character_class": msg.get("character_class", "Bohater"),
                             "text": text,
-                            "time": datetime.now().strftime("%H:%M")
+                            "time": datetime.now(timezone.utc).isoformat()
                         }
                         ws_manager.add_chat_message(session_id, chat_entry)
                         await ws_manager.broadcast_to_session(session_id, chat_entry)

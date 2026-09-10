@@ -50,7 +50,7 @@
   <!-- Alpine.js CDN -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
   <!-- App Logic -->
-  <script src="/static/js/app.js"></script>
+  <script src="/static/js/app.js?v=4"></script>
 </head>
 <body x-data="rpgGame" class="min-h-screen text-gray-200 antialiased selection:bg-amber-600 selection:text-white">
 
@@ -890,14 +890,16 @@
           <!-- Okno Wiadomości -->
           <div id="chat-messages-container" class="h-48 overflow-y-auto space-y-2 pr-1 text-xs mb-3">
             <template x-for="(msg, idx) in chatMessages" :key="idx">
-              <div class="p-2 rounded-lg bg-slate-950/70 border border-slate-800/80">
+              <div class="p-2 rounded-lg border"
+                   :class="isMentionedInChat(msg) ? 'bg-amber-950/60 border-amber-500/70' : 'bg-slate-950/70 border-slate-800/80'">
                 <div class="flex items-center justify-between text-[10px] mb-1">
                   <span class="font-bold text-amber-300 font-fantasy" x-text="msg.author"></span>
                   <div class="flex items-center gap-1.5 text-gray-500">
                     <span class="bg-indigo-950 text-indigo-300 px-1 rounded text-[9px]" x-text="msg.character_class"></span>
-                    <span x-text="msg.time"></span>
+                    <span x-text="formatChatTime(msg.time)"></span>
                   </div>
                 </div>
+                <span x-show="isMentionedInChat(msg)" class="block text-[10px] font-bold text-amber-300 mb-1">@ Wspomniano o Tobie</span>
                 <p class="text-gray-300 leading-snug break-words" x-text="msg.text"></p>
               </div>
             </template>
@@ -922,8 +924,29 @@
 
           <!-- Pole wprowadzania -->
           <form @submit.prevent="sendChatMessage()" class="flex gap-2">
-            <input type="text" x-model="chatInput" placeholder="Napisz do drużyny..."
-                   class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition">
+            <div class="relative flex-1 min-w-0" @click.outside="chatMention = null">
+              <div x-show="chatMentionOptions.length > 0" x-cloak id="chat-mentions" role="listbox"
+                   aria-label="Oznacz gracza" class="absolute bottom-full left-0 right-0 mb-2 max-h-40 overflow-y-auto rounded-lg border border-indigo-700 bg-slate-950 shadow-xl z-20">
+                <template x-for="(option, index) in chatMentionOptions" :key="option.id">
+                  <button type="button" role="option" :id="`chat-mention-${index}`"
+                          :aria-selected="index === chatMentionIndex" tabindex="-1"
+                          @mousedown.prevent @click="selectChatMention(option)"
+                          :class="index === chatMentionIndex ? 'bg-indigo-900 text-white' : 'text-gray-300'"
+                          class="block w-full px-3 py-2 text-left text-xs hover:bg-indigo-900">
+                    <span class="font-bold" x-text="'@' + option.name"></span>
+                    <span x-show="option.id === 'all'" class="ml-2 text-indigo-300" x-text="option.label"></span>
+                  </button>
+                </template>
+              </div>
+              <input type="text" x-model="chatInput" x-ref="chatInput" placeholder="Wiadomość... @gracz lub @all"
+                     role="combobox" aria-label="Wiadomość do drużyny" aria-autocomplete="list" aria-controls="chat-mentions"
+                     :aria-expanded="chatMentionOptions.length > 0"
+                     :aria-activedescendant="chatMentionOptions.length ? `chat-mention-${chatMentionIndex}` : null"
+                     @input="updateChatMention($event.target)" @click="updateChatMention($event.target)"
+                     @keyup="if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes($event.key)) updateChatMention($event.target)"
+                     @keydown="handleChatMentionKey($event)"
+                     class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition">
+            </div>
             <button type="submit" class="px-3 py-1.5 bg-indigo-900 hover:bg-indigo-800 text-indigo-200 rounded-lg text-xs font-fantasy font-bold transition">
               Wyślij
             </button>
