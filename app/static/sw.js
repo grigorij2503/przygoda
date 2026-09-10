@@ -1,8 +1,8 @@
-const CACHE_NAME = 'ttrpg-gemini-v4';
+const CACHE_NAME = 'ttrpg-gemini-v5';
 const PRECACHE_ASSETS = [
   '/',
   '/static/css/style.css',
-  '/static/js/app.js?v=4',
+  '/static/js/app.js?v=5',
   '/static/manifest.json',
   '/static/icons/icon.svg',
   '/static/icons/icon-192.png',

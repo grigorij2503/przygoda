@@ -50,7 +50,7 @@
   <!-- Alpine.js CDN -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
   <!-- App Logic -->
-  <script src="/static/js/app.js?v=4"></script>
+  <script src="/static/js/app.js?v=5"></script>
 </head>
 <body x-data="rpgGame" class="min-h-screen text-gray-200 antialiased selection:bg-amber-600 selection:text-white">
 
@@ -443,6 +443,32 @@
           </button>
         </div>
       </div>
+
+      <!-- Pasek aktywnego przeciwnika pozostaje nad przewijaną kroniką. -->
+      <div x-show="session?.active_boss" x-cloak
+           class="max-w-7xl mx-auto mt-3 p-3 rounded-xl border bg-gradient-to-r from-red-950/95 via-black to-red-950/95 shadow-2xl overflow-hidden"
+           :class="session?.active_boss?.hp <= 0 ? 'border-slate-600/70' : 'border-red-700/60'">
+        <div class="flex items-center justify-between gap-3 mb-1.5">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="text-xl" :class="session?.active_boss?.hp > 0 ? 'animate-pulse' : ''">👑</span>
+            <div class="min-w-0">
+              <span class="text-[9px] uppercase font-mono tracking-widest text-red-400 block truncate" x-text="session?.active_boss?.title"></span>
+              <h3 class="text-sm font-fantasy font-bold truncate"
+                  :class="session?.active_boss?.hp <= 0 ? 'text-gray-400 line-through' : 'text-red-200'"
+                  x-text="session?.active_boss?.name"></h3>
+            </div>
+          </div>
+          <span class="shrink-0 text-[11px] font-mono px-2.5 py-1 rounded-md border"
+                :class="session?.active_boss?.hp <= 0 ? 'text-gray-300 bg-slate-900 border-slate-700' : 'text-red-300 bg-red-900/40 border-red-700/50'">
+            <span x-show="session?.active_boss?.hp <= 0">POKONANY • </span>
+            HP: <span x-text="session?.active_boss?.hp + ' / ' + session?.active_boss?.max_hp"></span>
+          </span>
+        </div>
+        <div class="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-red-800/80 p-0.5">
+          <div class="h-full rounded-full bg-gradient-to-r from-red-700 via-rose-600 to-red-500 transition-all duration-500"
+               :style="'width: ' + Math.max(0, Math.min(100, (session?.active_boss?.hp / session?.active_boss?.max_hp) * 100)) + '%'"></div>
+        </div>
+      </div>
     </header>
 
     <!-- GŁÓWNA PRZESTRZEŃ (KRONIKA + KARTA POSTACI + CZAT) -->
@@ -451,26 +477,6 @@
       <!-- LEWA KOLUMNA: KRONIKA PRZYGODY (STORY LOG) -->
       <section class="lg:col-span-8 flex flex-col gap-6">
         
-        <!-- PASEK AKTYWNEGO BOSSA (JEŚLI OBECNY) -->
-        <div x-show="session?.active_boss" class="p-4 rounded-xl border border-red-700/60 bg-gradient-to-r from-red-950/80 via-black to-red-950/80 shadow-2xl relative overflow-hidden">
-          <div class="flex items-center justify-between mb-2">
-            <div class="flex items-center gap-2">
-              <span class="text-2xl animate-pulse">👑</span>
-              <div>
-                <span class="text-[10px] uppercase font-mono tracking-widest text-red-400 block" x-text="session?.active_boss?.title"></span>
-                <h3 class="text-lg font-fantasy font-bold text-red-200" x-text="session?.active_boss?.name"></h3>
-              </div>
-            </div>
-            <span class="text-xs font-mono text-red-300 bg-red-900/40 px-2.5 py-1 rounded-md border border-red-700/50">
-              HP: <span x-text="session?.active_boss?.hp + ' / ' + session?.active_boss?.max_hp"></span>
-            </span>
-          </div>
-          <div class="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-red-800/80 p-0.5">
-            <div class="h-full rounded-full bg-gradient-to-r from-red-700 via-rose-600 to-red-500 transition-all duration-500"
-                 :style="'width: ' + Math.max(0, Math.min(100, (session?.active_boss?.hp / session?.active_boss?.max_hp) * 100)) + '%'"></div>
-          </div>
-        </div>
-
         <!-- BANER OCZEKIWANIA NA NAZWĘ (LORE NAMING) -->
         <div x-show="pendingNaming" class="p-4 rounded-xl border border-amber-500/50 bg-amber-950/30 flex items-center justify-between gap-3 animate-pulse">
           <div class="flex items-center gap-3">
@@ -774,7 +780,8 @@
       </section>
 
       <!-- PRAWA KOLUMNA: KARTA POSTACI, DRUŻYNA & CZAT -->
-      <aside class="lg:col-span-4 space-y-6 lg:sticky lg:top-20">
+      <aside class="lg:col-span-4 space-y-6 lg:sticky"
+             :class="session?.active_boss ? 'lg:top-36' : 'lg:top-20'">
         
         <!-- KARTA TWOJEJ POSTACI -->
         <div class="fantasy-card p-6 rounded-2xl border border-amber-900/40">
@@ -811,8 +818,12 @@
             </div>
             <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800 p-0.5">
               <div class="xp-fill h-full rounded-full"
-                   :style="'width: ' + Math.min(100, ((currentCharacter?.xp % 500) / 500) * 100) + '%'"></div>
+                   :style="'width: ' + (currentCharacter?.xp_progress || 0) + '%'"></div>
             </div>
+            <div class="mt-1 text-right text-[10px] font-mono text-gray-500"
+                 x-text="currentCharacter?.xp_next_level
+                   ? ('Do poziomu ' + currentCharacter.xp_next_level + ': ' + currentCharacter.xp_progress_current + ' / ' + currentCharacter.xp_progress_required)
+                   : 'Maksymalny poziom'"></div>
           </div>
 
           <!-- Atrybuty Postaci -->

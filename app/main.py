@@ -52,6 +52,52 @@ logger = logging.getLogger("ttrpg")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+XP_LEVEL_THRESHOLDS = {1: 0, 2: 300, 3: 750, 4: 1300, 5: 2000}
+BOSS_DAMAGE_BY_OUTCOME = {
+    "critical_success": 24,
+    "success": 14,
+    "partial_success": 7,
+    "failure": 0,
+    "critical_failure": 0,
+}
+BOSS_ATTACK_KEYWORDS = (
+    "atak", "walcz", "tnę", "tne", "cios", "uderz", "zabij", "dobij", "ranię", "ranie",
+    "strzał", "strzal", "strzel", "miecz", "topór", "topor", "łuk", "luk",
+    "pocisk", "zaklęcie ofensywne", "zaklecie ofensywne", "kulą ognia", "kula ognia",
+    "płomień", "plomien", "błyskawic", "blyskawic",
+)
+
+
+def get_xp_progress(level: int, xp: int) -> dict:
+    """Zwraca postęp XP wewnątrz bieżącego poziomu."""
+    level_start = XP_LEVEL_THRESHOLDS.get(level, 0)
+    next_level_xp = XP_LEVEL_THRESHOLDS.get(level + 1)
+    if next_level_xp is None:
+        return {
+            "xp_progress": 100,
+            "xp_progress_current": 0,
+            "xp_progress_required": 0,
+            "xp_next_level": None,
+        }
+
+    required = next_level_xp - level_start
+    current = max(0, min(required, xp - level_start))
+    return {
+        "xp_progress": round((current / required) * 100, 2) if required else 100,
+        "xp_progress_current": current,
+        "xp_progress_required": required,
+        "xp_next_level": level + 1,
+    }
+
+
+def get_boss_damage(action_text: str, outcome_tier: str) -> int:
+    """Nalicz obrażenia bossa tylko za ofensywną deklarację gracza."""
+    normalized_action = (action_text or "").casefold()
+    if not any(keyword in normalized_action for keyword in BOSS_ATTACK_KEYWORDS):
+        return 0
+    return BOSS_DAMAGE_BY_OUTCOME.get(outcome_tier, 0)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Inicjalizacja bazy danych przy starcie
@@ -184,6 +230,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
 
     characters_dto = []
     for c in game_session.characters:
+        xp_progress = get_xp_progress(c.level, c.xp)
         characters_dto.append({
             "id": c.id,
             "player_name": c.player_name,
@@ -191,6 +238,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
             "character_class": c.character_class,
             "level": c.level,
             "xp": c.xp,
+            **xp_progress,
             "current_hp": c.current_hp,
             "max_hp": c.max_hp,
             "strength": c.strength,
@@ -946,9 +994,31 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                     "dice_total": total,
                     "dc": 12,
                     "outcome_tier": outcome_tier,
+                    "boss_damage": 0,
                 })
 
             await db.commit()
+
+            # Obrażenia aktywnego bossa wynikają z akcji i rzutu, a nie z narracji AI.
+            if session.active_boss_name and session.active_boss_hp is not None:
+                total_boss_damage = 0
+                for action_result in actions_with_rolls:
+                    boss_damage = get_boss_damage(
+                        action_result["action_text"],
+                        action_result["outcome_tier"],
+                    )
+                    action_result["boss_damage"] = boss_damage
+                    total_boss_damage += boss_damage
+
+                if total_boss_damage:
+                    session.active_boss_hp = max(0, session.active_boss_hp - total_boss_damage)
+                    logger.info(
+                        "Boss %s otrzymał %s obrażeń (pozostało %s/%s HP).",
+                        session.active_boss_name,
+                        total_boss_damage,
+                        session.active_boss_hp,
+                        session.active_boss_max_hp,
+                    )
 
             # Pobierz aktywne legendy świata (lore)
             lore_stmt = select(NamedLoreEntity).where(NamedLoreEntity.session_id == session_id)
@@ -982,11 +1052,12 @@ async def resolve_turn_background(session_id: int, turn_id: int):
 
                 # XP i Awans (Level Up)
                 char.xp += conseq.xp_gained
-                # Progi awansu: Lvl 2: 300, Lvl 3: 750, Lvl 4: 1300, Lvl 5: 2000
-                level_thresholds = {2: 300, 3: 750, 4: 1300, 5: 2000}
-                next_lvl = char.level + 1
-                if next_lvl in level_thresholds and char.xp >= level_thresholds[next_lvl]:
-                    char.level = next_lvl
+                # Obsłuż również kilka awansów naraz przy dużej nagrodzie XP.
+                while (
+                    char.level + 1 in XP_LEVEL_THRESHOLDS
+                    and char.xp >= XP_LEVEL_THRESHOLDS[char.level + 1]
+                ):
+                    char.level += 1
                     char.max_hp += 5
                     char.current_hp += 5
                     # Zwiększ najwyższą cechę o 1

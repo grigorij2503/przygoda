@@ -263,7 +263,8 @@ async def resolve_turn_with_gemini(
             "item_bonus": a["item_modifier"],
             "total_score": a["dice_total"],
             "dc_difficulty": a["dc"],
-            "outcome_tier": a["outcome_tier"]
+            "outcome_tier": a["outcome_tier"],
+            "boss_damage": a.get("boss_damage", 0),
         })
 
     # Kontekst nazwanych przez graczy elementów świata (Lore)
@@ -275,7 +276,17 @@ async def resolve_turn_with_gemini(
 
     boss_info = ""
     if session.active_boss_name:
-        boss_info = f"\nAKTYWNY GŁÓWNY WRÓG / BOSS: {session.active_boss_title} o imieniu '{session.active_boss_name}' (HP: {session.active_boss_hp}/{session.active_boss_max_hp}). Pamiętaj, aby opisywać jego poczynania i odnosić się do niego pod tym imieniem!"
+        boss_state = (
+            "BOSS ZOSTAŁ POKONANY W TEJ TURZE. Opisz jego upadek i nie przywracaj mu HP."
+            if session.active_boss_hp == 0
+            else "Boss nadal walczy."
+        )
+        boss_info = (
+            f"\nAKTYWNY GŁÓWNY WRÓG / BOSS: {session.active_boss_title} "
+            f"o imieniu '{session.active_boss_name}' (HP po rozliczeniu ataków: "
+            f"{session.active_boss_hp}/{session.active_boss_max_hp}). {boss_state} "
+            "Pole boss_damage przy akcjach jest mechanicznym wynikiem silnika i musi być zgodne z narracją."
+        )
 
     system_instruction = (
         "Jesteś mistrzowskim, niezwykle immersyjnym Mistrzem Gry (Game Masterem) w mrocznym świecie Dark Fantasy RPG (stylistyka Wiedźmina, Dark Souls, Warhammera).\n"
