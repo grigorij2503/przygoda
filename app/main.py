@@ -306,6 +306,9 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
                     "dc": a.dc,
                     "outcome_tier": a.outcome_tier,
                     "gm_individual_summary": a.gm_individual_summary,
+                    "damage_dealt": a.damage_dealt or 0,
+                    "hp_delta": a.hp_delta or 0,
+                    "xp_gained": a.xp_gained or 0,
                 }
                 for a in t.actions
             ],
@@ -1008,6 +1011,10 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                         action_result["outcome_tier"],
                     )
                     action_result["boss_damage"] = boss_damage
+                    for action in turn.actions:
+                        if action.character_id == action_result["character_id"]:
+                            action.damage_dealt = boss_damage
+                            break
                     total_boss_damage += boss_damage
 
                 if total_boss_damage:
@@ -1044,9 +1051,15 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                 for act in turn.actions:
                     if act.character_id == char.id:
                         act.gm_individual_summary = conseq.individual_summary
+                        act.xp_gained = conseq.xp_gained
 
                 # Zmiana HP
+                previous_hp = char.current_hp
                 char.current_hp = max(0, min(char.max_hp, char.current_hp + conseq.hp_delta))
+                applied_hp_delta = char.current_hp - previous_hp
+                for act in turn.actions:
+                    if act.character_id == char.id:
+                        act.hp_delta = applied_hp_delta
                 if char.current_hp == 0:
                     char.is_alive = False
 

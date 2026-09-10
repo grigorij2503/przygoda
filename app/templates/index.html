@@ -602,15 +602,38 @@
                           <span class="text-gray-400 italic">„<span x-text="act.action_text"></span>”</span>
                         </div>
                         <p x-show="act.gm_individual_summary" class="text-gray-300 text-xs mt-1" x-text="act.gm_individual_summary"></p>
+                        <div x-show="t.status === 'completed' && (act.damage_dealt > 0 || act.hp_delta !== 0 || act.xp_gained > 0)"
+                             class="flex flex-wrap gap-1.5 mt-2 font-mono text-[10px]">
+                          <span x-show="act.damage_dealt > 0"
+                                class="px-2 py-1 rounded-md border border-orange-700/60 bg-orange-950/50 text-orange-300"
+                                x-text="'⚔ Zadano ' + act.damage_dealt + ' obrażeń'"></span>
+                          <span x-show="act.hp_delta < 0"
+                                class="px-2 py-1 rounded-md border border-rose-700/60 bg-rose-950/50 text-rose-300"
+                                x-text="'❤️ Otrzymano ' + Math.abs(act.hp_delta) + ' obrażeń'"></span>
+                          <span x-show="act.hp_delta > 0"
+                                class="px-2 py-1 rounded-md border border-emerald-700/60 bg-emerald-950/50 text-emerald-300"
+                                x-text="'💚 Odzyskano ' + act.hp_delta + ' HP'"></span>
+                          <span x-show="act.xp_gained > 0"
+                                class="px-2 py-1 rounded-md border border-amber-700/60 bg-amber-950/50 text-amber-300"
+                                x-text="'⭐ +' + act.xp_gained + ' XP'"></span>
+                        </div>
                       </div>
 
                       <!-- Widget Rzutu Kością - TYLKO PO ROZSTRZYGNIĘCIU TURY -->
                       <template x-if="t.status === 'completed' && act.outcome_tier && act.dice_roll_raw !== null">
                         <div class="flex items-center gap-2 shrink-0 bg-slate-950/80 px-3 py-2 rounded-lg border border-slate-700/60 font-mono">
                           <span class="text-lg">🎲</span>
-                          <div>
+                          <div class="flex flex-wrap items-center gap-x-1 gap-y-0.5">
                             <span class="text-amber-400 font-bold" x-text="'d20(' + act.dice_roll_raw + ')'"></span>
-                            <span class="text-gray-400" x-text="'+ ' + ((act.stat_modifier || 0) + (act.item_modifier || 0))"></span>
+                            <span class="text-gray-500">+</span>
+                            <span class="text-sky-300 font-bold"
+                                  x-text="statAbbreviation(act.tested_stat) + '(' + (act.stat_modifier || 0) + ')'" ></span>
+                            <template x-if="act.item_modifier">
+                              <span class="contents">
+                                <span class="text-gray-500">+</span>
+                                <span class="text-violet-300 font-bold" x-text="'ekwipunek(' + act.item_modifier + ')'" ></span>
+                              </span>
+                            </template>
                             <span class="text-gray-400">=</span>
                             <b class="text-white text-sm" x-text="act.dice_total"></b>
                             <span class="text-gray-500 text-[10px]">vs DC <span x-text="act.dc"></span></span>
@@ -830,21 +853,61 @@
           <div class="mb-6">
             <span class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 block mb-2">Atrybuty bazowe:</span>
             <div class="grid grid-cols-2 gap-2">
-              <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 text-center">
-                <span class="text-[10px] text-gray-500 block uppercase">Siła (STR)</span>
-                <span class="text-base font-bold text-amber-300" x-text="'+' + currentCharacter?.strength"></span>
+              <div x-data="{ showInfo: false }" class="relative">
+                <button type="button" @click="showInfo = !showInfo" @keydown.escape.window="showInfo = false"
+                        :aria-expanded="showInfo" aria-label="Wyjaśnij atrybut Siła"
+                        class="w-full bg-slate-950/80 hover:border-amber-600/60 p-2.5 rounded-lg border border-slate-800 text-center transition relative">
+                  <span class="text-[10px] text-gray-500 block uppercase">Siła (STR)</span>
+                  <span class="text-base font-bold text-amber-300" x-text="'+' + currentCharacter?.strength"></span>
+                  <span class="absolute top-1.5 right-2 text-[10px] text-gray-600">ⓘ</span>
+                </button>
+                <div x-show="showInfo" x-cloak x-transition @click.outside="showInfo = false"
+                     class="absolute z-40 bottom-full left-0 mb-2 w-56 p-3 rounded-lg border border-amber-700/60 bg-slate-950 shadow-2xl text-left text-[11px] leading-relaxed text-gray-300">
+                  <b class="text-amber-300 block mb-1">Siła (STR)</b>
+                  Walka wręcz, mocne uderzenia, wyważanie, przepychanie i działania wymagające krzepy. Wartość jest dodawana do rzutu d20, gdy akcja testuje Siłę.
+                </div>
               </div>
-              <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 text-center">
-                <span class="text-[10px] text-gray-500 block uppercase">Zręczność (AGI)</span>
-                <span class="text-base font-bold text-amber-300" x-text="'+' + currentCharacter?.agility"></span>
+              <div x-data="{ showInfo: false }" class="relative">
+                <button type="button" @click="showInfo = !showInfo" @keydown.escape.window="showInfo = false"
+                        :aria-expanded="showInfo" aria-label="Wyjaśnij atrybut Zręczność"
+                        class="w-full bg-slate-950/80 hover:border-amber-600/60 p-2.5 rounded-lg border border-slate-800 text-center transition relative">
+                  <span class="text-[10px] text-gray-500 block uppercase">Zręczność (AGI)</span>
+                  <span class="text-base font-bold text-amber-300" x-text="'+' + currentCharacter?.agility"></span>
+                  <span class="absolute top-1.5 right-2 text-[10px] text-gray-600">ⓘ</span>
+                </button>
+                <div x-show="showInfo" x-cloak x-transition @click.outside="showInfo = false"
+                     class="absolute z-40 bottom-full right-0 mb-2 w-56 p-3 rounded-lg border border-amber-700/60 bg-slate-950 shadow-2xl text-left text-[11px] leading-relaxed text-gray-300">
+                  <b class="text-amber-300 block mb-1">Zręczność (AGI)</b>
+                  Ataki dystansowe, uniki, skradanie, wspinaczka, pułapki i precyzyjne działania. Wartość jest dodawana do rzutu d20, gdy akcja testuje Zręczność.
+                </div>
               </div>
-              <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 text-center">
-                <span class="text-[10px] text-gray-500 block uppercase">Rozum (INT)</span>
-                <span class="text-base font-bold text-amber-300" x-text="'+' + currentCharacter?.intellect"></span>
+              <div x-data="{ showInfo: false }" class="relative">
+                <button type="button" @click="showInfo = !showInfo" @keydown.escape.window="showInfo = false"
+                        :aria-expanded="showInfo" aria-label="Wyjaśnij atrybut Rozum"
+                        class="w-full bg-slate-950/80 hover:border-amber-600/60 p-2.5 rounded-lg border border-slate-800 text-center transition relative">
+                  <span class="text-[10px] text-gray-500 block uppercase">Rozum (INT)</span>
+                  <span class="text-base font-bold text-amber-300" x-text="'+' + currentCharacter?.intellect"></span>
+                  <span class="absolute top-1.5 right-2 text-[10px] text-gray-600">ⓘ</span>
+                </button>
+                <div x-show="showInfo" x-cloak x-transition @click.outside="showInfo = false"
+                     class="absolute z-40 bottom-full left-0 mb-2 w-56 p-3 rounded-lg border border-amber-700/60 bg-slate-950 shadow-2xl text-left text-[11px] leading-relaxed text-gray-300">
+                  <b class="text-amber-300 block mb-1">Rozum (INT)</b>
+                  Magia, wiedza, badanie, analiza, tropienie i rozwiązywanie zagadek. Wartość jest dodawana do rzutu d20, gdy akcja testuje Rozum.
+                </div>
               </div>
-              <div class="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 text-center">
-                <span class="text-[10px] text-gray-500 block uppercase">Charyzma (CHA)</span>
-                <span class="text-base font-bold text-amber-300" x-text="'+' + currentCharacter?.charisma"></span>
+              <div x-data="{ showInfo: false }" class="relative">
+                <button type="button" @click="showInfo = !showInfo" @keydown.escape.window="showInfo = false"
+                        :aria-expanded="showInfo" aria-label="Wyjaśnij atrybut Charyzma"
+                        class="w-full bg-slate-950/80 hover:border-amber-600/60 p-2.5 rounded-lg border border-slate-800 text-center transition relative">
+                  <span class="text-[10px] text-gray-500 block uppercase">Charyzma (CHA)</span>
+                  <span class="text-base font-bold text-amber-300" x-text="'+' + currentCharacter?.charisma"></span>
+                  <span class="absolute top-1.5 right-2 text-[10px] text-gray-600">ⓘ</span>
+                </button>
+                <div x-show="showInfo" x-cloak x-transition @click.outside="showInfo = false"
+                     class="absolute z-40 bottom-full right-0 mb-2 w-56 p-3 rounded-lg border border-amber-700/60 bg-slate-950 shadow-2xl text-left text-[11px] leading-relaxed text-gray-300">
+                  <b class="text-amber-300 block mb-1">Charyzma (CHA)</b>
+                  Perswazja, zastraszanie, blef, negocjacje, dowodzenie i inspirowanie innych. Wartość jest dodawana do rzutu d20, gdy akcja testuje Charyzmę.
+                </div>
               </div>
             </div>
           </div>

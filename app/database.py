@@ -44,6 +44,9 @@ async def init_db():
             ("game_sessions", "status", "VARCHAR(50)"),
             ("characters", "is_ready", "BOOLEAN"),
             ("turns", "suggested_actions", "TEXT"),
+            ("player_actions", "damage_dealt", "INTEGER NOT NULL DEFAULT 0"),
+            ("player_actions", "hp_delta", "INTEGER NOT NULL DEFAULT 0"),
+            ("player_actions", "xp_gained", "INTEGER NOT NULL DEFAULT 0"),
         ]
         for table, col, col_type in new_columns:
             try:

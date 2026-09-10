@@ -260,6 +260,15 @@ document.addEventListener('alpine:init', () => {
       return this.session.characters.find(c => c.id === this.selectedCharacterId);
     },
 
+    statAbbreviation(stat) {
+      return {
+        strength: 'STR',
+        agility: 'AGI',
+        intellect: 'INT',
+        charisma: 'CHA'
+      }[stat] || String(stat || '').toUpperCase();
+    },
+
     get hasSubmittedCurrentTurn() {
       if (this.isEditingSubmittedAction) return false;
       if (!this.session || !this.selectedCharacterId) return false;

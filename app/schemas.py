@@ -88,6 +88,9 @@ class PlayerActionDto(BaseModel):
     dc: Optional[int] = None
     outcome_tier: Optional[str] = None
     gm_individual_summary: Optional[str] = ""
+    damage_dealt: int = 0
+    hp_delta: int = 0
+    xp_gained: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 

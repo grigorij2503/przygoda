@@ -107,6 +107,9 @@ class PlayerAction(Base):
     dc = Column(Integer, nullable=True, default=None)
     outcome_tier = Column(String(50), nullable=True, default=None)  # critical_success, success, partial_success, failure, critical_failure
     gm_individual_summary = Column(Text, default="")
+    damage_dealt = Column(Integer, nullable=False, default=0)
+    hp_delta = Column(Integer, nullable=False, default=0)
+    xp_gained = Column(Integer, nullable=False, default=0)
     submitted_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     turn = relationship("Turn", back_populates="actions")
