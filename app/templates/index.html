@@ -50,7 +50,7 @@
   <!-- Alpine.js CDN -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
   <!-- App Logic -->
-  <script src="/static/js/app.js?v=5"></script>
+  <script src="/static/js/app.js?v=6"></script>
 </head>
 <body x-data="rpgGame" class="min-h-screen text-gray-200 antialiased selection:bg-amber-600 selection:text-white">
 
@@ -958,7 +958,12 @@
             <h4 class="text-xs font-fantasy font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-2">
               <span>💬</span> CZAT DRUŻYNY (NARADA)
             </h4>
-            <span class="text-[10px] text-gray-500">Na żywo</span>
+            <button type="button" @click="toggleNotificationSound()"
+                    :aria-pressed="notificationSoundEnabled"
+                    :aria-label="notificationSoundEnabled ? 'Wycisz powiadomienia czatu i tur' : 'Włącz dźwięk powiadomień czatu i tur'"
+                    title="Dźwięk oznaczeń @ i zakończenia tury. Aktywuje się po kliknięciu lub naciśnięciu klawisza na stronie."
+                    class="text-[10px] text-indigo-300 hover:text-white rounded px-2 py-1 border border-slate-700"
+                    x-text="notificationSoundEnabled ? '🔔 Dźwięk wł.' : '🔕 Dźwięk wył.'"></button>
           </div>
 
           <!-- Okno Wiadomości -->

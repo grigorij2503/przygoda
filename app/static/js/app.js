@@ -72,6 +72,13 @@ document.addEventListener('alpine:init', () => {
     wsConnected: false,
     wsReconnectTimer: null,
     toasts: [],
+    notificationCount: 0,
+    baseTitle: document.title,
+    notificationSoundEnabled: localStorage.getItem('rpg_notification_sound') !== 'off',
+    notificationAudio: null,
+    notificationLastSound: 0,
+    notificationFocusHandler: null,
+    notificationUnlockHandler: null,
 
     // PWA & Network
     deferredInstallPrompt: null,
@@ -80,6 +87,14 @@ document.addEventListener('alpine:init', () => {
     isOffline: !navigator.onLine,
 
     init() {
+      this.notificationFocusHandler = () => {
+        if (!document.hidden && document.hasFocus()) this.clearNotifications();
+      };
+      this.notificationUnlockHandler = () => this.unlockNotificationAudio();
+      document.addEventListener('visibilitychange', this.notificationFocusHandler);
+      window.addEventListener('focus', this.notificationFocusHandler);
+      document.addEventListener('pointerup', this.notificationUnlockHandler);
+      document.addEventListener('keydown', this.notificationUnlockHandler);
       // Rejestracja Service Workera
       this.registerServiceWorker();
 
@@ -147,6 +162,62 @@ document.addEventListener('alpine:init', () => {
     },
 
     // --- Powiadomienia Toast ---
+    clearNotifications() {
+      this.notificationCount = 0;
+      document.title = this.baseTitle;
+    },
+
+    unlockNotificationAudio() {
+      if (!this.notificationSoundEnabled) return;
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+      try {
+        if (!this.notificationAudio) this.notificationAudio = new AudioContextClass();
+        if (this.notificationAudio.state === 'suspended') {
+          this.notificationAudio.resume().catch(() => {});
+        }
+      } catch (error) {
+        // Title notifications remain available when browser audio is blocked.
+      }
+    },
+
+    toggleNotificationSound() {
+      this.notificationSoundEnabled = !this.notificationSoundEnabled;
+      localStorage.setItem('rpg_notification_sound', this.notificationSoundEnabled ? 'on' : 'off');
+      if (this.notificationSoundEnabled) this.unlockNotificationAudio();
+    },
+
+    notifyGameEvent() {
+      if (!this.isAuthenticated) return;
+      if (document.hidden || !document.hasFocus()) {
+        this.notificationCount += 1;
+        document.title = `${this.baseTitle} (${this.notificationCount})`;
+      }
+      const context = this.notificationAudio;
+      if (!this.notificationSoundEnabled || context?.state !== 'running') return;
+      const now = performance.now();
+      if (this.notificationLastSound && now - this.notificationLastSound < 1000) return;
+      this.notificationLastSound = now;
+      try {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        const start = context.currentTime;
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(660, start);
+        oscillator.frequency.setValueAtTime(880, start + 0.12);
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(0.1, start + 0.02);
+        gain.gain.linearRampToValueAtTime(0, start + 0.3);
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
+        oscillator.start(start);
+        oscillator.stop(start + 0.32);
+      } catch (error) {
+        // Audio failure must not interrupt incoming chat or turn updates.
+      }
+    },
+
     addToast(message, type = 'info') {
       const id = Date.now();
       this.toasts.push({ id, message, type });
@@ -182,6 +253,7 @@ document.addEventListener('alpine:init', () => {
     },
 
     logout() {
+      this.clearNotifications();
       this.isAuthenticated = false;
       this.selectedCharacterId = null;
       localStorage.removeItem('rpg_room_pw');
@@ -334,6 +406,12 @@ document.addEventListener('alpine:init', () => {
 
     destroy() {
       this.closeWebSocket();
+      this.clearNotifications();
+      document.removeEventListener('visibilitychange', this.notificationFocusHandler);
+      window.removeEventListener('focus', this.notificationFocusHandler);
+      document.removeEventListener('pointerup', this.notificationUnlockHandler);
+      document.removeEventListener('keydown', this.notificationUnlockHandler);
+      if (this.notificationAudio) this.notificationAudio.close().catch(() => {});
     },
 
     initWebSocket() {
@@ -391,6 +469,9 @@ document.addEventListener('alpine:init', () => {
 
         case 'CHAT_MESSAGE':
           this.appendChatMessages([msg]);
+          if (msg.character_id !== this.selectedCharacterId && this.isMentionedInChat(msg)) {
+            this.notifyGameEvent();
+          }
           break;
 
         case 'NAMING_REQUESTED':
@@ -460,6 +541,7 @@ document.addEventListener('alpine:init', () => {
           break;
 
         case 'TURN_COMPLETED':
+          this.notifyGameEvent();
           this.turnError = '';
           this.isResolvingTurn = false;
           this.isEditingSubmittedAction = false;
