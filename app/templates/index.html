@@ -50,7 +50,7 @@
   <!-- Alpine.js CDN -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
   <!-- App Logic -->
-  <script src="/static/js/app.js?v=13"></script>
+  <script src="/static/js/app.js?v=14"></script>
 </head>
 <body x-data="rpgGame" class="min-h-screen text-gray-200 antialiased selection:bg-amber-600 selection:text-white">
 
@@ -1093,16 +1093,48 @@
               <div class="equipment-avatar" aria-label="Sylwetka postaci z miejscem na pancerz">
                 <svg viewBox="0 0 110 220" role="img" aria-hidden="true">
                   <defs>
-                    <linearGradient id="hero-silhouette" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0" stop-color="#536178"/>
-                      <stop offset="1" stop-color="#20283a"/>
+                    <linearGradient id="hero-steel" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0" stop-color="#667085"/>
+                      <stop offset="0.48" stop-color="#30394c"/>
+                      <stop offset="1" stop-color="#161c2a"/>
                     </linearGradient>
+                    <linearGradient id="hero-cloak" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="#343047"/>
+                      <stop offset="1" stop-color="#111522"/>
+                    </linearGradient>
+                    <filter id="rune-glow" x="-100%" y="-100%" width="300%" height="300%">
+                      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+                      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                    </filter>
                   </defs>
-                  <circle cx="55" cy="28" r="18" fill="url(#hero-silhouette)" stroke="#8793a8" stroke-width="2"/>
-                  <path d="M35 50 Q55 42 75 50 L84 112 Q74 129 70 145 L82 207 L61 207 L55 151 L49 207 L28 207 L40 145 Q36 128 26 112 Z"
-                        fill="url(#hero-silhouette)" stroke="#8793a8" stroke-width="2"/>
-                  <path d="M30 58 L8 121 L23 127 L43 78 M80 58 L102 121 L87 127 L67 78"
-                        fill="none" stroke="#8793a8" stroke-width="12" stroke-linecap="round"/>
+                  <!-- płaszcz -->
+                  <path d="M34 48 Q55 37 76 48 L91 88 L99 174 L75 158 L83 205 L55 190 L27 205 L35 158 L11 174 L19 88 Z"
+                        fill="url(#hero-cloak)" stroke="#4b435e" stroke-width="2" stroke-linejoin="round"/>
+                  <!-- nogi i wysokie buty -->
+                  <path d="M37 126 L53 130 L50 193 L43 211 L24 211 L34 193 Z M57 130 L73 126 L76 193 L86 211 L67 211 L60 193 Z"
+                        fill="url(#hero-steel)" stroke="#7b8495" stroke-width="2" stroke-linejoin="round"/>
+                  <path d="M27 190 L49 190 L46 211 L22 211 Z M61 190 L83 190 L88 211 L64 211 Z"
+                        fill="#151a27" stroke="#806a43" stroke-width="1.5"/>
+                  <!-- ramiona, rękawice i naramienniki -->
+                  <path d="M33 58 L20 64 L6 121 L20 129 L42 78 Z M77 58 L90 64 L104 121 L90 129 L68 78 Z"
+                        fill="url(#hero-steel)" stroke="#7b8495" stroke-width="2" stroke-linejoin="round"/>
+                  <path d="M9 113 L23 118 L21 132 L6 126 Z M87 118 L101 113 L104 126 L89 132 Z"
+                        fill="#202737" stroke="#9b7b42" stroke-width="1.5"/>
+                  <path d="M25 52 Q34 43 47 54 L40 72 L20 65 Z M85 52 Q76 43 63 54 L70 72 L90 65 Z"
+                        fill="url(#hero-steel)" stroke="#a38a59" stroke-width="2"/>
+                  <!-- kolczuga i skórzany pas -->
+                  <path d="M36 49 Q55 42 74 49 L82 126 L68 144 L55 151 L42 144 L28 126 Z"
+                        fill="url(#hero-steel)" stroke="#8992a3" stroke-width="2" stroke-linejoin="round"/>
+                  <path d="M40 57 L70 57 L68 137 L55 146 L42 137 Z" fill="#262d3c" stroke="#75613e" stroke-width="1.5"/>
+                  <path d="M29 115 L81 115 L80 127 L30 127 Z" fill="#241b16" stroke="#9b7b42" stroke-width="2"/>
+                  <rect x="50" y="115" width="10" height="12" rx="2" fill="#17120f" stroke="#d0a850" stroke-width="2"/>
+                  <!-- kaptur i ukryta twarz -->
+                  <path d="M34 35 Q34 10 55 3 Q76 10 76 35 L68 52 L42 52 Z"
+                        fill="url(#hero-cloak)" stroke="#92805d" stroke-width="2.5" stroke-linejoin="round"/>
+                  <path d="M42 27 Q55 16 68 27 L65 42 Q55 49 45 42 Z" fill="#080b12" stroke="#566176" stroke-width="1.5"/>
+                  <path d="M47 32 L52 30 M58 30 L63 32" stroke="#d6ad4b" stroke-width="2" stroke-linecap="round" filter="url(#rune-glow)"/>
+                  <!-- runa na napierśniku, widoczna przy pustym slocie -->
+                  <path d="M55 70 L62 82 L55 94 L48 82 Z M48 82 H62" fill="none" stroke="#9b7b42" stroke-width="1.5" opacity="0.8"/>
                 </svg>
 
                 <div class="paperdoll-armor" :class="equippedArmor ? 'paperdoll-armor--filled' : ''">
@@ -1430,25 +1462,25 @@
       </div>
 
       <div class="grid grid-cols-2 gap-3">
-        <button type="button" @click="spendStatPoint('strength')" :disabled="isSpendingStatPoint"
+        <button type="button" @click="spendStatPoint('strength')" :disabled="isSpendingStatPoint || (currentCharacter?.strength || 0) >= maxBaseStat"
                 class="p-4 rounded-xl bg-slate-950 hover:bg-amber-950/50 border border-slate-700 hover:border-amber-500 transition disabled:opacity-50">
           <span class="block text-xs uppercase text-gray-400">Siła (STR)</span>
-          <span class="block mt-1 text-xl font-bold text-amber-300" x-text="'+' + currentCharacter?.strength + ' → +' + ((currentCharacter?.strength || 0) + 1)"></span>
+          <span class="block mt-1 text-xl font-bold text-amber-300" x-text="(currentCharacter?.strength || 0) >= maxBaseStat ? ('+' + currentCharacter.strength + ' (MAX)') : ('+' + currentCharacter?.strength + ' → +' + ((currentCharacter?.strength || 0) + 1))"></span>
         </button>
-        <button type="button" @click="spendStatPoint('agility')" :disabled="isSpendingStatPoint"
+        <button type="button" @click="spendStatPoint('agility')" :disabled="isSpendingStatPoint || (currentCharacter?.agility || 0) >= maxBaseStat"
                 class="p-4 rounded-xl bg-slate-950 hover:bg-amber-950/50 border border-slate-700 hover:border-amber-500 transition disabled:opacity-50">
           <span class="block text-xs uppercase text-gray-400">Zręczność (AGI)</span>
-          <span class="block mt-1 text-xl font-bold text-amber-300" x-text="'+' + currentCharacter?.agility + ' → +' + ((currentCharacter?.agility || 0) + 1)"></span>
+          <span class="block mt-1 text-xl font-bold text-amber-300" x-text="(currentCharacter?.agility || 0) >= maxBaseStat ? ('+' + currentCharacter.agility + ' (MAX)') : ('+' + currentCharacter?.agility + ' → +' + ((currentCharacter?.agility || 0) + 1))"></span>
         </button>
-        <button type="button" @click="spendStatPoint('intellect')" :disabled="isSpendingStatPoint"
+        <button type="button" @click="spendStatPoint('intellect')" :disabled="isSpendingStatPoint || (currentCharacter?.intellect || 0) >= maxBaseStat"
                 class="p-4 rounded-xl bg-slate-950 hover:bg-amber-950/50 border border-slate-700 hover:border-amber-500 transition disabled:opacity-50">
           <span class="block text-xs uppercase text-gray-400">Rozum (INT)</span>
-          <span class="block mt-1 text-xl font-bold text-amber-300" x-text="'+' + currentCharacter?.intellect + ' → +' + ((currentCharacter?.intellect || 0) + 1)"></span>
+          <span class="block mt-1 text-xl font-bold text-amber-300" x-text="(currentCharacter?.intellect || 0) >= maxBaseStat ? ('+' + currentCharacter.intellect + ' (MAX)') : ('+' + currentCharacter?.intellect + ' → +' + ((currentCharacter?.intellect || 0) + 1))"></span>
         </button>
-        <button type="button" @click="spendStatPoint('charisma')" :disabled="isSpendingStatPoint"
+        <button type="button" @click="spendStatPoint('charisma')" :disabled="isSpendingStatPoint || (currentCharacter?.charisma || 0) >= maxBaseStat"
                 class="p-4 rounded-xl bg-slate-950 hover:bg-amber-950/50 border border-slate-700 hover:border-amber-500 transition disabled:opacity-50">
           <span class="block text-xs uppercase text-gray-400">Charyzma (CHA)</span>
-          <span class="block mt-1 text-xl font-bold text-amber-300" x-text="'+' + currentCharacter?.charisma + ' → +' + ((currentCharacter?.charisma || 0) + 1)"></span>
+          <span class="block mt-1 text-xl font-bold text-amber-300" x-text="(currentCharacter?.charisma || 0) >= maxBaseStat ? ('+' + currentCharacter.charisma + ' (MAX)') : ('+' + currentCharacter?.charisma + ' → +' + ((currentCharacter?.charisma || 0) + 1))"></span>
         </button>
       </div>
 

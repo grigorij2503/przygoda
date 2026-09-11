@@ -74,7 +74,14 @@ logger = logging.getLogger("ttrpg")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+MAX_LEVEL = 25
+MAX_BASE_ATTRIBUTE = 12
 XP_LEVEL_THRESHOLDS = {1: 0, 2: 300, 3: 750, 4: 1300, 5: 2000}
+for target_level in range(6, MAX_LEVEL + 1):
+    # Po 5. poziomie koszt awansu rośnie łagodnie: od 725 do 1200 XP.
+    XP_LEVEL_THRESHOLDS[target_level] = (
+        XP_LEVEL_THRESHOLDS[target_level - 1] + 700 + (target_level - 5) * 25
+    )
 ITEM_CLAIM_RULES = (
     ("Tarcza", ("tarc", "pawez", "puklerz"), ("tarc", "pawez", "puklerz"), {"shield"}),
     ("Miecz", ("miecz", "szabl", "rapier"), ("miecz", "szabl", "rapier"), {"weapon"}),
@@ -1021,9 +1028,19 @@ async def spend_stat_point(
         raise HTTPException(status_code=404, detail="Postać nie istnieje")
 
     stat_column = getattr(Character, payload.stat)
+    if getattr(char, payload.stat) >= MAX_BASE_ATTRIBUTE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Atrybut osiągnął maksymalną wartość +{MAX_BASE_ATTRIBUTE}",
+        )
+
     update_stmt = (
         update(Character)
-        .where(Character.id == char_id, Character.unspent_stat_points > 0)
+        .where(
+            Character.id == char_id,
+            Character.unspent_stat_points > 0,
+            stat_column < MAX_BASE_ATTRIBUTE,
+        )
         .values({
             stat_column: stat_column + 1,
             Character.unspent_stat_points: Character.unspent_stat_points - 1,
@@ -1469,7 +1486,8 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                     char.level += 1
                     char.max_hp += 5
                     char.current_hp += 5
-                    char.unspent_stat_points += 1
+                    if char.level % 2 == 0:
+                        char.unspent_stat_points += 1
                     levels_gained += 1
                     logger.info(f"Postać {char.name} awansowała na poziom {char.level}!")
 

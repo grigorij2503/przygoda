@@ -48,6 +48,7 @@ document.addEventListener('alpine:init', () => {
     // Level Up
     isSpendingStatPoint: false,
     statPointError: '',
+    maxBaseStat: 12,
 
     // Character Form
     newChar: {
@@ -914,11 +915,15 @@ document.addEventListener('alpine:init', () => {
             character.unspent_stat_points = msg.unspent_stat_points;
           }
           if (msg.character_id === this.selectedCharacterId) {
-            this.showLevelUpModal = true;
-            this.addToast(
-              `⭐ Awans na poziom ${msg.level}! Wybierz atrybut do zwiększenia.`,
-              'success'
-            );
+            if (msg.unspent_stat_points > 0) {
+              this.showLevelUpModal = true;
+              this.addToast(
+                `⭐ Awans na poziom ${msg.level}! Wybierz atrybut do zwiększenia.`,
+                'success'
+              );
+            } else {
+              this.addToast(`⭐ Awans na poziom ${msg.level}!`, 'success');
+            }
           }
           break;
         }
