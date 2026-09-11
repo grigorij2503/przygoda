@@ -50,7 +50,7 @@
   <!-- Alpine.js CDN -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
   <!-- App Logic -->
-  <script src="/static/js/app.js?v=6"></script>
+  <script src="/static/js/app.js?v=7"></script>
 </head>
 <body x-data="rpgGame" class="min-h-screen text-gray-200 antialiased selection:bg-amber-600 selection:text-white">
 
@@ -422,6 +422,12 @@
           <button @click="showLoreBookModal = true" class="text-xs font-fantasy bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
             <span>📜</span> <span class="hidden md:inline">Kronika Świata</span>
             <span class="bg-amber-500/20 text-amber-400 px-1.5 py-0.2 rounded-full text-[10px]" x-text="session?.lore_entities?.length || 0"></span>
+          </button>
+
+          <!-- Osobisty notes wybranej postaci -->
+          <button @click="openPersonalNote()" title="Osobisty notes gracza"
+                  class="text-xs font-fantasy bg-slate-900 hover:bg-slate-800 border border-emerald-500/40 text-emerald-300 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+            <span>📓</span> <span class="hidden md:inline">Mój Notes</span>
           </button>
 
           <!-- Przycisk generatora scenariusza AI -->
@@ -1092,6 +1098,54 @@
           <span x-show="isSubmittingNaming">ZAPISYWANIE...</span>
         </button>
       </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: OSOBISTY NOTES GRACZA ==================== -->
+  <div x-show="showPersonalNoteModal" @keydown.escape.window="showPersonalNoteModal && closePersonalNote()"
+       class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
+    <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-2xl w-full border border-emerald-900/60 shadow-2xl flex flex-col" @click.stop>
+      <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
+        <div>
+          <h3 class="text-2xl font-fantasy font-bold text-emerald-300 flex items-center gap-2">
+            <span>📓</span> MÓJ NOTES
+          </h3>
+          <p class="text-xs text-gray-400 mt-1" x-text="currentCharacter ? currentCharacter.player_name + ' • ' + currentCharacter.name : ''"></p>
+        </div>
+        <button @click="closePersonalNote()" class="text-gray-400 hover:text-white text-lg" aria-label="Zamknij notes">✕</button>
+      </div>
+
+      <div x-show="isLoadingPersonalNote" class="h-72 flex items-center justify-center text-sm text-gray-400">
+        Wczytywanie notatki...
+      </div>
+
+      <div x-show="!isLoadingPersonalNote" class="space-y-3">
+        <textarea x-model="personalNote" x-ref="personalNoteTextarea" maxlength="20000" rows="13"
+                  @keydown.ctrl.s.prevent="savePersonalNote()" @keydown.meta.s.prevent="savePersonalNote()"
+                  placeholder="Zapisz tropy, plany, sekrety, ważne imiona i wszystko, co przyda się Twojej postaci..."
+                  class="w-full bg-slate-950 border border-slate-700 rounded-xl p-4 text-sm leading-relaxed text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500 transition resize-y min-h-64"></textarea>
+
+        <div class="flex items-center justify-between gap-3 text-[11px]">
+          <span :class="isPersonalNoteDirty ? 'text-amber-400' : 'text-gray-500'"
+                x-text="isPersonalNoteDirty ? 'Masz niezapisane zmiany' : 'Notatka zapisana'"></span>
+          <span class="text-gray-500" x-text="personalNote.length + ' / 20000'"></span>
+        </div>
+
+        <p x-show="personalNoteError" x-text="personalNoteError" class="text-rose-300 text-xs bg-rose-950/40 border border-rose-800 rounded-lg p-3"></p>
+
+        <div class="flex gap-3 pt-2">
+          <button type="button" @click="closePersonalNote()"
+                  class="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-gray-300 rounded-lg text-xs font-fantasy transition">
+            Zamknij
+          </button>
+          <button type="button" @click="savePersonalNote()"
+                  :disabled="isSavingPersonalNote || !isPersonalNoteDirty || personalNote.length > 20000"
+                  class="flex-1 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-fantasy font-bold transition disabled:opacity-50">
+            <span x-show="!isSavingPersonalNote">ZAPISZ NOTATKĘ</span>
+            <span x-show="isSavingPersonalNote">ZAPISYWANIE...</span>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 

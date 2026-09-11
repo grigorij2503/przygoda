@@ -43,6 +43,7 @@ async def init_db():
             ("game_sessions", "pending_naming_character_name", "VARCHAR(100)"),
             ("game_sessions", "status", "VARCHAR(50)"),
             ("characters", "is_ready", "BOOLEAN"),
+            ("characters", "personal_note", "TEXT NOT NULL DEFAULT ''"),
             ("turns", "suggested_actions", "TEXT"),
             ("player_actions", "damage_dealt", "INTEGER NOT NULL DEFAULT 0"),
             ("player_actions", "hp_delta", "INTEGER NOT NULL DEFAULT 0"),

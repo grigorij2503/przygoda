@@ -36,6 +36,9 @@ class CreateCharacterRequest(BaseModel):
     intellect: int = Field(ge=0, le=4, default=1)
     charisma: int = Field(ge=0, le=4, default=0)
 
+class UpdatePersonalNoteRequest(BaseModel):
+    content: str = Field(default="", max_length=20000)
+
 class InventoryItemDto(BaseModel):
     id: int
     name: str

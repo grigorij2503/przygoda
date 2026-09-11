@@ -43,6 +43,7 @@ from app.schemas import (
     SubmitActionRequest,
     TriggerNamingRequest,
     TurnDto,
+    UpdatePersonalNoteRequest,
     VerifyPasswordRequest,
 )
 from app.websocket_manager import ws_manager
@@ -806,6 +807,32 @@ async def delete_character(char_id: int, db: AsyncSession = Depends(get_db)):
     })
 
     return {"success": True, "message": f"Postać {char_name} została usunięta"}
+
+@app.get("/api/characters/{char_id}/personal-note")
+async def get_personal_note(char_id: int, db: AsyncSession = Depends(get_db)):
+    stmt = select(Character).where(Character.id == char_id)
+    res = await db.execute(stmt)
+    char = res.scalar_one_or_none()
+    if not char:
+        raise HTTPException(status_code=404, detail="Postać nie istnieje")
+
+    return {"content": char.personal_note or ""}
+
+@app.put("/api/characters/{char_id}/personal-note")
+async def update_personal_note(
+    char_id: int,
+    payload: UpdatePersonalNoteRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(Character).where(Character.id == char_id)
+    res = await db.execute(stmt)
+    char = res.scalar_one_or_none()
+    if not char:
+        raise HTTPException(status_code=404, detail="Postać nie istnieje")
+
+    char.personal_note = payload.content
+    await db.commit()
+    return {"success": True, "content": char.personal_note}
 
 @app.post("/api/characters/{char_id}/inventory/{item_id}/toggle-equip")
 async def toggle_equip_item(char_id: int, item_id: int, db: AsyncSession = Depends(get_db)):

@@ -27,7 +27,15 @@ document.addEventListener('alpine:init', () => {
     showLightbox: false,
     showNamingModal: false,
     showLoreBookModal: false,
+    showPersonalNoteModal: false,
     lightboxImageUrl: '',
+
+    // Personal Note
+    personalNote: '',
+    savedPersonalNote: '',
+    personalNoteError: '',
+    isLoadingPersonalNote: false,
+    isSavingPersonalNote: false,
 
     // Character Form
     newChar: {
@@ -330,6 +338,59 @@ document.addEventListener('alpine:init', () => {
     get currentCharacter() {
       if (!this.session || !this.selectedCharacterId) return null;
       return this.session.characters.find(c => c.id === this.selectedCharacterId);
+    },
+
+    get isPersonalNoteDirty() {
+      return this.personalNote !== this.savedPersonalNote;
+    },
+
+    async openPersonalNote() {
+      if (!this.selectedCharacterId) return;
+
+      this.showPersonalNoteModal = true;
+      this.personalNoteError = '';
+      this.isLoadingPersonalNote = true;
+      try {
+        const res = await fetch(`/api/characters/${this.selectedCharacterId}/personal-note`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Nie udało się wczytać notatki.');
+        this.personalNote = data.content || '';
+        this.savedPersonalNote = this.personalNote;
+        this.$nextTick(() => this.$refs.personalNoteTextarea?.focus());
+      } catch (err) {
+        this.personalNoteError = err.message;
+      } finally {
+        this.isLoadingPersonalNote = false;
+      }
+    },
+
+    closePersonalNote() {
+      if (this.isPersonalNoteDirty && !confirm('Zamknąć notes bez zapisania zmian?')) return;
+      this.showPersonalNoteModal = false;
+      this.personalNoteError = '';
+    },
+
+    async savePersonalNote() {
+      if (!this.selectedCharacterId || this.isSavingPersonalNote || this.personalNote.length > 20000) return;
+
+      this.personalNoteError = '';
+      this.isSavingPersonalNote = true;
+      try {
+        const res = await fetch(`/api/characters/${this.selectedCharacterId}/personal-note`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: this.personalNote })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Nie udało się zapisać notatki.');
+        this.savedPersonalNote = data.content || '';
+        this.personalNote = this.savedPersonalNote;
+        this.addToast('Notatka została zapisana.', 'success');
+      } catch (err) {
+        this.personalNoteError = err.message;
+      } finally {
+        this.isSavingPersonalNote = false;
+      }
     },
 
     statAbbreviation(stat) {

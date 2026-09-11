@@ -47,6 +47,7 @@ class Character(Base):
     agility = Column(Integer, default=1)
     intellect = Column(Integer, default=1)
     charisma = Column(Integer, default=0)
+    personal_note = Column(Text, nullable=False, default="")
     is_alive = Column(Boolean, default=True)
     is_ready = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
