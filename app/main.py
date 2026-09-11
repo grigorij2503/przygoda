@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.requests import Request
@@ -41,6 +41,7 @@ from app.schemas import (
     ResolveTurnRequest,
     SetupScenarioRequest,
     SubmitActionRequest,
+    SpendStatPointRequest,
     TriggerNamingRequest,
     TurnDto,
     UpdatePersonalNoteRequest,
@@ -246,6 +247,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
             "agility": c.agility,
             "intellect": c.intellect,
             "charisma": c.charisma,
+            "unspent_stat_points": c.unspent_stat_points or 0,
             "is_alive": c.is_alive,
             "is_ready": bool(getattr(c, "is_ready", False)),
             "has_submitted_action": c.id in submitted_character_ids,
@@ -780,6 +782,50 @@ async def create_character(
 
     return {"success": True, "character_id": char.id}
 
+@app.post("/api/characters/{char_id}/spend-stat-point")
+async def spend_stat_point(
+    char_id: int,
+    payload: SpendStatPointRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(Character).where(Character.id == char_id)
+    char = (await db.execute(stmt)).scalar_one_or_none()
+    if not char:
+        raise HTTPException(status_code=404, detail="Postać nie istnieje")
+
+    stat_column = getattr(Character, payload.stat)
+    update_stmt = (
+        update(Character)
+        .where(Character.id == char_id, Character.unspent_stat_points > 0)
+        .values({
+            stat_column: stat_column + 1,
+            Character.unspent_stat_points: Character.unspent_stat_points - 1,
+        })
+    )
+    result = await db.execute(update_stmt)
+    if result.rowcount != 1:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail="Postać nie ma punktów atrybutów do rozdania")
+
+    await db.commit()
+    await db.refresh(char)
+
+    await ws_manager.broadcast_to_session(char.session_id, {
+        "type": "STAT_POINT_SPENT",
+        "character_id": char.id,
+        "character_name": char.name,
+        "stat": payload.stat,
+        "stat_value": getattr(char, payload.stat),
+        "unspent_stat_points": char.unspent_stat_points,
+    })
+
+    return {
+        "success": True,
+        "stat": payload.stat,
+        "stat_value": getattr(char, payload.stat),
+        "unspent_stat_points": char.unspent_stat_points,
+    }
+
 @app.delete("/api/characters/{char_id}")
 async def delete_character(char_id: int, db: AsyncSession = Depends(get_db)):
     stmt = select(Character).where(Character.id == char_id)
@@ -1069,6 +1115,7 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             )
 
             # 3. Zastosowanie konsekwencji dla postaci
+            level_ups = []
             for conseq in gemini_result.player_consequences:
                 char = char_map.get(conseq.character_id)
                 if not char:
@@ -1092,6 +1139,7 @@ async def resolve_turn_background(session_id: int, turn_id: int):
 
                 # XP i Awans (Level Up)
                 char.xp += conseq.xp_gained
+                levels_gained = 0
                 # Obsłuż również kilka awansów naraz przy dużej nagrodzie XP.
                 while (
                     char.level + 1 in XP_LEVEL_THRESHOLDS
@@ -1100,13 +1148,18 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                     char.level += 1
                     char.max_hp += 5
                     char.current_hp += 5
-                    # Zwiększ najwyższą cechę o 1
-                    highest_stat = max(
-                        ["strength", "agility", "intellect", "charisma"],
-                        key=lambda s: getattr(char, s)
-                    )
-                    setattr(char, highest_stat, getattr(char, highest_stat) + 1)
+                    char.unspent_stat_points += 1
+                    levels_gained += 1
                     logger.info(f"Postać {char.name} awansowała na poziom {char.level}!")
+
+                if levels_gained:
+                    level_ups.append({
+                        "character_id": char.id,
+                        "character_name": char.name,
+                        "level": char.level,
+                        "levels_gained": levels_gained,
+                        "unspent_stat_points": char.unspent_stat_points,
+                    })
 
                 # Nowe przedmioty
                 for new_item in conseq.new_items:
@@ -1170,6 +1223,12 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             )
             db.add(next_turn)
             await db.commit()
+
+            for level_up in level_ups:
+                await ws_manager.broadcast_to_session(session.id, {
+                    "type": "LEVEL_UP_AVAILABLE",
+                    **level_up,
+                })
 
             # 5. Broadcast o zakończeniu tury do wszystkich graczy
             await ws_manager.broadcast_to_session(session.id, {

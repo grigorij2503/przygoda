@@ -33,6 +33,7 @@ document.addEventListener('alpine:init', () => {
     showNamingModal: false,
     showLoreBookModal: false,
     showPersonalNoteModal: false,
+    showLevelUpModal: false,
     lightboxImageUrl: '',
 
     // Personal Note
@@ -41,6 +42,10 @@ document.addEventListener('alpine:init', () => {
     personalNoteError: '',
     isLoadingPersonalNote: false,
     isSavingPersonalNote: false,
+
+    // Level Up
+    isSpendingStatPoint: false,
+    statPointError: '',
 
     // Character Form
     newChar: {
@@ -281,6 +286,7 @@ document.addEventListener('alpine:init', () => {
 
     // --- Pobieranie Stanu Sesji ---
     async fetchSession() {
+      const previousUnspentStatPoints = this.currentCharacter?.unspent_stat_points;
       this.isLoadingSession = true;
       try {
         const res = await fetch(`/api/session?room_code=${this.roomCode}`);
@@ -304,6 +310,16 @@ document.addEventListener('alpine:init', () => {
           if (!exists) this.selectedCharacterId = null;
         }
 
+        const unspentStatPoints = this.currentCharacter?.unspent_stat_points || 0;
+        if (unspentStatPoints > 0 && (
+          previousUnspentStatPoints === undefined ||
+          unspentStatPoints > previousUnspentStatPoints
+        )) {
+          this.showLevelUpModal = true;
+        } else if (unspentStatPoints === 0) {
+          this.showLevelUpModal = false;
+        }
+
         if (this.session.characters.length === 0 && this.isAuthenticated) {
           this.showCharModal = true;
         }
@@ -319,6 +335,9 @@ document.addEventListener('alpine:init', () => {
       localStorage.setItem('rpg_selected_char', charId);
       this.initWebSocket();
       this.addToast(`Wybrano postać: ${this.currentCharacter?.name}`, 'success');
+      if ((this.currentCharacter?.unspent_stat_points || 0) > 0) {
+        this.showLevelUpModal = true;
+      }
     },
 
     async deleteCharacter(charId, charName) {
@@ -727,6 +746,34 @@ document.addEventListener('alpine:init', () => {
           break;
         }
 
+        case 'LEVEL_UP_AVAILABLE': {
+          const character = this.session?.characters?.find(c => c.id === msg.character_id);
+          if (character) {
+            character.level = msg.level;
+            character.unspent_stat_points = msg.unspent_stat_points;
+          }
+          if (msg.character_id === this.selectedCharacterId) {
+            this.showLevelUpModal = true;
+            this.addToast(
+              `⭐ Awans na poziom ${msg.level}! Wybierz atrybut do zwiększenia.`,
+              'success'
+            );
+          }
+          break;
+        }
+
+        case 'STAT_POINT_SPENT': {
+          const character = this.session?.characters?.find(c => c.id === msg.character_id);
+          if (character) {
+            character[msg.stat] = msg.stat_value;
+            character.unspent_stat_points = msg.unspent_stat_points;
+          }
+          if (msg.character_id === this.selectedCharacterId && msg.unspent_stat_points === 0) {
+            this.showLevelUpModal = false;
+          }
+          break;
+        }
+
         case 'IMAGE_GENERATING':
           this.addToast(`Rozpoczęto generowanie ilustracji dla Tury #${msg.turn_id}...`, 'info');
           if (this.session) {
@@ -1060,6 +1107,41 @@ document.addEventListener('alpine:init', () => {
         this.charError = err.message;
       } finally {
         this.isCreatingChar = false;
+      }
+    },
+
+    statLabel(stat) {
+      return {
+        strength: 'Siła',
+        agility: 'Zręczność',
+        intellect: 'Rozum',
+        charisma: 'Charyzma'
+      }[stat] || stat;
+    },
+
+    async spendStatPoint(stat) {
+      if (!this.selectedCharacterId || this.isSpendingStatPoint) return;
+
+      this.statPointError = '';
+      this.isSpendingStatPoint = true;
+      try {
+        const res = await fetch(`/api/characters/${this.selectedCharacterId}/spend-stat-point`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stat })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.detail || 'Nie udało się przydzielić punktu atrybutu.');
+        }
+
+        await this.fetchSession();
+        this.showLevelUpModal = data.unspent_stat_points > 0;
+        this.addToast(`Zwiększono atrybut ${this.statLabel(stat)} do +${data.stat_value}.`, 'success');
+      } catch (err) {
+        this.statPointError = err.message;
+      } finally {
+        this.isSpendingStatPoint = false;
       }
     },
 

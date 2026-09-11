@@ -39,6 +39,9 @@ class CreateCharacterRequest(BaseModel):
 class UpdatePersonalNoteRequest(BaseModel):
     content: str = Field(default="", max_length=20000)
 
+class SpendStatPointRequest(BaseModel):
+    stat: Literal["strength", "agility", "intellect", "charisma"]
+
 class InventoryItemDto(BaseModel):
     id: int
     name: str
@@ -64,6 +67,7 @@ class CharacterDto(BaseModel):
     agility: int
     intellect: int
     charisma: int
+    unspent_stat_points: int = 0
     is_alive: bool
     is_ready: bool = False
     inventory: List[InventoryItemDto] = []

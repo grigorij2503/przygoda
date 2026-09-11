@@ -50,7 +50,7 @@
   <!-- Alpine.js CDN -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
   <!-- App Logic -->
-  <script src="/static/js/app.js?v=9"></script>
+  <script src="/static/js/app.js?v=10"></script>
 </head>
 <body x-data="rpgGame" class="min-h-screen text-gray-200 antialiased selection:bg-amber-600 selection:text-white">
 
@@ -927,6 +927,15 @@
                    : 'Maksymalny poziom'"></div>
           </div>
 
+          <button x-show="(currentCharacter?.unspent_stat_points || 0) > 0" x-cloak
+                  type="button" @click="statPointError = ''; showLevelUpModal = true"
+                  class="w-full mb-5 px-4 py-3 rounded-xl border border-amber-500/60 bg-gradient-to-r from-amber-950/80 to-yellow-950/60 hover:border-amber-400 text-amber-200 text-xs font-fantasy font-bold transition shadow-lg shadow-amber-950/30 flex items-center justify-center gap-2">
+            <span>⭐</span>
+            <span>ROZDAJ PUNKTY ATRYBUTÓW</span>
+            <span class="min-w-6 h-6 px-1.5 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-mono"
+                  x-text="currentCharacter?.unspent_stat_points"></span>
+          </button>
+
           <!-- Atrybuty Postaci -->
           <div class="mb-6">
             <span class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 block mb-2">Atrybuty bazowe:</span>
@@ -1218,6 +1227,56 @@
           </button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: WYBÓR ATRYBUTU PO AWANSIE ==================== -->
+  <div x-show="showLevelUpModal && currentCharacter" x-cloak
+       @keydown.escape.window="showLevelUpModal = false"
+       class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-lg w-full border border-amber-500/50 shadow-2xl">
+      <div class="text-center mb-6">
+        <div class="text-4xl mb-3">⭐</div>
+        <h3 class="text-2xl font-fantasy font-bold text-amber-300">AWANS BOHATERA</h3>
+        <p class="text-sm text-gray-300 mt-2">
+          <span x-text="currentCharacter?.name"></span> ma
+          <b class="text-amber-300" x-text="currentCharacter?.unspent_stat_points"></b>
+          <span x-text="currentCharacter?.unspent_stat_points === 1 ? ' punkt' : ' punkty'"></span>
+          do rozdania.
+        </p>
+        <p class="text-xs text-gray-500 mt-1">Wybierz atrybut, który zwiększysz o 1.</p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <button type="button" @click="spendStatPoint('strength')" :disabled="isSpendingStatPoint"
+                class="p-4 rounded-xl bg-slate-950 hover:bg-amber-950/50 border border-slate-700 hover:border-amber-500 transition disabled:opacity-50">
+          <span class="block text-xs uppercase text-gray-400">Siła (STR)</span>
+          <span class="block mt-1 text-xl font-bold text-amber-300" x-text="'+' + currentCharacter?.strength + ' → +' + ((currentCharacter?.strength || 0) + 1)"></span>
+        </button>
+        <button type="button" @click="spendStatPoint('agility')" :disabled="isSpendingStatPoint"
+                class="p-4 rounded-xl bg-slate-950 hover:bg-amber-950/50 border border-slate-700 hover:border-amber-500 transition disabled:opacity-50">
+          <span class="block text-xs uppercase text-gray-400">Zręczność (AGI)</span>
+          <span class="block mt-1 text-xl font-bold text-amber-300" x-text="'+' + currentCharacter?.agility + ' → +' + ((currentCharacter?.agility || 0) + 1)"></span>
+        </button>
+        <button type="button" @click="spendStatPoint('intellect')" :disabled="isSpendingStatPoint"
+                class="p-4 rounded-xl bg-slate-950 hover:bg-amber-950/50 border border-slate-700 hover:border-amber-500 transition disabled:opacity-50">
+          <span class="block text-xs uppercase text-gray-400">Rozum (INT)</span>
+          <span class="block mt-1 text-xl font-bold text-amber-300" x-text="'+' + currentCharacter?.intellect + ' → +' + ((currentCharacter?.intellect || 0) + 1)"></span>
+        </button>
+        <button type="button" @click="spendStatPoint('charisma')" :disabled="isSpendingStatPoint"
+                class="p-4 rounded-xl bg-slate-950 hover:bg-amber-950/50 border border-slate-700 hover:border-amber-500 transition disabled:opacity-50">
+          <span class="block text-xs uppercase text-gray-400">Charyzma (CHA)</span>
+          <span class="block mt-1 text-xl font-bold text-amber-300" x-text="'+' + currentCharacter?.charisma + ' → +' + ((currentCharacter?.charisma || 0) + 1)"></span>
+        </button>
+      </div>
+
+      <p x-show="statPointError" x-text="statPointError"
+         class="mt-4 text-rose-300 text-xs bg-rose-950/40 border border-rose-800 rounded-lg p-3"></p>
+
+      <button type="button" @click="showLevelUpModal = false"
+              class="w-full mt-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-gray-400 rounded-lg text-xs font-fantasy transition">
+        Wybiorę później
+      </button>
     </div>
   </div>
 
