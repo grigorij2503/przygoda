@@ -247,6 +247,7 @@ async def resolve_turn_with_gemini(
             "class": c.character_class,
             "hp": f"{c.current_hp}/{c.max_hp}",
             "level": c.level,
+            "status_effects": getattr(c, "status_effects", None) or [],
             "stats": f"STR:+{c.strength}, AGI:+{c.agility}, INT:+{c.intellect}, CHA:+{c.charisma}",
             "equipped": equipped_items,
             "inventory": [
@@ -268,14 +269,18 @@ async def resolve_turn_with_gemini(
             "character_id": a["character_id"],
             "character_name": a["character_name"],
             "action_declared": a["action_text"],
+            "intent": a.get("intent"),
+            "target_ref": a.get("target_ref"),
             "tested_attribute": a["tested_stat"],
             "dice_roll_d20": a["dice_roll_raw"],
             "stat_bonus": a["stat_modifier"],
             "item_bonus": a["item_modifier"],
+            "status_modifier": a.get("status_modifier", 0),
             "total_score": a["dice_total"],
             "dc_difficulty": a["dc"],
             "outcome_tier": a["outcome_tier"],
             "boss_damage": a.get("boss_damage", 0),
+            "hp_delta_from_combat_engine": a.get("hp_delta", 0),
         })
 
     # Kontekst nazwanych przez graczy elementów świata (Lore)
@@ -296,7 +301,11 @@ async def resolve_turn_with_gemini(
             f"\nAKTYWNY GŁÓWNY WRÓG / BOSS: {session.active_boss_title} "
             f"o imieniu '{session.active_boss_name}' (HP po rozliczeniu ataków: "
             f"{session.active_boss_hp}/{session.active_boss_max_hp}). {boss_state} "
-            "Pole boss_damage przy akcjach jest mechanicznym wynikiem silnika i musi być zgodne z narracją."
+            f"Faza: {getattr(session, 'active_boss_phase', 1)}, pancerz: "
+            f"{getattr(session, 'active_boss_armor', 0)}, efekty: "
+            f"{getattr(session, 'active_boss_effects', None) or []}. "
+            "Pola boss_damage, hp_delta_from_combat_engine oraz combat_events są "
+            "mechanicznym wynikiem silnika i muszą być dokładnie zgodne z narracją."
         )
 
     system_instruction = (
@@ -315,7 +324,7 @@ async def resolve_turn_with_gemini(
         "6. ŁĄCZENIE I ULEPSZANIE: Gdy w wyniku akcji powstaje nowy lub ulepszony przedmiot z posiadanych składników, wpisz dokładne nazwy WSZYSTKICH zużytych składników z inventory do source_item_names nowego przedmiotu. Nie pozostawiaj składników w ekwipunku. Jeśli nic nowego nie powstało, source_item_names pozostaje puste. Przedmioty utracone z innych powodów wpisuj do removed_item_names.\n\n"
         "ZASADY WYJŚCIA JSON:\n"
         "1. gm_story_narration: Głęboka, barwna i kinowa narracja Mistrza Gry w języku polskim podsumowująca akcje graczy i zmieniającą się sytuację (min. 3-5 soczystych zdań).\n"
-        "2. player_consequences: Dla KAŻDEGO gracza: individual_summary (fabularne podsumowanie jego losu), hp_delta (utracone/odzyskane HP), xp_gained (50-120 XP), new_items, removed_item_names.\n"
+        "2. player_consequences: Dla KAŻDEGO gracza: individual_summary (fabularne podsumowanie jego losu), hp_delta (utracone/odzyskane HP), xp_gained (50-120 XP), new_items, removed_item_names. Podczas aktywnej walki z bossem ustaw hp_delta dokładnie na hp_delta_from_combat_engine; nie dodawaj własnych obrażeń.\n"
         "   OPISY PRZEDMIOTÓW: Każdy nowy przedmiot opisz jednym krótkim, naturalnym zdaniem po polsku, które mówi graczowi, co daje lub robi przedmiot. Zachowaj lekko swobodny ton, np. 'Wzbudza respekt u rozmówców'. Dla przedmiotów zużywalnych podaj efekt wprost, np. 'Odnawia 10 punktów życia'. Nie powtarzaj w opisie technicznego zapisu '+1 do statystyki'.\n"
         "   SLOTY PRZEDMIOTÓW: Dla weapon ustaw hands_required na 1 albo 2 zgodnie z naturą broni. Tarczę zapisuj jako item_type='shield' i hands_required=1.\n"
         "3. next_turn_prompt: Nowa sytuacja fabularna i konkretne, bezpośrednie wyzwanie rzucone drużynie na otwarcie kolejnej tury (zawsze kończące się pytaniem 'Co robicie?').\n"
@@ -332,7 +341,10 @@ async def resolve_turn_with_gemini(
         "turn_number": turn.turn_number,
         "active_lore_entities": lore_context,
         "party_status": party_context,
-        "player_actions_and_dice_rolls": actions_context
+        "player_actions_and_dice_rolls": actions_context,
+        "combat_events": getattr(turn, "combat_events", None) or [],
+        "boss_environment_features": getattr(session, "active_boss_features", None) or [],
+        "boss_next_telegraphed_attack": getattr(session, "active_boss_telegraph", None),
     }
 
     if not client:
@@ -367,15 +379,19 @@ def _generate_rich_offline_resolution(
     """Generuje dynamiczną, wciągającą fabularnie narrację offline reagującą na akcje graczy."""
     consequences = []
     story_beats = []
+    character_by_id = {character.id: character for character in characters}
 
     for a in actions_with_rolls:
         cid = a["character_id"]
         name = a["character_name"]
         tier = a["outcome_tier"]
         act_text = (a.get("action_text") or "").lower()
+        declared_action = (a.get("action_text") or "działa zdecydowanie").strip()
+        character = character_by_id.get(cid)
+        character_class = character.character_class if character else "bohater"
 
         is_escape = any(w in act_text for w in ["uciek", "odwrót", "spierdal", "bieg", "wycof", "kryj"])
-        is_attack = any(w in act_text for w in ["atak", "tnę", "miecz", "cios", "strzał", "wal", "zabij", "uderz", "topór", "łuk"])
+        is_attack = a.get("intent") == "attack" or any(w in act_text for w in ["atak", "tnę", "miecz", "cios", "strzał", "wal", "zabij", "uderz", "topór", "łuk"])
         is_search = any(w in act_text for w in ["szukam", "badam", "zwiad", "rozgląd", "otwier", "sprawdz"])
         is_magic = any(w in act_text for w in ["czar", "magi", "zaklę", "lecz", "płomie", "aur", "tarcz"])
 
@@ -398,7 +414,18 @@ def _generate_rich_offline_resolution(
             if is_escape:
                 desc = f"{name} bierze nogi za pas! Przeskakując nad gruzami i gasnącymi pochodniami, urywa się pościgowi i znajduje bezpieczną osłonę za ciężkimi wrotami dawnej strażnicy."
             elif is_attack:
-                desc = f"{name} trafia z impetem w cel! Przeciwnik chwieje się pod naporem ciosu, a jego gardłowy ryk bólu odbija się echem od sklepienia. Inicjatywa należy do was."
+                damage_note = (
+                    f" Cios odbiera przeciwnikowi {a.get('boss_damage', 0)} HP."
+                    if a.get("boss_damage", 0) > 0
+                    else " Przeciwnik cofa się pod naporem udanego natarcia."
+                )
+                attack_variants = [
+                    f"{name}, walczący jako {character_class}, przekuwa deklarację „{declared_action}” w czysty, precyzyjny atak. Stal przecina gardę, a echo trafienia niesie się po polu walki.{damage_note}",
+                    f"{name} wybiera właściwy moment i realizuje swój zamiar: „{declared_action}”. Przeciwnik zbyt późno dostrzega kierunek uderzenia i traci równowagę.{damage_note}",
+                    f"Manewr postaci {name} — „{declared_action}” — kończy się zdecydowanym trafieniem. Wróg odpowiada rykiem, lecz to bohater utrzymuje inicjatywę.{damage_note}",
+                    f"{name} wykorzystuje umiejętności klasy {character_class}, by wykonać: „{declared_action}”. Atak przełamuje obronę i zmusza przeciwnika do desperackiego odwrotu.{damage_note}",
+                ]
+                desc = attack_variants[cid % len(attack_variants)]
             elif is_search:
                 desc = f"{name} dostrzega ślady świeżej krwi oraz bezpieczną ścieżkę omijającą zdradliwe zapadnie."
             elif is_magic:
@@ -433,6 +460,14 @@ def _generate_rich_offline_resolution(
             else:
                 desc = f"Próba {name} kończy się niepowodzeniem. Postać traci 5 HP i zostaje zepchnięta do defensywy."
 
+        if turn.combat_events:
+            hp_delta = int(a.get("hp_delta", 0))
+            boss_damage = int(a.get("boss_damage", 0))
+            if boss_damage > 0 and tier != "success":
+                desc += f" Mechaniczny wynik ciosu to {boss_damage} obrażeń zadanych bossowi."
+            if hp_delta < 0:
+                desc += f" Kontratak i zagrożenia areny odbierają mu {abs(hp_delta)} HP."
+
         story_beats.append(desc)
         consequences.append(PlayerConsequenceSchema(
             character_id=cid,
@@ -451,9 +486,35 @@ def _generate_rich_offline_resolution(
             removed_item_names=[]
         ))
 
+    combat_summary = ""
+    if turn.combat_events:
+        event_sentences = []
+        for event in turn.combat_events:
+            event_type = event.get("type")
+            if event_type == "boss_attack":
+                event_sentences.append(
+                    f"{event.get('boss')} odpowiada atakiem „{event.get('attack')}”, raniąc {event.get('target')} za {event.get('damage')} HP."
+                )
+            elif event_type == "environment_success":
+                event_sentences.append(
+                    f"{event.get('actor')} skutecznie wykorzystuje element areny: {event.get('feature')}."
+                )
+            elif event_type == "phase_change":
+                event_sentences.append(
+                    f"{event.get('boss')} przechodzi do fazy {event.get('phase')}, zmieniając rytm starcia."
+                )
+            elif event_type == "boss_defeated":
+                event_sentences.append(f"{event.get('boss')} zostaje pokonany.")
+            elif event_type == "status_damage":
+                event_sentences.append(
+                    f"Efekt {event.get('effect')} zadaje {event.get('target')} {event.get('damage')} obrażeń."
+                )
+        if event_sentences:
+            combat_summary = "\n\n" + " ".join(event_sentences)
     full_narrative = (
         f"Rozstrzygnięcie wydarzeń Tury #{turn.turn_number}:\n\n" +
         "\n\n".join(story_beats) +
+        combat_summary +
         "\n\nPowietrze gęstnieje od pyłu i zapachu żelaza. Wasze oddechy są ciężkie, a stan zdrowia przypomina o brutalności tego świata. Sytuacja uległa gwałtownej zmianie!"
     )
 

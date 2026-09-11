@@ -45,12 +45,12 @@
   </script>
 
   <!-- Custom Stylesheet -->
-  <link rel="stylesheet" href="/static/css/style.css?v=11">
+  <link rel="stylesheet" href="/static/css/style.css?v=13">
 
   <!-- Alpine.js CDN -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
   <!-- App Logic -->
-  <script src="/static/js/app.js?v=11"></script>
+  <script src="/static/js/app.js?v=13"></script>
 </head>
 <body x-data="rpgGame" class="min-h-screen text-gray-200 antialiased selection:bg-amber-600 selection:text-white">
 
@@ -480,10 +480,50 @@
             HP: <span x-text="session?.active_boss?.hp + ' / ' + session?.active_boss?.max_hp"></span>
           </span>
         </div>
+        <div class="flex flex-wrap items-center gap-1.5 mb-2 text-[10px] font-mono">
+          <span class="px-2 py-0.5 rounded border border-red-800/70 bg-red-950/70 text-red-200"
+                x-text="'FAZA ' + (session?.active_boss?.phase || 1) + '/3'"></span>
+          <span class="px-2 py-0.5 rounded border border-slate-700 bg-slate-950/70 text-gray-300"
+                x-text="'🛡 Pancerz ' + (session?.active_boss?.armor || 0)"></span>
+          <span class="px-2 py-0.5 rounded border border-slate-700 bg-slate-950/70 text-gray-300"
+                x-text="'🎲 DC ' + (session?.active_boss?.defense_dc || 12)"></span>
+          <template x-for="effect in session?.active_boss?.effects || []" :key="effect.type">
+            <span class="px-2 py-0.5 rounded border cursor-help"
+                  :class="statusClass(effect)" :title="statusTooltip(effect)">
+              <span x-text="effect.icon"></span>
+              <span x-text="effect.label"></span>
+              <span x-show="effect.turns_remaining < 90" x-text="'(' + effect.turns_remaining + ')' "></span>
+            </span>
+          </template>
+        </div>
         <div class="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-red-800/80 p-0.5">
           <div class="h-full rounded-full bg-gradient-to-r from-red-700 via-rose-600 to-red-500 transition-all duration-500"
                :style="'width: ' + Math.max(0, Math.min(100, (session?.active_boss?.hp / session?.active_boss?.max_hp) * 100)) + '%'"></div>
         </div>
+        <details x-show="session?.active_boss?.hp > 0" class="mt-2 text-[10px]">
+          <summary class="cursor-pointer text-red-300 hover:text-red-200 font-fantasy select-none">
+            ⚔ Mechanika starcia i elementy areny
+          </summary>
+          <div class="mt-2 grid grid-cols-1 md:grid-cols-4 gap-2">
+            <div class="p-2 rounded-lg border border-amber-700/50 bg-amber-950/30">
+              <div class="font-bold text-amber-300" x-text="(session?.active_boss?.telegraph?.icon || '⚠️') + ' ' + (session?.active_boss?.telegraph?.name || 'Nadchodzący atak')"></div>
+              <div class="text-gray-300 mt-0.5" x-text="session?.active_boss?.telegraph?.description"></div>
+            </div>
+            <template x-for="feature in session?.active_boss?.features || []" :key="feature.id">
+              <button type="button" @click="setEncounterAction(feature)"
+                      :disabled="feature.state !== 'active' || hasSubmittedCurrentTurn || session?.is_turn_resolving"
+                      class="text-left p-2 rounded-lg border transition disabled:opacity-40 disabled:cursor-not-allowed"
+                      :class="feature.state === 'active' ? 'border-indigo-700/60 bg-indigo-950/30 hover:border-indigo-400' : 'border-slate-800 bg-slate-950/60'">
+                <div class="font-bold text-indigo-200">
+                  <span x-text="feature.icon"></span> <span x-text="feature.name"></span>
+                </div>
+                <div class="text-gray-300 mt-0.5" x-text="feature.description"></div>
+                <div class="text-indigo-300 mt-1 font-mono"
+                     x-text="feature.state === 'active' ? (statShortLabel(feature.required_stat) + ' • DC ' + feature.dc) : 'WYKORZYSTANO'"></div>
+              </button>
+            </template>
+          </div>
+        </details>
       </div>
     </header>
 
@@ -632,11 +672,11 @@
               </div>
 
               <!-- Narracja Mistrza Gry (Gemini) dla ukończonej tury -->
-              <div x-show="t.status === 'completed' && t.gm_narration" class="mb-5 prose prose-invert max-w-none text-gray-200 text-sm leading-relaxed bg-slate-950/60 p-5 rounded-xl border border-amber-900/30">
+              <div x-show="t.status === 'completed' && t.gm_narration" class="story-resolution mb-5 max-w-none bg-slate-950/60 p-5 rounded-xl border border-amber-900/30">
                 <div class="text-[11px] font-fantasy text-amber-400 font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <span>📜</span> ROZSTRZYGNIĘCIE FABULARNE MISTRZA GRY
                 </div>
-                <p class="font-serif leading-relaxed whitespace-pre-line" x-text="t.gm_narration"></p>
+                <p class="story-narration" x-text="t.gm_narration"></p>
               </div>
 
               <!-- Sytuacja i Wyzwanie dla tury w toku (np. Tura 3) -->
@@ -668,6 +708,7 @@
                              class="flex flex-wrap gap-1.5 mt-2 font-mono text-[10px]">
                           <span x-show="act.damage_dealt > 0"
                                 class="px-2 py-1 rounded-md border border-orange-700/60 bg-orange-950/50 text-orange-300"
+                                :title="act.damage_base ? ('Baza ' + act.damage_base + ' (w tym k6: ' + act.damage_roll + '), redukcja pancerza: ' + act.damage_reduction) : ''"
                                 x-text="'⚔ Zadano ' + act.damage_dealt + ' obrażeń'"></span>
                           <span x-show="act.hp_delta < 0"
                                 class="px-2 py-1 rounded-md border border-rose-700/60 bg-rose-950/50 text-rose-300"
@@ -694,6 +735,12 @@
                               <span class="contents">
                                 <span class="text-gray-500">+</span>
                                 <span class="text-violet-300 font-bold" x-text="'ekwipunek(' + act.item_modifier + ')'" ></span>
+                              </span>
+                            </template>
+                            <template x-if="act.status_modifier">
+                              <span class="contents">
+                                <span class="text-gray-500">+</span>
+                                <span class="text-rose-300 font-bold" x-text="'efekty(' + act.status_modifier + ')'" ></span>
                               </span>
                             </template>
                             <span class="text-gray-400">=</span>
@@ -847,19 +894,19 @@
 
             <!-- Sugestie szybkich akcji -->
             <div class="flex flex-wrap gap-1.5 mb-3">
-              <button @click="setQuickAction('Atakuję wręcz z całą furią, celując w słaby punkt pancerza wroga.')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
+              <button @click="setQuickAction('Atakuję wręcz z całą furią, celując w słaby punkt pancerza wroga.', 'attack', 'boss')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
                 ⚔️ Atak wręcz
               </button>
-              <button @click="setQuickAction('Cofam się za osłonę i oddaję precyzyjny strzał z dystansu.')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
+              <button @click="setQuickAction('Cofam się za osłonę i oddaję precyzyjny strzał z dystansu.', 'attack', 'boss')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
                 🏹 Strzał z dystansu
               </button>
-              <button @click="setQuickAction('Splatając magiczne energie, rzucam zaklęcie ofensywne w stronę przeciwników.')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
+              <button @click="setQuickAction('Splatając magiczne energie, rzucam zaklęcie ofensywne w stronę przeciwników.', 'attack', 'boss')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
                 ✨ Czar ofensywny
               </button>
-              <button @click="setQuickAction('Wyciągam tarczę i zasłaniam sojusznika przed nadciągającym ciosem.')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
+              <button @click="setQuickAction('Wyciągam tarczę i zasłaniam sojusznika przed nadciągającym ciosem.', 'defend')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
                 🛡️ Obrona sojusznika
               </button>
-              <button @click="setQuickAction('Ostrożnie badam otoczenie w poszukiwaniu ukrytych mechanizmów lub słabych punktów komnaty.')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
+              <button @click="setQuickAction('Ostrożnie badam otoczenie w poszukiwaniu ukrytych mechanizmów lub słabych punktów komnaty.', 'other')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
                 🔍 Zwiad / Rozpoznanie
               </button>
             </div>
@@ -867,6 +914,11 @@
             <div class="space-y-3">
               <textarea x-model="actionText" rows="2" placeholder="Opisz dokładnie co zamierza zrobić Twoja postać... Silnik dedukuje atrybut i rzuci d20."
                         class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 transition resize-none"></textarea>
+
+              <div x-show="actionIntent" class="text-[10px] font-mono text-indigo-300">
+                Cel mechaniczny: <span x-text="intentLabel(actionIntent)"></span><span x-show="actionTargetRef" x-text="' • ' + targetLabel(actionTargetRef)"></span>
+                <button type="button" @click="actionIntent = null; actionTargetRef = null" class="ml-2 text-gray-500 hover:text-gray-300 underline">wyczyść wybór</button>
+              </div>
 
               <div x-show="actionError" x-text="actionError" class="text-xs text-rose-400"></div>
 
@@ -897,6 +949,17 @@
                   :class="currentCharacter?.is_alive ? 'bg-emerald-950 border border-emerald-600/40 text-emerald-300' : 'bg-rose-950 border border-rose-600 text-rose-300'"
                   x-text="currentCharacter?.is_alive ? 'ŻYWY' : 'POLEGŁY'">
             </span>
+          </div>
+
+          <div x-show="(currentCharacter?.status_effects || []).length > 0" class="flex flex-wrap gap-1.5 mb-4">
+            <template x-for="effect in currentCharacter?.status_effects || []" :key="effect.type">
+              <span class="px-2 py-1 rounded-md border text-[10px] font-mono cursor-help"
+                    :class="statusClass(effect)" :title="statusTooltip(effect)">
+                <span x-text="effect.icon"></span>
+                <span x-text="effect.label"></span>
+                <span x-text="'• ' + effect.turns_remaining + ' t.'"></span>
+              </span>
+            </template>
           </div>
 
           <!-- Pasek Zdrowia (HP) -->
@@ -1246,6 +1309,13 @@
                   </div>
                   <div class="text-[10px] text-gray-400">
                     <span x-text="p.character_class"></span> • Lvl <span x-text="p.level"></span> • ❤️ <span x-text="p.current_hp + '/' + p.max_hp"></span>
+                  </div>
+                  <div x-show="(p.status_effects || []).length > 0" class="flex flex-wrap gap-1 mt-1">
+                    <template x-for="effect in p.status_effects || []" :key="effect.type">
+                      <span class="px-1.5 py-0.5 rounded border text-[9px] cursor-help"
+                            :class="statusClass(effect)" :title="statusTooltip(effect)"
+                            x-text="effect.icon + ' ' + effect.label + ' (' + effect.turns_remaining + ')' "></span>
+                    </template>
                   </div>
                 </div>
 

@@ -49,6 +49,7 @@ class InventoryItemDto(BaseModel):
     item_type: str
     target_stat: str
     stat_bonus: int
+    damage_power: int = 0
     hands_required: int = 1
     is_equipped: bool
     quantity: int
@@ -71,6 +72,7 @@ class CharacterDto(BaseModel):
     unspent_stat_points: int = 0
     is_alive: bool
     is_ready: bool = False
+    status_effects: List[dict] = []
     inventory: List[InventoryItemDto] = []
 
     model_config = ConfigDict(from_attributes=True)
@@ -82,21 +84,29 @@ class ResolveTurnRequest(BaseModel):
 class SubmitActionRequest(BaseModel):
     character_id: int
     action_text: str
+    intent: Optional[Literal["attack", "defend", "interact", "support", "other"]] = None
+    target_ref: Optional[str] = None
 
 class PlayerActionDto(BaseModel):
     id: int
     character_id: int
     character_name: str
     action_text: str
+    intent: Optional[str] = None
+    target_ref: Optional[str] = None
     tested_stat: Optional[str] = None
     dice_roll_raw: Optional[int] = None
     stat_modifier: Optional[int] = None
     item_modifier: Optional[int] = None
+    status_modifier: int = 0
     dice_total: Optional[int] = None
     dc: Optional[int] = None
     outcome_tier: Optional[str] = None
     gm_individual_summary: Optional[str] = ""
     damage_dealt: int = 0
+    damage_roll: int = 0
+    damage_base: int = 0
+    damage_reduction: int = 0
     hp_delta: int = 0
     xp_gained: int = 0
 
@@ -114,6 +124,8 @@ class TurnDto(BaseModel):
     actions: List[PlayerActionDto] = []
     created_at: datetime
     resolved_at: Optional[datetime] = None
+    mechanics_resolved_at: Optional[datetime] = None
+    combat_events: List[dict] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -129,8 +141,10 @@ class NewItemSchema(BaseModel):
     item_type: Literal["weapon", "shield", "armor", "accessory", "consumable", "misc"]
     target_stat: Literal["strength", "agility", "intellect", "charisma", "hp_max", "none"]
     stat_bonus: int = Field(description="Bonus do statystyki lub wartość leczenia dla consumable")
-    hands_required: Literal[1, 2] = Field(
+    hands_required: int = Field(
         default=1,
+        ge=1,
+        le=2,
         description="Dla broni: 1 dla jednoręcznej albo 2 dla dwuręcznej. Dla innych typów zawsze 1",
     )
     source_item_names: List[str] = Field(

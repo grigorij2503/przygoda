@@ -107,6 +107,35 @@ body {
   transition: width 0.5s ease;
 }
 
+.status-effect--orange { background: rgb(67 20 7 / 0.82); border-color: rgb(234 88 12 / 0.65); color: #fed7aa; }
+.status-effect--green { background: rgb(2 44 34 / 0.82); border-color: rgb(5 150 105 / 0.65); color: #a7f3d0; }
+.status-effect--cyan { background: rgb(8 51 68 / 0.82); border-color: rgb(6 182 212 / 0.65); color: #a5f3fc; }
+.status-effect--yellow { background: rgb(66 32 6 / 0.82); border-color: rgb(234 179 8 / 0.65); color: #fef08a; }
+.status-effect--rose { background: rgb(76 5 25 / 0.82); border-color: rgb(244 63 94 / 0.65); color: #fecdd3; }
+.status-effect--blue { background: rgb(23 37 84 / 0.82); border-color: rgb(59 130 246 / 0.65); color: #bfdbfe; }
+.status-effect--neutral { background: rgb(15 23 42 / 0.9); border-color: #475569; color: #e2e8f0; }
+
+.story-resolution {
+  box-shadow: inset 3px 0 0 rgba(217, 166, 54, 0.58), 0 14px 32px rgba(0, 0, 0, 0.22);
+}
+
+.story-narration {
+  margin: 0;
+  white-space: pre-line;
+  color: #e5e7eb;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 0.96rem;
+  line-height: 1.85;
+  letter-spacing: 0.008em;
+}
+
+.story-narration::first-letter {
+  color: #fbbf24;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 1.65em;
+  font-weight: 700;
+}
+
 /* Equipment slots inspired by classic action RPG inventories */
 .equipment-panel {
   padding: 0.9rem;

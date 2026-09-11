@@ -67,7 +67,9 @@ def calculate_item_modifier(character: Character, tested_stat: str) -> int:
 def resolve_dice_roll(
     action_text: str,
     character: Character,
-    dc: int = 12
+    dc: int = 12,
+    tested_stat_override: str | None = None,
+    roll_modifier: int = 0,
 ) -> Tuple[str, int, int, int, int, str]:
     """
     Wykonuje deterministyczny, kryptograficznie bezpieczny rzut kością k20
@@ -76,7 +78,11 @@ def resolve_dice_roll(
     Zwraca krotkę:
     (tested_stat, dice_roll_raw, stat_modifier, item_modifier, dice_total, outcome_tier)
     """
-    tested_stat = deduce_tested_attribute(action_text, character)
+    tested_stat = (
+        tested_stat_override
+        if tested_stat_override in {"strength", "agility", "intellect", "charisma"}
+        else deduce_tested_attribute(action_text, character)
+    )
 
     # Wartość cechy postaci
     stat_val = getattr(character, tested_stat, 0)
@@ -87,7 +93,7 @@ def resolve_dice_roll(
     # Rzut kością k20 (1-20)
     dice_roll_raw = secrets.randbelow(20) + 1
 
-    dice_total = dice_roll_raw + stat_val + item_mod
+    dice_total = dice_roll_raw + stat_val + item_mod + roll_modifier
 
     # Klasyfikacja wyniku
     if dice_roll_raw == 20:

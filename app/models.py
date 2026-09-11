@@ -18,6 +18,12 @@ class GameSession(Base):
     active_boss_title = Column(String(150), nullable=True)
     active_boss_hp = Column(Integer, nullable=True)
     active_boss_max_hp = Column(Integer, nullable=True)
+    active_boss_armor = Column(Integer, nullable=False, default=0)
+    active_boss_defense_dc = Column(Integer, nullable=False, default=12)
+    active_boss_phase = Column(Integer, nullable=False, default=1)
+    active_boss_effects = Column(JSON, default=list)
+    active_boss_features = Column(JSON, default=list)
+    active_boss_telegraph = Column(JSON, nullable=True)
 
     pending_naming_category = Column(String(50), nullable=True)  # boss, location, weapon, attack
     pending_naming_prompt = Column(Text, nullable=True)
@@ -49,6 +55,7 @@ class Character(Base):
     charisma = Column(Integer, default=0)
     unspent_stat_points = Column(Integer, nullable=False, default=0)
     personal_note = Column(Text, nullable=False, default="")
+    status_effects = Column(JSON, default=list)
     is_alive = Column(Boolean, default=True)
     is_ready = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -68,6 +75,7 @@ class InventoryItem(Base):
     item_type = Column(String(50), default="weapon")  # weapon, shield, armor, accessory, consumable, misc
     target_stat = Column(String(50), default="strength")  # strength, agility, intellect, charisma, hp_max, none
     stat_bonus = Column(Integer, default=0)
+    damage_power = Column(Integer, nullable=False, default=0)
     hands_required = Column(Integer, nullable=False, default=1)  # 1 albo 2 dla broni; pozostałe typy ignorują tę wartość
     is_equipped = Column(Boolean, default=False)
     quantity = Column(Integer, default=1)
@@ -90,6 +98,8 @@ class Turn(Base):
     is_generating_image = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     resolved_at = Column(DateTime, nullable=True)
+    mechanics_resolved_at = Column(DateTime, nullable=True)
+    combat_events = Column(JSON, default=list)
 
     session = relationship("GameSession", back_populates="turns")
     actions = relationship("PlayerAction", back_populates="turn", cascade="all, delete-orphan")
@@ -102,15 +112,21 @@ class PlayerAction(Base):
     turn_id = Column(Integer, ForeignKey("turns.id", ondelete="CASCADE"), nullable=False)
     character_id = Column(Integer, ForeignKey("characters.id", ondelete="CASCADE"), nullable=False)
     action_text = Column(Text, nullable=False)
+    intent = Column(String(30), nullable=True, default=None)
+    target_ref = Column(String(100), nullable=True, default=None)
     tested_stat = Column(String(50), nullable=True, default=None)
     dice_roll_raw = Column(Integer, nullable=True, default=None)
     stat_modifier = Column(Integer, nullable=True, default=None)
     item_modifier = Column(Integer, nullable=True, default=None)
+    status_modifier = Column(Integer, nullable=False, default=0)
     dice_total = Column(Integer, nullable=True, default=None)
     dc = Column(Integer, nullable=True, default=None)
     outcome_tier = Column(String(50), nullable=True, default=None)  # critical_success, success, partial_success, failure, critical_failure
     gm_individual_summary = Column(Text, default="")
     damage_dealt = Column(Integer, nullable=False, default=0)
+    damage_roll = Column(Integer, nullable=False, default=0)
+    damage_base = Column(Integer, nullable=False, default=0)
+    damage_reduction = Column(Integer, nullable=False, default=0)
     hp_delta = Column(Integer, nullable=False, default=0)
     xp_gained = Column(Integer, nullable=False, default=0)
     submitted_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

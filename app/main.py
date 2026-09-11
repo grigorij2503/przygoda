@@ -1,4 +1,5 @@
 import asyncio
+import html
 import logging
 import re
 import unicodedata
@@ -21,6 +22,17 @@ import json
 from datetime import datetime, timezone
 
 from app.config import UPLOADS_DIR, settings
+from app.combat import (
+    action_dc,
+    build_boss_encounter,
+    ensure_boss_encounter,
+    infer_action_intent,
+    infer_item_damage_power,
+    resolve_boss_turn,
+    resolve_status_turn,
+    status_list,
+    status_roll_penalty,
+)
 from app.database import get_db, init_db
 from app.dice import resolve_dice_roll
 from app.inventory import (
@@ -63,19 +75,6 @@ logger = logging.getLogger("ttrpg")
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 XP_LEVEL_THRESHOLDS = {1: 0, 2: 300, 3: 750, 4: 1300, 5: 2000}
-BOSS_DAMAGE_BY_OUTCOME = {
-    "critical_success": 24,
-    "success": 14,
-    "partial_success": 7,
-    "failure": 0,
-    "critical_failure": 0,
-}
-BOSS_ATTACK_KEYWORDS = (
-    "atak", "walcz", "tnę", "tne", "cios", "uderz", "zabij", "dobij", "ranię", "ranie",
-    "strzał", "strzal", "strzel", "miecz", "topór", "topor", "łuk", "luk",
-    "pocisk", "zaklęcie ofensywne", "zaklecie ofensywne", "kulą ognia", "kula ognia",
-    "płomień", "plomien", "błyskawic", "blyskawic",
-)
 ITEM_CLAIM_RULES = (
     ("Tarcza", ("tarc", "pawez", "puklerz"), ("tarc", "pawez", "puklerz"), {"shield"}),
     ("Miecz", ("miecz", "szabl", "rapier"), ("miecz", "szabl", "rapier"), {"weapon"}),
@@ -89,7 +88,9 @@ ITEM_CLAIM_RULES = (
 )
 ITEM_CLAIM_VERBS = (
     "uzyw", "wyciag", "dobyw", "zaklad", "chwyt", "trzym", "blokuj",
-    "zaslani", "oslani", "bron sie",
+    "zaslani", "oslani", "bron sie", "atak", "walcz", "strzel", "wystrzel",
+    "strzal", "cios", "celuj", "tnij", "tne", "siek", "pchn", "kluj",
+    "rzuc", "uderz", "rani", "zabij", "dobij",
 )
 CRAFTING_KEYWORDS = (
     "lacz", "polacz", "wzmacn", "ulepsz", "przekuw", "przerab", "wytwarz",
@@ -148,23 +149,21 @@ def get_xp_progress(level: int, xp: int) -> dict:
     }
 
 
-def get_boss_damage(action_text: str, outcome_tier: str) -> int:
-    """Nalicz obrażenia bossa tylko za ofensywną deklarację gracza."""
-    normalized_action = (action_text or "").casefold()
-    if not any(keyword in normalized_action for keyword in BOSS_ATTACK_KEYWORDS):
-        return 0
-    return BOSS_DAMAGE_BY_OUTCOME.get(outcome_tier, 0)
-
-
 def normalize_game_text(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", (value or "").casefold())
     return "".join(character for character in normalized if not unicodedata.combining(character))
+
+
+def decode_display_text(value: str | None) -> str:
+    """Dekoduje encje zwrócone przez model; UI nadal renderuje wynik bezpiecznie przez x-text."""
+    return html.unescape(value or "").replace("\u00a0", " ").strip()
 
 
 def validate_action_item_claim(action_text: str, inventory: List[InventoryItem]) -> str | None:
     """Blokuje jawne użycie broni lub pancerza, którego postać nie ma albo nie założyła."""
     normalized_action = normalize_game_text(action_text)
     action_clauses = re.split(r"[,.!?;]", normalized_action)
+    effectively_equipped_items = get_effectively_equipped_items(inventory)
 
     for label, claim_aliases, inventory_aliases, item_types in ITEM_CLAIM_RULES:
         claims_item = any(
@@ -192,7 +191,7 @@ def validate_action_item_claim(action_text: str, inventory: List[InventoryItem])
         ]
         if not matching_items:
             return f"Nie masz wymaganego przedmiotu: {label}. Zmień opis akcji albo zdobądź go w grze."
-        if not any(item.is_equipped for item in matching_items):
+        if not any(item in effectively_equipped_items for item in matching_items):
             return f"{label} znajduje się w plecaku, ale nie w aktywnym slocie. Najpierw użyj przycisku „Załóż”."
 
     return None
@@ -390,6 +389,8 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
     game_session = res.scalar_one_or_none()
     if not game_session:
         raise HTTPException(status_code=404, detail="Sesja nie została znaleziona")
+    if ensure_boss_encounter(game_session, game_session.characters):
+        await db.commit()
 
     current_turn = next(
         (t for t in game_session.turns if t.turn_number == game_session.current_turn_number),
@@ -417,6 +418,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
             "unspent_stat_points": c.unspent_stat_points or 0,
             "is_alive": c.is_alive,
             "is_ready": bool(getattr(c, "is_ready", False)),
+            "status_effects": status_list(c.status_effects),
             "has_submitted_action": c.id in submitted_character_ids,
             "inventory": [
                 {
@@ -426,6 +428,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
                     "item_type": item.item_type,
                     "target_stat": item.target_stat,
                     "stat_bonus": item.stat_bonus,
+                    "damage_power": infer_item_damage_power(item),
                     "hands_required": item.hands_required,
                     "is_equipped": item.is_equipped,
                     "quantity": item.quantity,
@@ -436,7 +439,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
 
     turns_dto = []
     for t in sorted(game_session.turns, key=lambda x: x.turn_number):
-        clean_prompt = t.next_turn_prompt or ""
+        clean_prompt = decode_display_text(t.next_turn_prompt)
         actions_list = t.suggested_actions if isinstance(t.suggested_actions, list) else []
         if not actions_list and isinstance(t.suggested_actions, str):
             try:
@@ -456,28 +459,36 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
             "id": t.id,
             "turn_number": t.turn_number,
             "status": t.status,
-            "gm_narration": t.gm_narration,
+            "gm_narration": decode_display_text(t.gm_narration),
             "next_turn_prompt": clean_prompt,
             "suggested_actions": actions_list,
             "image_url": t.image_url,
             "is_generating_image": t.is_generating_image,
             "created_at": t.created_at.isoformat() if t.created_at else None,
             "resolved_at": t.resolved_at.isoformat() if t.resolved_at else None,
+            "mechanics_resolved_at": t.mechanics_resolved_at.isoformat() if t.mechanics_resolved_at else None,
+            "combat_events": t.combat_events or [],
             "actions": [
                 {
                     "id": a.id,
                     "character_id": a.character_id,
                     "character_name": a.character.name if a.character else "Nieznany",
                     "action_text": a.action_text,
+                    "intent": a.intent,
+                    "target_ref": a.target_ref,
                     "tested_stat": a.tested_stat,
                     "dice_roll_raw": a.dice_roll_raw,
                     "stat_modifier": a.stat_modifier,
                     "item_modifier": a.item_modifier,
+                    "status_modifier": a.status_modifier or 0,
                     "dice_total": a.dice_total,
                     "dc": a.dc,
                     "outcome_tier": a.outcome_tier,
                     "gm_individual_summary": a.gm_individual_summary,
                     "damage_dealt": a.damage_dealt or 0,
+                    "damage_roll": a.damage_roll or 0,
+                    "damage_base": a.damage_base or 0,
+                    "damage_reduction": a.damage_reduction or 0,
                     "hp_delta": a.hp_delta or 0,
                     "xp_gained": a.xp_gained or 0,
                 }
@@ -499,6 +510,12 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
             "title": game_session.active_boss_title,
             "hp": game_session.active_boss_hp,
             "max_hp": game_session.active_boss_max_hp,
+            "armor": game_session.active_boss_armor or 0,
+            "defense_dc": game_session.active_boss_defense_dc or 12,
+            "phase": game_session.active_boss_phase or 1,
+            "effects": status_list(game_session.active_boss_effects),
+            "features": game_session.active_boss_features or [],
+            "telegraph": game_session.active_boss_telegraph,
         } if game_session.active_boss_name else None,
         "pending_naming": {
             "category": game_session.pending_naming_category,
@@ -540,6 +557,21 @@ async def reset_campaign(payload: CreateSessionRequest, db: AsyncSession = Depen
         session.campaign_intro = payload.campaign_intro
         session.current_turn_number = 1
         session.is_turn_resolving = False
+        session.active_boss_name = None
+        session.active_boss_title = None
+        session.active_boss_hp = None
+        session.active_boss_max_hp = None
+        session.active_boss_armor = 0
+        session.active_boss_defense_dc = 12
+        session.active_boss_phase = 1
+        session.active_boss_effects = []
+        session.active_boss_features = []
+        session.active_boss_telegraph = None
+        await db.execute(
+            update(Character)
+            .where(Character.session_id == session.id)
+            .values(status_effects=[])
+        )
 
         # Usuń dotychczasowe tury
         t_stmt = select(Turn).where(Turn.session_id == session.id)
@@ -592,6 +624,12 @@ async def setup_scenario(payload: SetupScenarioRequest, db: AsyncSession = Depen
     session.active_boss_title = None
     session.active_boss_hp = None
     session.active_boss_max_hp = None
+    session.active_boss_armor = 0
+    session.active_boss_defense_dc = 12
+    session.active_boss_phase = 1
+    session.active_boss_effects = []
+    session.active_boss_features = []
+    session.active_boss_telegraph = None
     session.pending_naming_category = None
     session.pending_naming_prompt = None
     session.pending_naming_character_id = None
@@ -719,11 +757,13 @@ async def name_entity(payload: NameEntityRequest, db: AsyncSession = Depends(get
     s_stmt = (
         select(GameSession)
         .where(GameSession.id == payload.session_id)
-        .options(selectinload(GameSession.characters))
+        .options(selectinload(GameSession.characters).selectinload(Character.inventory))
     )
     session = (await db.execute(s_stmt)).scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Sesja nie istnieje")
+    if session.is_turn_resolving:
+        raise HTTPException(status_code=400, detail="Rozstrzyganie tej tury już trwa")
 
     char = next((c for c in session.characters if c.id == payload.character_id), None)
     char_name = char.name if char else "Bohater"
@@ -744,10 +784,17 @@ async def name_entity(payload: NameEntityRequest, db: AsyncSession = Depends(get
 
     # Jeśli to boss, aktywuj na sesji
     if category == "boss":
+        encounter = build_boss_encounter(session.characters, description)
         session.active_boss_name = payload.custom_name.strip()
         session.active_boss_title = description
-        session.active_boss_hp = 80
-        session.active_boss_max_hp = 80
+        session.active_boss_hp = encounter["hp"]
+        session.active_boss_max_hp = encounter["max_hp"]
+        session.active_boss_armor = encounter["armor"]
+        session.active_boss_defense_dc = encounter["defense_dc"]
+        session.active_boss_phase = encounter["phase"]
+        session.active_boss_effects = encounter["effects"]
+        session.active_boss_features = encounter["features"]
+        session.active_boss_telegraph = encounter["telegraph"]
 
     # Jeśli to broń, dodaj do ekwipunku gracza
     if category == "weapon" and char:
@@ -758,6 +805,7 @@ async def name_entity(payload: NameEntityRequest, db: AsyncSession = Depends(get
             item_type="weapon",
             target_stat="strength",
             stat_bonus=2,
+            damage_power=5,
             hands_required=1,
             is_equipped=False
         ))
@@ -780,6 +828,12 @@ async def name_entity(payload: NameEntityRequest, db: AsyncSession = Depends(get
             "title": session.active_boss_title,
             "hp": session.active_boss_hp,
             "max_hp": session.active_boss_max_hp,
+            "armor": session.active_boss_armor,
+            "defense_dc": session.active_boss_defense_dc,
+            "phase": session.active_boss_phase,
+            "effects": session.active_boss_effects or [],
+            "features": session.active_boss_features or [],
+            "telegraph": session.active_boss_telegraph,
         } if session.active_boss_name else None
     })
 
@@ -825,10 +879,14 @@ async def retry_turn(room_code: str = "kampania-1", db: AsyncSession = Depends(g
     session = (await db.execute(s_stmt)).scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Sesja nie istnieje")
+    if session.is_turn_resolving:
+        raise HTTPException(status_code=400, detail="Rozstrzyganie tej tury już trwa")
 
     turn = next((t for t in session.turns if t.turn_number == session.current_turn_number), None)
     if not turn:
         raise HTTPException(status_code=404, detail="Brak aktywnej tury")
+    if turn.status == "completed":
+        raise HTTPException(status_code=400, detail="Ta tura została już zakończona")
 
     session.is_turn_resolving = True
     await db.commit()
@@ -1182,6 +1240,11 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
     turn = t_res.scalar_one_or_none()
     if not turn:
         raise HTTPException(status_code=500, detail="Brak aktywnej tury w sesji")
+    if turn.mechanics_resolved_at is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="Mechanika tej tury została już rozliczona; można ponowić wyłącznie narrację.",
+        )
 
     # Sprawdź czy gracz już złożył akcję w tej turze
     act_stmt = select(PlayerAction).where(PlayerAction.turn_id == turn.id)
@@ -1191,11 +1254,15 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
     existing_action = next((a for a in all_turn_actions if a.character_id == character.id), None)
     if existing_action:
         existing_action.action_text = action_text
+        existing_action.intent = payload.intent
+        existing_action.target_ref = payload.target_ref
     else:
         new_action = PlayerAction(
             turn_id=turn.id,
             character_id=character.id,
             action_text=action_text,
+            intent=payload.intent,
+            target_ref=payload.target_ref,
         )
         db.add(new_action)
     await db.commit()
@@ -1271,71 +1338,74 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             c_stmt = (
                 select(Character)
                 .options(selectinload(Character.inventory))
-                .where(Character.session_id == session_id, Character.is_alive == True)
+                .where(Character.session_id == session_id)
             )
             characters = (await db.execute(c_stmt)).scalars().all()
             char_map = {c.id: c for c in characters}
+            ensure_boss_encounter(session, characters)
 
-            # 1. Deterministyczne rzuty kośćmi backendu
+            # 1. Mechanika tury jest zapisywana dokładnie raz. Retry ponawia wyłącznie narrację.
             actions_with_rolls = []
+            if turn.mechanics_resolved_at is None:
+                for action in turn.actions:
+                    char = char_map.get(action.character_id)
+                    if not char:
+                        continue
+
+                    action.intent = infer_action_intent(action.action_text, action.intent)
+                    dc, tested_stat_override = action_dc(session, action)
+                    roll_penalty = status_roll_penalty(char)
+                    tested_stat, d20_raw, stat_mod, item_mod, total, outcome_tier = resolve_dice_roll(
+                        action.action_text,
+                        char,
+                        dc=dc,
+                        tested_stat_override=tested_stat_override,
+                        roll_modifier=roll_penalty,
+                    )
+                    action.tested_stat = tested_stat
+                    action.dice_roll_raw = d20_raw
+                    action.stat_modifier = stat_mod
+                    action.item_modifier = item_mod
+                    action.status_modifier = roll_penalty
+                    action.dice_total = total
+                    action.dc = dc
+                    action.outcome_tier = outcome_tier
+
+                if session.active_boss_name and session.active_boss_hp and session.active_boss_hp > 0:
+                    turn.combat_events = resolve_boss_turn(
+                        session,
+                        list(characters),
+                        list(turn.actions),
+                    )
+                else:
+                    turn.combat_events = resolve_status_turn(
+                        list(characters),
+                        list(turn.actions),
+                    )
+                turn.mechanics_resolved_at = datetime.now(timezone.utc)
+                await db.commit()
+
             for action in turn.actions:
                 char = char_map.get(action.character_id)
                 if not char:
                     continue
-
-                tested_stat, d20_raw, stat_mod, item_mod, total, outcome_tier = resolve_dice_roll(
-                    action.action_text,
-                    char,
-                    dc=12
-                )
-                action.tested_stat = tested_stat
-                action.dice_roll_raw = d20_raw
-                action.stat_modifier = stat_mod
-                action.item_modifier = item_mod
-                action.dice_total = total
-                action.dc = 12
-                action.outcome_tier = outcome_tier
-
                 actions_with_rolls.append({
                     "character_id": char.id,
                     "character_name": char.name,
                     "action_text": action.action_text,
-                    "tested_stat": tested_stat,
-                    "dice_roll_raw": d20_raw,
-                    "stat_modifier": stat_mod,
-                    "item_modifier": item_mod,
-                    "dice_total": total,
-                    "dc": 12,
-                    "outcome_tier": outcome_tier,
-                    "boss_damage": 0,
+                    "intent": action.intent,
+                    "target_ref": action.target_ref,
+                    "tested_stat": action.tested_stat,
+                    "dice_roll_raw": action.dice_roll_raw,
+                    "stat_modifier": action.stat_modifier,
+                    "item_modifier": action.item_modifier,
+                    "status_modifier": action.status_modifier or 0,
+                    "dice_total": action.dice_total,
+                    "dc": action.dc,
+                    "outcome_tier": action.outcome_tier,
+                    "boss_damage": action.damage_dealt or 0,
+                    "hp_delta": action.hp_delta or 0,
                 })
-
-            await db.commit()
-
-            # Obrażenia aktywnego bossa wynikają z akcji i rzutu, a nie z narracji AI.
-            if session.active_boss_name and session.active_boss_hp is not None:
-                total_boss_damage = 0
-                for action_result in actions_with_rolls:
-                    boss_damage = get_boss_damage(
-                        action_result["action_text"],
-                        action_result["outcome_tier"],
-                    )
-                    action_result["boss_damage"] = boss_damage
-                    for action in turn.actions:
-                        if action.character_id == action_result["character_id"]:
-                            action.damage_dealt = boss_damage
-                            break
-                    total_boss_damage += boss_damage
-
-                if total_boss_damage:
-                    session.active_boss_hp = max(0, session.active_boss_hp - total_boss_damage)
-                    logger.info(
-                        "Boss %s otrzymał %s obrażeń (pozostało %s/%s HP).",
-                        session.active_boss_name,
-                        total_boss_damage,
-                        session.active_boss_hp,
-                        session.active_boss_max_hp,
-                    )
 
             # Pobierz aktywne legendy świata (lore)
             lore_stmt = select(NamedLoreEntity).where(NamedLoreEntity.session_id == session_id)
@@ -1353,6 +1423,15 @@ async def resolve_turn_background(session_id: int, turn_id: int):
 
             # 3. Zastosowanie konsekwencji dla postaci
             level_ups = []
+            boss_combat_event_types = {
+                "player_attack", "boss_attack", "boss_defeated", "phase_change",
+                "environment_success", "environment_failure", "defence", "support",
+            }
+            is_mechanical_combat = any(
+                event.get("type") in boss_combat_event_types
+                for event in (turn.combat_events or [])
+                if isinstance(event, dict)
+            )
             action_text_by_character = {
                 action.character_id: action.action_text for action in turn.actions
             }
@@ -1367,15 +1446,17 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                         act.gm_individual_summary = conseq.individual_summary
                         act.xp_gained = conseq.xp_gained
 
-                # Zmiana HP
-                previous_hp = char.current_hp
-                char.current_hp = max(0, min(char.max_hp, char.current_hp + conseq.hp_delta))
-                applied_hp_delta = char.current_hp - previous_hp
-                for act in turn.actions:
-                    if act.character_id == char.id:
-                        act.hp_delta = applied_hp_delta
-                if char.current_hp == 0:
-                    char.is_alive = False
+                # Podczas walki z bossem HP rozlicza silnik. Poza walką pozostają
+                # konsekwencje środowiskowe zwracane przez narratora.
+                if not is_mechanical_combat:
+                    previous_hp = char.current_hp
+                    char.current_hp = max(0, min(char.max_hp, char.current_hp + conseq.hp_delta))
+                    applied_hp_delta = char.current_hp - previous_hp
+                    for act in turn.actions:
+                        if act.character_id == char.id:
+                            act.hp_delta = int(act.hp_delta or 0) + applied_hp_delta
+                    if char.current_hp == 0:
+                        char.is_alive = False
 
                 # XP i Awans (Level Up)
                 char.xp += conseq.xp_gained
@@ -1412,6 +1493,11 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                         item_type=new_item.item_type,
                         target_stat=new_item.target_stat,
                         stat_bonus=new_item.stat_bonus,
+                        damage_power=(
+                            6 if new_item.item_type == "weapon" and new_item.hands_required == 2
+                            else 4 if new_item.item_type == "weapon"
+                            else 0
+                        ),
                         hands_required=new_item.hands_required,
                         is_equipped=False,
                         quantity=1,
@@ -1509,8 +1595,10 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             logger.info(f"Tura #{turn.turn_number} zakończona i zsynchronizowana.")
         except Exception as e:
             logger.error(f"Krytyczny błąd podczas rozstrzygania tury: {e}", exc_info=True)
-            # Odblokuj sesję w razie błędu
+            # Wycofaj niedokończone skutki narracyjne. Zapisana wcześniej mechanika
+            # pozostaje idempotentna i przy retry nie zostanie naliczona ponownie.
             try:
+                await db.rollback()
                 s_stmt = select(GameSession).where(GameSession.id == session_id)
                 sess = (await db.execute(s_stmt)).scalar_one_or_none()
                 if sess:

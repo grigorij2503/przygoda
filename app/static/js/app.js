@@ -14,6 +14,8 @@ document.addEventListener('alpine:init', () => {
 
     // Turn Actions & Error
     actionText: '',
+    actionIntent: null,
+    actionTargetRef: null,
     isSubmittingAction: false,
     actionError: '',
     turnError: '',
@@ -214,7 +216,7 @@ document.addEventListener('alpine:init', () => {
       if (!this.isAuthenticated) return;
       if (document.hidden || !document.hasFocus()) {
         this.notificationCount += 1;
-        document.title = `${this.baseTitle} (${this.notificationCount})`;
+        document.title = `(${this.notificationCount}) ${this.baseTitle}`;
       }
       const context = this.notificationAudio;
       if (!this.notificationSoundEnabled || context?.state !== 'running') return;
@@ -504,11 +506,16 @@ document.addEventListener('alpine:init', () => {
     },
 
     itemBonusLabel(item) {
-      if (!item || item.stat_bonus <= 0 || item.item_type === 'consumable') return '';
+      if (!item || item.item_type === 'consumable') return '';
+      const damage = item.item_type === 'weapon' && item.damage_power > 0
+        ? `obrażenia ${item.damage_power}+k6`
+        : '';
+      if (item.stat_bonus <= 0) return damage;
       if (item.target_stat === 'hp_max') return `+${item.stat_bonus} maks. PW`;
       if (item.target_stat === 'all') return `+${item.stat_bonus} wszystkie testy`;
-      if (item.target_stat === 'none') return '';
-      return `+${item.stat_bonus} ${this.statAbbreviation(item.target_stat)}`;
+      if (item.target_stat === 'none') return damage;
+      const stat = `+${item.stat_bonus} ${this.statAbbreviation(item.target_stat)}`;
+      return damage ? `${stat} • ${damage}` : stat;
     },
 
     isNewInventoryItem(itemId) {
@@ -889,6 +896,8 @@ document.addEventListener('alpine:init', () => {
           this.isEditingSubmittedAction = false;
           this.addToast(`Tura #${msg.completed_turn_number} zakończona! Mistrz Gry wydał werdykt.`, 'success');
           this.actionText = '';
+          this.actionIntent = null;
+          this.actionTargetRef = null;
           await this.fetchSession();
           if (followCurrentTurn) {
             this.scrollToLatestResolution();
@@ -1316,7 +1325,9 @@ document.addEventListener('alpine:init', () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             character_id: this.selectedCharacterId,
-            action_text: this.actionText.trim()
+            action_text: this.actionText.trim(),
+            intent: this.actionIntent,
+            target_ref: this.actionTargetRef
           })
         });
         if (!res.ok) {
@@ -1366,6 +1377,8 @@ document.addEventListener('alpine:init', () => {
         const myAction = curTurn.actions?.find(a => a.character_id === this.selectedCharacterId);
         if (myAction) {
           this.actionText = myAction.action_text;
+          this.actionIntent = myAction.intent || null;
+          this.actionTargetRef = myAction.target_ref || null;
         }
       }
       this.isEditingSubmittedAction = true;
@@ -1378,8 +1391,10 @@ document.addEventListener('alpine:init', () => {
       });
     },
 
-    setQuickAction(text) {
+    setQuickAction(text, intent = null, targetRef = null) {
       this.actionText = text;
+      this.actionIntent = intent;
+      this.actionTargetRef = targetRef;
       this.$nextTick(() => {
         const textarea = document.querySelector('textarea[x-model="actionText"]');
         if (textarea) {
@@ -1388,6 +1403,49 @@ document.addEventListener('alpine:init', () => {
         }
       });
       this.addToast('⚡ Wybrano ścieżkę działania – możesz ją dostosować przed zatwierdzeniem!', 'info');
+    },
+
+    setEncounterAction(feature) {
+      if (!feature || feature.state !== 'active') return;
+      this.setQuickAction(
+        `Wykorzystuję element areny „${feature.name}”: ${feature.description}`,
+        'interact',
+        feature.id
+      );
+    },
+
+    statusClass(effect) {
+      return {
+        orange: 'status-effect--orange',
+        green: 'status-effect--green',
+        cyan: 'status-effect--cyan',
+        yellow: 'status-effect--yellow',
+        rose: 'status-effect--rose',
+        blue: 'status-effect--blue'
+      }[effect?.tone] || 'status-effect--neutral';
+    },
+
+    statusTooltip(effect) {
+      const turns = effect?.turns_remaining ?? 0;
+      const duration = turns >= 90 ? 'Efekt fazy.' : `Pozostało tur: ${turns}.`;
+      return `${effect?.label || 'Efekt'}: ${effect?.description || ''} ${duration} Moc: ${effect?.potency || 1}.`;
+    },
+
+    statShortLabel(stat) {
+      return { strength: 'SIŁ', agility: 'ZRĘ', intellect: 'ROZ', charisma: 'CHA' }[stat] || stat;
+    },
+
+    intentLabel(intent) {
+      return {
+        attack: 'atak', defend: 'obrona', interact: 'interakcja', support: 'wsparcie', other: 'inna akcja'
+      }[intent] || intent;
+    },
+
+    targetLabel(targetRef) {
+      if (!targetRef) return '';
+      if (targetRef === 'boss') return this.session?.active_boss?.name || 'boss';
+      const feature = (this.session?.active_boss?.features || []).find(item => item.id === targetRef);
+      return feature?.name || targetRef;
     },
 
     // --- Ekwipunek ---
