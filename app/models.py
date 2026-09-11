@@ -65,9 +65,10 @@ class InventoryItem(Base):
     character_id = Column(Integer, ForeignKey("characters.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(150), nullable=False)
     description = Column(String(300), default="")
-    item_type = Column(String(50), default="weapon")  # weapon, armor, accessory, consumable, misc
+    item_type = Column(String(50), default="weapon")  # weapon, shield, armor, accessory, consumable, misc
     target_stat = Column(String(50), default="strength")  # strength, agility, intellect, charisma, hp_max, none
     stat_bonus = Column(Integer, default=0)
+    hands_required = Column(Integer, nullable=False, default=1)  # 1 albo 2 dla broni; pozostałe typy ignorują tę wartość
     is_equipped = Column(Boolean, default=False)
     quantity = Column(Integer, default=1)
 

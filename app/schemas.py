@@ -49,6 +49,7 @@ class InventoryItemDto(BaseModel):
     item_type: str
     target_stat: str
     stat_bonus: int
+    hands_required: int = 1
     is_equipped: bool
     quantity: int
 
@@ -119,10 +120,23 @@ class TurnDto(BaseModel):
 # --- Gemini Structured Output Schemas ---
 class NewItemSchema(BaseModel):
     name: str = Field(description="Nazwa znalezionego przedmiotu")
-    description: str = Field(description="Krótki, klimatyczny opis")
-    item_type: Literal["weapon", "armor", "accessory", "consumable", "misc"]
+    description: str = Field(
+        description=(
+            "Jedno krótkie zdanie po polsku, które jasno opisuje działanie przedmiotu, "
+            "np. 'Wzbudza respekt u rozmówców' albo 'Odnawia 10 punktów życia'"
+        )
+    )
+    item_type: Literal["weapon", "shield", "armor", "accessory", "consumable", "misc"]
     target_stat: Literal["strength", "agility", "intellect", "charisma", "hp_max", "none"]
     stat_bonus: int = Field(description="Bonus do statystyki lub wartość leczenia dla consumable")
+    hands_required: Literal[1, 2] = Field(
+        default=1,
+        description="Dla broni: 1 dla jednoręcznej albo 2 dla dwuręcznej. Dla innych typów zawsze 1",
+    )
+    source_item_names: List[str] = Field(
+        default_factory=list,
+        description="Nazwy przedmiotów zużytych do stworzenia lub ulepszenia tego przedmiotu",
+    )
 
 class PlayerConsequenceSchema(BaseModel):
     character_id: int = Field(description="ID postaci, której dotyczy konsekwencja")

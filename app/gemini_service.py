@@ -248,7 +248,18 @@ async def resolve_turn_with_gemini(
             "hp": f"{c.current_hp}/{c.max_hp}",
             "level": c.level,
             "stats": f"STR:+{c.strength}, AGI:+{c.agility}, INT:+{c.intellect}, CHA:+{c.charisma}",
-            "equipped": equipped_items
+            "equipped": equipped_items,
+            "inventory": [
+                {
+                    "name": item.name,
+                    "description": item.description,
+                    "type": item.item_type,
+                    "hands_required": item.hands_required,
+                    "equipped": item.is_equipped,
+                    "quantity": item.quantity,
+                }
+                for item in c.inventory
+            ],
         })
 
     actions_context = []
@@ -300,9 +311,13 @@ async def resolve_turn_with_gemini(
         "2. WYNIKI RZUTÓW: Bezwzględnie podporządkuj powodzenie zamiarów rzutom kości (critical_success, success, partial_success, failure, critical_failure).\n"
         "3. STAN ZDROWIA I ZAGROŻENIA: W narracji wspominaj o stanie fizycznym bohaterów – ranach, krwawieniu, zmęczeniu, utracie tchu lub determinacji.\n"
         "4. CIĄGŁOŚĆ OPOWIEŚCI: Nie twórz suchych raportów punktowych! Każda tura to żywy, emocjonujący fragment wciągającej powieści dark fantasy.\n\n"
+        "5. PRAWDZIWY EKWIPUNEK: Pole inventory przy postaci jest jedynym źródłem prawdy o posiadanych przedmiotach. Nie pozwalaj użyć ani uzyskać korzyści z przedmiotu, którego tam nie ma. Broń, tarcza i zbroja dają korzyść tylko, gdy mają equipped=true. Jeśli deklaracja mimo zabezpieczeń odwołuje się do nieposiadanego przedmiotu, opisz brak przedmiotu i improwizację zgodną z wynikiem rzutu, zamiast materializować wyposażenie.\n"
+        "6. ŁĄCZENIE I ULEPSZANIE: Gdy w wyniku akcji powstaje nowy lub ulepszony przedmiot z posiadanych składników, wpisz dokładne nazwy WSZYSTKICH zużytych składników z inventory do source_item_names nowego przedmiotu. Nie pozostawiaj składników w ekwipunku. Jeśli nic nowego nie powstało, source_item_names pozostaje puste. Przedmioty utracone z innych powodów wpisuj do removed_item_names.\n\n"
         "ZASADY WYJŚCIA JSON:\n"
         "1. gm_story_narration: Głęboka, barwna i kinowa narracja Mistrza Gry w języku polskim podsumowująca akcje graczy i zmieniającą się sytuację (min. 3-5 soczystych zdań).\n"
         "2. player_consequences: Dla KAŻDEGO gracza: individual_summary (fabularne podsumowanie jego losu), hp_delta (utracone/odzyskane HP), xp_gained (50-120 XP), new_items, removed_item_names.\n"
+        "   OPISY PRZEDMIOTÓW: Każdy nowy przedmiot opisz jednym krótkim, naturalnym zdaniem po polsku, które mówi graczowi, co daje lub robi przedmiot. Zachowaj lekko swobodny ton, np. 'Wzbudza respekt u rozmówców'. Dla przedmiotów zużywalnych podaj efekt wprost, np. 'Odnawia 10 punktów życia'. Nie powtarzaj w opisie technicznego zapisu '+1 do statystyki'.\n"
+        "   SLOTY PRZEDMIOTÓW: Dla weapon ustaw hands_required na 1 albo 2 zgodnie z naturą broni. Tarczę zapisuj jako item_type='shield' i hands_required=1.\n"
         "3. next_turn_prompt: Nowa sytuacja fabularna i konkretne, bezpośrednie wyzwanie rzucone drużynie na otwarcie kolejnej tury (zawsze kończące się pytaniem 'Co robicie?').\n"
         "4. suggested_actions: Dokładnie 3 zróżnicowane i konkretne ścieżki działania na otwarcie kolejnej tury dopasowane do NOWEJ sytuacji.\n"
         "5. scene_image_prompt: Sugestywny prompt po angielsku dla modelu generującego obraz (Gemini 2.5 Flash Image)...\n"
@@ -427,7 +442,7 @@ def _generate_rich_offline_resolution(
             new_items=[
                 NewItemSchema(
                     name="Starożytny Sztylet Cienia",
-                    description="Błyszczący runami odłamek czarnego kamienia",
+                    description="Pomaga zniknąć przeciwnikowi z oczu tuż przed ciosem",
                     item_type="weapon",
                     target_stat="agility",
                     stat_bonus=1

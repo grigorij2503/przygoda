@@ -1,6 +1,7 @@
 import re
 import secrets
 from typing import Tuple
+from app.inventory import get_effectively_equipped_items
 from app.models import Character
 
 ATTRIBUTE_KEYWORDS = {
@@ -58,10 +59,9 @@ def calculate_item_modifier(character: Character, tested_stat: str) -> int:
     Zlicza bonusy z aktualnie wyekwipowanych przedmiotów gracza pasujące do testowanego atrybutu.
     """
     modifier = 0
-    for item in character.inventory:
-        if item.is_equipped:
-            if item.target_stat == tested_stat or item.target_stat == "all":
-                modifier += item.stat_bonus
+    for item in get_effectively_equipped_items(character.inventory):
+        if item.target_stat == tested_stat or item.target_stat == "all":
+            modifier += item.stat_bonus
     return modifier
 
 def resolve_dice_roll(

@@ -45,6 +45,7 @@ async def init_db():
             ("characters", "is_ready", "BOOLEAN"),
             ("characters", "personal_note", "TEXT NOT NULL DEFAULT ''"),
             ("characters", "unspent_stat_points", "INTEGER NOT NULL DEFAULT 0"),
+            ("inventory_items", "hands_required", "INTEGER NOT NULL DEFAULT 1"),
             ("turns", "suggested_actions", "TEXT"),
             ("player_actions", "damage_dealt", "INTEGER NOT NULL DEFAULT 0"),
             ("player_actions", "hp_delta", "INTEGER NOT NULL DEFAULT 0"),

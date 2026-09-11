@@ -45,12 +45,12 @@
   </script>
 
   <!-- Custom Stylesheet -->
-  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/style.css?v=11">
 
   <!-- Alpine.js CDN -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
   <!-- App Logic -->
-  <script src="/static/js/app.js?v=10"></script>
+  <script src="/static/js/app.js?v=11"></script>
 </head>
 <body x-data="rpgGame" class="min-h-screen text-gray-200 antialiased selection:bg-amber-600 selection:text-white">
 
@@ -1000,43 +1000,155 @@
           </div>
 
           <!-- Ekwipunek i Przedmioty -->
-          <div>
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Ekwipunek:</span>
-              <span class="text-[10px] text-gray-500" x-text="(currentCharacter?.inventory?.length || 0) + ' przedmiotów'"></span>
+          <section class="equipment-panel" aria-labelledby="equipment-heading">
+            <div class="flex items-center justify-between gap-3 mb-3">
+              <div>
+                <h4 id="equipment-heading" class="text-xs font-fantasy font-bold uppercase tracking-widest text-amber-300">Wyposażenie</h4>
+                <p class="text-[10px] text-gray-500 mt-0.5">Premie działają tylko z aktywnych slotów</p>
+              </div>
+              <span class="text-[10px] text-gray-400 font-mono whitespace-nowrap" x-text="(currentCharacter?.inventory?.length || 0) + ' szt.'"></span>
             </div>
 
-            <div class="space-y-2 max-h-52 overflow-y-auto pr-1">
-              <template x-for="item in currentCharacter?.inventory || []" :key="item.id">
-                <div class="p-2.5 bg-slate-950/90 rounded-lg border flex items-center justify-between gap-2 text-xs"
-                     :class="item.is_equipped ? 'border-amber-500/50 bg-amber-950/10' : 'border-slate-800'">
-                  <div>
-                    <div class="flex items-center gap-1.5 font-medium text-gray-200">
-                      <span x-text="item.item_type === 'weapon' ? '🗡️' : item.item_type === 'armor' ? '🛡️' : item.item_type === 'consumable' ? '🧪' : '💍'"></span>
-                      <span x-text="item.name"></span>
-                    </div>
-                    <p class="text-[10px] text-gray-400" x-text="item.description"></p>
-                    <span x-show="item.stat_bonus > 0" class="text-[10px] text-amber-400 font-mono"
-                          x-text="'+' + item.stat_bonus + ' do ' + (item.target_stat === 'none' ? 'leczenia' : item.target_stat)"></span>
-                  </div>
+            <div class="equipment-paperdoll">
+              <div class="paperdoll-slot paperdoll-slot--main" :class="mainHandItem ? 'paperdoll-slot--filled' : ''">
+                <span class="paperdoll-slot__label">Główna dłoń</span>
+                <template x-if="mainHandItem">
+                  <button type="button" @click="toggleEquip(mainHandItem)" :disabled="changingEquipmentItemId === mainHandItem.id"
+                          :title="mainHandItem.description + ' — kliknij, aby zdjąć'" class="paperdoll-slot__item">
+                    <span class="paperdoll-slot__icon" x-text="itemIcon(mainHandItem)"></span>
+                    <strong x-text="mainHandItem.name"></strong>
+                    <small x-text="itemBonusLabel(mainHandItem)"></small>
+                  </button>
+                </template>
+                <template x-if="!mainHandItem">
+                  <button type="button" @click="showItemsForSlot('main_hand')" class="paperdoll-slot__empty">
+                    <span>＋</span><small>Wybierz broń</small>
+                  </button>
+                </template>
+              </div>
 
-                  <div class="shrink-0 flex items-center gap-1">
-                    <template x-if="item.item_type === 'consumable'">
-                      <button @click="useItem(item.id)" class="px-2 py-1 bg-emerald-950 hover:bg-emerald-900 border border-emerald-600/50 text-emerald-300 rounded text-[10px] transition">
-                        Użyj
-                      </button>
-                    </template>
-                    <template x-if="item.item_type !== 'consumable'">
-                      <button @click="toggleEquip(item.id)" class="px-2 py-1 rounded text-[10px] transition"
-                              :class="item.is_equipped ? 'bg-amber-950/60 border border-amber-500/40 text-amber-300 hover:bg-amber-900' : 'bg-slate-800 border border-slate-700 text-gray-300 hover:bg-slate-700'"
-                              x-text="item.is_equipped ? 'Założony' : 'Załóż'">
-                      </button>
-                    </template>
+              <div class="equipment-avatar" aria-label="Sylwetka postaci z miejscem na pancerz">
+                <svg viewBox="0 0 110 220" role="img" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="hero-silhouette" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0" stop-color="#536178"/>
+                      <stop offset="1" stop-color="#20283a"/>
+                    </linearGradient>
+                  </defs>
+                  <circle cx="55" cy="28" r="18" fill="url(#hero-silhouette)" stroke="#8793a8" stroke-width="2"/>
+                  <path d="M35 50 Q55 42 75 50 L84 112 Q74 129 70 145 L82 207 L61 207 L55 151 L49 207 L28 207 L40 145 Q36 128 26 112 Z"
+                        fill="url(#hero-silhouette)" stroke="#8793a8" stroke-width="2"/>
+                  <path d="M30 58 L8 121 L23 127 L43 78 M80 58 L102 121 L87 127 L67 78"
+                        fill="none" stroke="#8793a8" stroke-width="12" stroke-linecap="round"/>
+                </svg>
+
+                <div class="paperdoll-armor" :class="equippedArmor ? 'paperdoll-armor--filled' : ''">
+                  <template x-if="equippedArmor">
+                    <button type="button" @click="toggleEquip(equippedArmor)" :disabled="changingEquipmentItemId === equippedArmor.id"
+                            :title="equippedArmor.description + ' — kliknij, aby zdjąć'">
+                      <span>🛡️</span>
+                      <strong x-text="equippedArmor.name"></strong>
+                      <small x-text="itemBonusLabel(equippedArmor)"></small>
+                    </button>
+                  </template>
+                  <template x-if="!equippedArmor">
+                    <button type="button" @click="showItemsForSlot('armor')" title="Pokaż pancerze w plecaku">
+                      <span>＋</span><strong>Pancerz</strong><small>Pusty slot</small>
+                    </button>
+                  </template>
+                </div>
+              </div>
+
+              <div class="paperdoll-slot paperdoll-slot--off" :class="offHandItem || offHandBlockedByTwoHandedWeapon ? 'paperdoll-slot--filled' : ''">
+                <span class="paperdoll-slot__label">Druga dłoń</span>
+                <template x-if="offHandItem">
+                  <button type="button" @click="toggleEquip(offHandItem)" :disabled="changingEquipmentItemId === offHandItem.id"
+                          :title="offHandItem.description + ' — kliknij, aby zdjąć'" class="paperdoll-slot__item">
+                    <span class="paperdoll-slot__icon" x-text="itemIcon(offHandItem)"></span>
+                    <strong x-text="offHandItem.name"></strong>
+                    <small x-text="itemBonusLabel(offHandItem)"></small>
+                  </button>
+                </template>
+                <template x-if="!offHandItem && offHandBlockedByTwoHandedWeapon">
+                  <div class="paperdoll-slot__blocked" :title="mainHandItem?.name">
+                    <span>⚔️</span><small>Broń dwuręczna</small>
                   </div>
+                </template>
+                <template x-if="!offHandItem && !offHandBlockedByTwoHandedWeapon">
+                  <button type="button" @click="showItemsForSlot('off_hand')" class="paperdoll-slot__empty">
+                    <span>＋</span><small>Broń lub tarcza</small>
+                  </button>
+                </template>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between mt-4 mb-2">
+              <span class="text-[10px] font-fantasy font-bold uppercase tracking-widest text-violet-300">🔮 Aktywne przedmioty</span>
+              <span class="text-[10px] text-gray-500" x-text="activeItems.length + ' / 5'"></span>
+            </div>
+            <div class="active-slot-row mb-4">
+              <template x-for="(item, slotIndex) in activeItemSlots" :key="'active-slot-' + slotIndex">
+                <div class="active-mini-slot" :class="item ? 'active-mini-slot--filled' : ''">
+                  <template x-if="item">
+                    <button type="button" @click="toggleEquip(item)" :disabled="changingEquipmentItemId === item.id"
+                            :title="item.name + ': ' + item.description + ' — kliknij, aby zdjąć'">
+                      <span x-text="itemIcon(item)"></span>
+                      <small x-text="item.name"></small>
+                    </button>
+                  </template>
+                  <template x-if="!item">
+                    <button type="button" @click="showItemsForSlot('active')" title="Pokaż aktywne przedmioty w plecaku">
+                      <span>＋</span><small x-text="slotIndex + 1"></small>
+                    </button>
+                  </template>
                 </div>
               </template>
             </div>
-          </div>
+
+            <div x-ref="inventoryBackpack" class="flex items-center justify-between gap-3 mb-2 pt-3 border-t border-slate-800 scroll-mt-4">
+              <div class="flex items-center gap-2">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-gray-300">🎒 Plecak</span>
+                <span x-show="newInventoryItemIds.length" x-cloak class="inventory-new-count" x-text="newInventoryItemIds.length + ' nowe'"></span>
+              </div>
+              <span class="text-[10px] text-gray-500" x-text="visibleBackpackItems.length + ' przedmiotów'"></span>
+            </div>
+
+            <div x-show="inventoryFilter !== 'all'" x-cloak class="inventory-filter-bar">
+              <span x-text="'Pokazuję: ' + inventoryFilterLabel"></span>
+              <button type="button" @click="inventoryFilter = 'all'">Pokaż wszystko</button>
+            </div>
+
+            <div x-show="visibleBackpackItems.length === 0" class="py-5 text-center text-[11px] text-gray-600 border border-dashed border-slate-800 rounded-xl">
+              <span x-text="inventoryFilter === 'all' ? 'Plecak jest pusty' : 'Brak pasujących przedmiotów w plecaku'"></span>
+            </div>
+
+            <div class="space-y-2 max-h-72 overflow-y-auto pr-1">
+              <template x-for="item in visibleBackpackItems" :key="item.id">
+                <article @click="markInventoryItemSeen(item.id)" class="inventory-item" :class="isNewInventoryItem(item.id) ? 'inventory-item--new' : ''">
+                  <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-1.5">
+                      <span class="text-base" x-text="itemIcon(item)"></span>
+                      <strong class="text-xs text-gray-200 leading-tight" x-text="item.name"></strong>
+                      <span x-show="item.quantity > 1" class="inventory-quantity" x-text="'×' + item.quantity"></span>
+                      <span x-show="isNewInventoryItem(item.id)" class="inventory-new-badge">Nowy łup</span>
+                    </div>
+                    <p class="text-[10px] leading-relaxed text-gray-400 mt-1" x-text="item.description"></p>
+                    <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      <span class="inventory-type" x-text="itemTypeLabel(item)"></span>
+                      <span x-show="itemBonusLabel(item)" class="equipment-bonus" x-text="itemBonusLabel(item)"></span>
+                    </div>
+                  </div>
+
+                  <template x-if="item.item_type === 'consumable'">
+                    <button type="button" @click.stop="markInventoryItemSeen(item.id); useItem(item.id)" class="inventory-action inventory-action--use">Użyj</button>
+                  </template>
+                  <template x-if="item.item_type !== 'consumable'">
+                    <button type="button" @click.stop="toggleEquip(item)" :disabled="changingEquipmentItemId === item.id" class="inventory-action">Załóż</button>
+                  </template>
+                </article>
+              </template>
+            </div>
+          </section>
         </div>
 
         <!-- CZAT DRUŻYNY (NARADA TAKTYCZNA PRZED AKCJĄ) -->

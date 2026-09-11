@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import re
+import unicodedata
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List
@@ -21,6 +23,12 @@ from datetime import datetime, timezone
 from app.config import UPLOADS_DIR, settings
 from app.database import get_db, init_db
 from app.dice import resolve_dice_roll
+from app.inventory import (
+    EQUIPMENT_SLOT_LIMITS,
+    equipment_slot_group,
+    get_effectively_equipped_items,
+    hands_used,
+)
 from app.gemini_service import (
     generate_campaign_intro_ai,
     generate_party_prologue_ai,
@@ -68,6 +76,54 @@ BOSS_ATTACK_KEYWORDS = (
     "pocisk", "zaklęcie ofensywne", "zaklecie ofensywne", "kulą ognia", "kula ognia",
     "płomień", "plomien", "błyskawic", "blyskawic",
 )
+ITEM_CLAIM_RULES = (
+    ("Tarcza", ("tarc", "pawez", "puklerz"), ("tarc", "pawez", "puklerz"), {"shield"}),
+    ("Miecz", ("miecz", "szabl", "rapier"), ("miecz", "szabl", "rapier"), {"weapon"}),
+    ("Sztylet", ("sztylet", "noz"), ("sztylet", "noz"), {"weapon"}),
+    ("Topór", ("topor", "siekier"), ("topor", "siekier"), {"weapon"}),
+    ("Łuk", ("luk", "kusz"), ("luk", "kusz"), {"weapon"}),
+    ("Kostur", ("kostur", "lask", "rozdzk"), ("kostur", "lask", "rozdzk"), {"weapon"}),
+    ("Młot", ("mlot", "bulaw"), ("mlot", "bulaw"), {"weapon"}),
+    ("Włócznia", ("wlocz", "oszczep"), ("wlocz", "oszczep"), {"weapon"}),
+    ("Zbroja", ("zbroj", "pancerz"), ("zbroj", "pancerz"), {"armor"}),
+)
+ITEM_CLAIM_VERBS = (
+    "uzyw", "wyciag", "dobyw", "zaklad", "chwyt", "trzym", "blokuj",
+    "zaslani", "oslani", "bron sie",
+)
+CRAFTING_KEYWORDS = (
+    "lacz", "polacz", "wzmacn", "ulepsz", "przekuw", "przerab", "wytwarz",
+)
+LEGACY_STARTER_ITEM_UPDATES = {
+    ("Krasnoludzki Miecz", "Solidne żelazne ostrze"): (
+        "Krasnoludzki Miecz",
+        "Pewnie leży w dłoni i dodaje siły każdemu cięciu",
+    ),
+    ("Skórzana Zbroja", "Pancerz ze skóry dzika"): (
+        "Skórzana Zbroja",
+        "Chroni przed tym, co miało tylko drasnąć",
+    ),
+    ("Zatrutą Sztylet", "Ciche, zwinne ostrze"): (
+        "Zatruty Sztylet",
+        "Ciche ostrze do szybkich i precyzyjnych ataków",
+    ),
+    ("Wytrychy Mistrza", "Zestaw narzędzi włamywacza"): (
+        "Wytrychy Mistrza",
+        "Otwierają zamki, które miały pozostać zamknięte",
+    ),
+    ("Runiczny Kostur", "Obejma z kryształem many"): (
+        "Runiczny Kostur",
+        "Skupia magię i pomaga odczytać najciemniejsze runy",
+    ),
+    ("Amulet Ognia", "Zwiększa potencjał magiczny"): (
+        "Amulet Ognia",
+        "Podsyca zaklęcia i odwagę właściciela",
+    ),
+    ("Srebrzysta Buława", "Oręż i symbol wiary"): (
+        "Srebrzysta Buława",
+        "Dodaje powagi modlitwom i ciężaru uderzeniom",
+    ),
+}
 
 
 def get_xp_progress(level: int, xp: int) -> dict:
@@ -98,6 +154,80 @@ def get_boss_damage(action_text: str, outcome_tier: str) -> int:
     if not any(keyword in normalized_action for keyword in BOSS_ATTACK_KEYWORDS):
         return 0
     return BOSS_DAMAGE_BY_OUTCOME.get(outcome_tier, 0)
+
+
+def normalize_game_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", (value or "").casefold())
+    return "".join(character for character in normalized if not unicodedata.combining(character))
+
+
+def validate_action_item_claim(action_text: str, inventory: List[InventoryItem]) -> str | None:
+    """Blokuje jawne użycie broni lub pancerza, którego postać nie ma albo nie założyła."""
+    normalized_action = normalize_game_text(action_text)
+    action_clauses = re.split(r"[,.!?;]", normalized_action)
+
+    for label, claim_aliases, inventory_aliases, item_types in ITEM_CLAIM_RULES:
+        claims_item = any(
+            any(alias in clause for alias in claim_aliases)
+            and any(verb in clause for verb in ITEM_CLAIM_VERBS)
+            for clause in action_clauses
+        )
+        if not claims_item:
+            continue
+
+        matching_items = [
+            item
+            for item in inventory
+            if (
+                item.item_type in item_types
+                or any(alias in normalize_game_text(item.name) for alias in inventory_aliases)
+            )
+            and (
+                item.item_type == "shield"
+                or any(
+                    alias in normalize_game_text(f"{item.name} {item.description}")
+                    for alias in inventory_aliases
+                )
+            )
+        ]
+        if not matching_items:
+            return f"Nie masz wymaganego przedmiotu: {label}. Zmień opis akcji albo zdobądź go w grze."
+        if not any(item.is_equipped for item in matching_items):
+            return f"{label} znajduje się w plecaku, ale nie w aktywnym slocie. Najpierw użyj przycisku „Załóż”."
+
+    return None
+
+
+def infer_crafting_source_items(
+    action_text: str,
+    inventory: List[InventoryItem],
+) -> list[InventoryItem]:
+    """Rozpoznaje posiadane przedmioty wymienione w akcji łączenia lub ulepszania."""
+    normalized_action = normalize_game_text(action_text)
+    if not any(keyword in normalized_action for keyword in CRAFTING_KEYWORDS):
+        return []
+
+    ignored_name_parts = {
+        "magicz", "runicz", "starozy", "wzmocn", "krasnol", "mistrz", "ognia", "cienia",
+    }
+    matched_items = []
+    for item in inventory:
+        normalized_name = normalize_game_text(item.name)
+        if normalized_name in normalized_action:
+            matched_items.append(item)
+            continue
+
+        meaningful_parts = [
+            part
+            for part in re.findall(r"[a-z0-9]+", normalized_name)
+            if len(part) >= 4 and not any(part.startswith(ignored) for ignored in ignored_name_parts)
+        ]
+        if any(part[:4] in normalized_action for part in meaningful_parts):
+            matched_items.append(item)
+
+    # Automatyczny fallback jest celowo konserwatywny: dwa wymienione składniki
+    # jasno wskazują na crafting. Dla ulepszeń jednego przedmiotu źródło zwraca Gemini.
+    return matched_items if len(matched_items) >= 2 else []
 
 
 @asynccontextmanager
@@ -144,6 +274,43 @@ async def lifespan(app: FastAPI):
             db.add(initial_turn)
             await db.commit()
             logger.info("Utworzono domyślną sesję gry 'kampania-1'.")
+        # Porządkuje starsze zapisy, w których można było założyć dowolną liczbę
+        # przedmiotów. Najnowsze przedmioty zostają w dostępnych slotach.
+        characters = (
+            await db.execute(select(Character).options(selectinload(Character.inventory)))
+        ).scalars().all()
+        normalized_items = 0
+        migrated_items = 0
+        for character in characters:
+            for item in character.inventory:
+                normalized_item_name = normalize_game_text(item.name)
+                if (
+                    item.item_type not in {"shield", "consumable"}
+                    and any(alias in normalized_item_name for alias in ("tarc", "pawez", "puklerz"))
+                ):
+                    item.item_type = "shield"
+                    item.hands_required = 1
+                    migrated_items += 1
+                if item.name == "Runiczny Kostur" and item.hands_required != 2:
+                    item.hands_required = 2
+                    migrated_items += 1
+            effective_ids = {
+                item.id for item in get_effectively_equipped_items(character.inventory)
+            }
+            for item in character.inventory:
+                if item.is_equipped and item.id not in effective_ids:
+                    item.is_equipped = False
+                    normalized_items += 1
+                legacy_update = LEGACY_STARTER_ITEM_UPDATES.get((item.name, item.description))
+                if legacy_update:
+                    item.name, item.description = legacy_update
+                    migrated_items += 1
+        if normalized_items or migrated_items:
+            await db.commit()
+        if normalized_items:
+            logger.info("Przeniesiono %s nadmiarowych przedmiotów do plecaków.", normalized_items)
+        if migrated_items:
+            logger.info("Zaktualizowano %s starszych przedmiotów do nowego modelu.", migrated_items)
         break
     yield
 
@@ -259,6 +426,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
                     "item_type": item.item_type,
                     "target_stat": item.target_stat,
                     "stat_bonus": item.stat_bonus,
+                    "hands_required": item.hands_required,
                     "is_equipped": item.is_equipped,
                     "quantity": item.quantity,
                 }
@@ -586,11 +754,12 @@ async def name_entity(payload: NameEntityRequest, db: AsyncSession = Depends(get
         db.add(InventoryItem(
             character_id=char.id,
             name=payload.custom_name.strip(),
-            description=f"Legendarna broń nazwana przez {char_name}: {description}",
+            description=f"Nie wybacza błędów i nosi imię nadane przez {char_name}",
             item_type="weapon",
             target_stat="strength",
             stat_bonus=2,
-            is_equipped=True
+            hands_required=1,
+            is_equipped=False
         ))
 
     # Wyczyść stan oczekiwania na nazwę
@@ -750,16 +919,16 @@ async def create_character(
     starter_items = []
     cls_lower = payload.character_class.lower()
     if "woj" in cls_lower or "rycerz" in cls_lower:
-        starter_items.append(InventoryItem(character_id=char.id, name="Krasnoludzki Miecz", description="Solidne żelazne ostrze", item_type="weapon", target_stat="strength", stat_bonus=1, is_equipped=True))
-        starter_items.append(InventoryItem(character_id=char.id, name="Skórzana Zbroja", description="Pancerz ze skóry dzika", item_type="armor", target_stat="strength", stat_bonus=1, is_equipped=True))
+        starter_items.append(InventoryItem(character_id=char.id, name="Krasnoludzki Miecz", description="Pewnie leży w dłoni i dodaje siły każdemu cięciu", item_type="weapon", target_stat="strength", stat_bonus=1, is_equipped=True))
+        starter_items.append(InventoryItem(character_id=char.id, name="Skórzana Zbroja", description="Chroni przed tym, co miało tylko drasnąć", item_type="armor", target_stat="strength", stat_bonus=1, is_equipped=True))
     elif "łot" in cls_lower or "zabójc" in cls_lower or "złodziej" in cls_lower:
-        starter_items.append(InventoryItem(character_id=char.id, name="Zatrutą Sztylet", description="Ciche, zwinne ostrze", item_type="weapon", target_stat="agility", stat_bonus=1, is_equipped=True))
-        starter_items.append(InventoryItem(character_id=char.id, name="Wytrychy Mistrza", description="Zestaw narzędzi włamywacza", item_type="accessory", target_stat="agility", stat_bonus=1, is_equipped=True))
+        starter_items.append(InventoryItem(character_id=char.id, name="Zatruty Sztylet", description="Ciche ostrze do szybkich i precyzyjnych ataków", item_type="weapon", target_stat="agility", stat_bonus=1, is_equipped=True))
+        starter_items.append(InventoryItem(character_id=char.id, name="Wytrychy Mistrza", description="Otwierają zamki, które miały pozostać zamknięte", item_type="accessory", target_stat="agility", stat_bonus=1, is_equipped=True))
     elif "mag" in cls_lower or "czaro" in cls_lower:
-        starter_items.append(InventoryItem(character_id=char.id, name="Runiczny Kostur", description="Obejma z kryształem many", item_type="weapon", target_stat="intellect", stat_bonus=1, is_equipped=True))
-        starter_items.append(InventoryItem(character_id=char.id, name="Amulet Ognia", description="Zwiększa potencjał magiczny", item_type="accessory", target_stat="intellect", stat_bonus=1, is_equipped=True))
+        starter_items.append(InventoryItem(character_id=char.id, name="Runiczny Kostur", description="Skupia magię i pomaga odczytać najciemniejsze runy", item_type="weapon", target_stat="intellect", stat_bonus=1, hands_required=2, is_equipped=True))
+        starter_items.append(InventoryItem(character_id=char.id, name="Amulet Ognia", description="Podsyca zaklęcia i odwagę właściciela", item_type="accessory", target_stat="intellect", stat_bonus=1, is_equipped=True))
     else:  # Bard / Kleryk / Inny
-        starter_items.append(InventoryItem(character_id=char.id, name="Srebrzysta Buława", description="Oręż i symbol wiary", item_type="weapon", target_stat="strength", stat_bonus=1, is_equipped=True))
+        starter_items.append(InventoryItem(character_id=char.id, name="Srebrzysta Buława", description="Dodaje powagi modlitwom i ciężaru uderzeniom", item_type="weapon", target_stat="strength", stat_bonus=1, is_equipped=True))
         starter_items.append(InventoryItem(character_id=char.id, name="Sygnet Charyzmy", description="Wzbudza respekt u rozmówców", item_type="accessory", target_stat="charisma", stat_bonus=1, is_equipped=True))
 
     # Każdy dostaje miksturę leczenia
@@ -888,9 +1057,72 @@ async def toggle_equip_item(char_id: int, item_id: int, db: AsyncSession = Depen
     if not item:
         raise HTTPException(status_code=404, detail="Przedmiot nie znaleziony")
 
-    item.is_equipped = not item.is_equipped
+    slot_group = equipment_slot_group(item.item_type)
+    if slot_group is None:
+        raise HTTPException(status_code=400, detail="Przedmiotów zużywalnych nie zakłada się w slotach")
+
+    replaced_item_names = []
+    if item.is_equipped:
+        item.is_equipped = False
+    else:
+        equipped_items = (
+            await db.execute(
+                select(InventoryItem).where(
+                    InventoryItem.character_id == char_id,
+                    InventoryItem.is_equipped.is_(True),
+                )
+            )
+        ).scalars().all()
+
+        items_in_slot = [
+            equipped
+            for equipped in equipped_items
+            if equipment_slot_group(equipped.item_type) == slot_group
+        ]
+        if slot_group == "active" and len(items_in_slot) >= EQUIPMENT_SLOT_LIMITS[slot_group]:
+            raise HTTPException(
+                status_code=400,
+                detail="Wszystkie 5 slotów aktywnych przedmiotów jest zajętych. Najpierw zdejmij jeden z nich.",
+            )
+
+        if slot_group == "armor":
+            for equipped in items_in_slot:
+                equipped.is_equipped = False
+                replaced_item_names.append(equipped.name)
+
+        if slot_group == "hands":
+            required_hands = hands_used(item)
+            two_handed_items = [equipped for equipped in items_in_slot if hands_used(equipped) == 2]
+            equipped_shields = [equipped for equipped in items_in_slot if equipped.item_type == "shield"]
+
+            if required_hands == 2:
+                for equipped in items_in_slot:
+                    equipped.is_equipped = False
+                    replaced_item_names.append(equipped.name)
+            elif two_handed_items:
+                for equipped in two_handed_items:
+                    equipped.is_equipped = False
+                    replaced_item_names.append(equipped.name)
+            elif item.item_type == "shield" and equipped_shields:
+                for equipped in equipped_shields:
+                    equipped.is_equipped = False
+                    replaced_item_names.append(equipped.name)
+            elif sum(hands_used(equipped) for equipped in items_in_slot) >= EQUIPMENT_SLOT_LIMITS[slot_group]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Obie dłonie są zajęte. Najpierw odłóż jedną z broni albo tarczę.",
+                )
+
+        item.is_equipped = True
+
     await db.commit()
-    return {"success": True, "is_equipped": item.is_equipped}
+    return {
+        "success": True,
+        "item_name": item.name,
+        "is_equipped": item.is_equipped,
+        "slot_group": slot_group,
+        "replaced_item_names": replaced_item_names,
+    }
 
 @app.post("/api/characters/{char_id}/inventory/{item_id}/use")
 async def use_consumable_item(char_id: int, item_id: int, db: AsyncSession = Depends(get_db)):
@@ -931,6 +1163,11 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
     if not character:
         raise HTTPException(status_code=404, detail="Postać nie istnieje")
 
+    action_text = payload.action_text.strip()
+    item_claim_error = validate_action_item_claim(action_text, character.inventory)
+    if item_claim_error:
+        raise HTTPException(status_code=400, detail=item_claim_error)
+
     session = character.session
     if session.is_turn_resolving:
         raise HTTPException(status_code=400, detail="Mistrz Gry właśnie rozpatruje tę turę. Poczekaj na zakończenie.")
@@ -953,12 +1190,12 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
 
     existing_action = next((a for a in all_turn_actions if a.character_id == character.id), None)
     if existing_action:
-        existing_action.action_text = payload.action_text.strip()
+        existing_action.action_text = action_text
     else:
         new_action = PlayerAction(
             turn_id=turn.id,
             character_id=character.id,
-            action_text=payload.action_text.strip(),
+            action_text=action_text,
         )
         db.add(new_action)
     await db.commit()
@@ -1116,6 +1353,9 @@ async def resolve_turn_background(session_id: int, turn_id: int):
 
             # 3. Zastosowanie konsekwencji dla postaci
             level_ups = []
+            action_text_by_character = {
+                action.character_id: action.action_text for action in turn.actions
+            }
             for conseq in gemini_result.player_consequences:
                 char = char_map.get(conseq.character_id)
                 if not char:
@@ -1162,7 +1402,9 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                     })
 
                 # Nowe przedmioty
+                declared_source_names = []
                 for new_item in conseq.new_items:
+                    declared_source_names.extend(new_item.source_item_names)
                     item_rec = InventoryItem(
                         character_id=char.id,
                         name=new_item.name,
@@ -1170,18 +1412,43 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                         item_type=new_item.item_type,
                         target_stat=new_item.target_stat,
                         stat_bonus=new_item.stat_bonus,
+                        hands_required=new_item.hands_required,
                         is_equipped=False,
                         quantity=1,
                     )
                     db.add(item_rec)
 
-                # Usunięte przedmioty
-                if conseq.removed_item_names:
-                    for it_name in conseq.removed_item_names:
-                        for item in char.inventory:
-                            if it_name.lower() in item.name.lower():
-                                await db.delete(item)
-                                break
+                # Zużyte, utracone oraz wykorzystane do craftingu przedmioty.
+                # Oprócz deklaracji modelu backend sam rozpoznaje składniki wymienione
+                # w akcji łączenia/ulepszania, jeżeli powstał nowy przedmiot.
+                inferred_sources = (
+                    infer_crafting_source_items(
+                        action_text_by_character.get(char.id, ""),
+                        list(char.inventory),
+                    )
+                    if conseq.new_items
+                    else []
+                )
+                removal_names = [*conseq.removed_item_names, *declared_source_names]
+                items_to_consume = {item.id: item for item in inferred_sources}
+                for removal_name in removal_names:
+                    normalized_removal_name = normalize_game_text(removal_name)
+                    if not normalized_removal_name:
+                        continue
+                    for item in char.inventory:
+                        normalized_item_name = normalize_game_text(item.name)
+                        if (
+                            normalized_removal_name in normalized_item_name
+                            or normalized_item_name in normalized_removal_name
+                        ):
+                            items_to_consume[item.id] = item
+                            break
+
+                for consumed_item in items_to_consume.values():
+                    if consumed_item.quantity > 1:
+                        consumed_item.quantity -= 1
+                    else:
+                        await db.delete(consumed_item)
 
             # Sprawdź czy pojawiła się okazja do nazwania czegoś w świecie gry
             if gemini_result.naming_opportunity and not session.pending_naming_category and characters:

@@ -98,6 +98,11 @@ document.addEventListener('alpine:init', () => {
     notificationFocusHandler: null,
     notificationUnlockHandler: null,
 
+    // Inventory
+    newInventoryItemIds: [],
+    changingEquipmentItemId: null,
+    inventoryFilter: 'all',
+
     // PWA & Network
     deferredInstallPrompt: null,
     canInstallPWA: false,
@@ -282,17 +287,41 @@ document.addEventListener('alpine:init', () => {
       this.showStoryArchive = false;
       this.expandedStoryTurnIds = [];
       this.hasUnreadTurn = false;
+      this.newInventoryItemIds = [];
+      this.inventoryFilter = 'all';
     },
 
     // --- Pobieranie Stanu Sesji ---
     async fetchSession() {
       const previousUnspentStatPoints = this.currentCharacter?.unspent_stat_points;
+      const previousCharacterId = this.currentCharacter?.id;
+      const previousInventoryItemIds = previousCharacterId
+        ? new Set(this.currentCharacter.inventory.map(item => item.id))
+        : null;
       this.isLoadingSession = true;
       try {
         const res = await fetch(`/api/session?room_code=${this.roomCode}`);
         if (!res.ok) throw new Error('Błąd ładowania sesji.');
         const data = await res.json();
         this.session = data;
+
+        if (previousCharacterId === this.selectedCharacterId && previousInventoryItemIds) {
+          const currentItems = this.currentCharacter?.inventory || [];
+          const currentItemIds = new Set(currentItems.map(item => item.id));
+          const newlyFoundItems = currentItems.filter(item => !previousInventoryItemIds.has(item.id));
+          this.newInventoryItemIds = [
+            ...new Set([
+              ...this.newInventoryItemIds.filter(itemId => currentItemIds.has(itemId)),
+              ...newlyFoundItems.map(item => item.id)
+            ])
+          ];
+          if (newlyFoundItems.length) {
+            const lootLabel = newlyFoundItems.length === 1
+              ? newlyFoundItems[0].name
+              : `${newlyFoundItems.length} nowe przedmioty`;
+            this.addToast(`🎒 Nowy łup: ${lootLabel}. Zajrzyj do plecaka!`, 'success');
+          }
+        }
 
         // Sprawdź czy jest aktywne zadanie nazywania
         if (data.pending_naming) {
@@ -332,6 +361,8 @@ document.addEventListener('alpine:init', () => {
 
     selectCharacter(charId) {
       this.selectedCharacterId = charId;
+      this.newInventoryItemIds = [];
+      this.inventoryFilter = 'all';
       localStorage.setItem('rpg_selected_char', charId);
       this.initWebSocket();
       this.addToast(`Wybrano postać: ${this.currentCharacter?.name}`, 'success');
@@ -365,6 +396,127 @@ document.addEventListener('alpine:init', () => {
     get currentCharacter() {
       if (!this.session || !this.selectedCharacterId) return null;
       return this.session.characters.find(c => c.id === this.selectedCharacterId);
+    },
+
+    get handItems() {
+      return (this.currentCharacter?.inventory || [])
+        .filter(item => item.is_equipped && ['weapon', 'shield'].includes(item.item_type))
+        .sort((a, b) => {
+          if (a.item_type !== b.item_type) return a.item_type === 'shield' ? 1 : -1;
+          return a.id - b.id;
+        });
+    },
+
+    get mainHandItem() {
+      return this.handItems.find(item => item.item_type === 'weapon') || null;
+    },
+
+    get offHandItem() {
+      if (this.mainHandItem?.hands_required === 2) return null;
+      return this.handItems.find(item => item.id !== this.mainHandItem?.id) || null;
+    },
+
+    get offHandBlockedByTwoHandedWeapon() {
+      return this.mainHandItem?.hands_required === 2;
+    },
+
+    get equippedArmor() {
+      return this.latestEquippedItem(['armor']);
+    },
+
+    get activeItems() {
+      return (this.currentCharacter?.inventory || [])
+        .filter(item => item.is_equipped && ['accessory', 'misc'].includes(item.item_type))
+        .sort((a, b) => b.id - a.id)
+        .slice(0, 5);
+    },
+
+    get activeItemSlots() {
+      return Array.from({ length: 5 }, (_, index) => this.activeItems[index] || null);
+    },
+
+    get backpackItems() {
+      const equippedItemIds = new Set([
+        ...this.handItems.map(item => item.id),
+        this.equippedArmor?.id,
+        ...this.activeItems.map(item => item.id)
+      ].filter(Boolean));
+
+      return (this.currentCharacter?.inventory || [])
+        .filter(item => !equippedItemIds.has(item.id))
+        .sort((a, b) => {
+          const newItemDifference = Number(this.isNewInventoryItem(b.id)) - Number(this.isNewInventoryItem(a.id));
+          return newItemDifference || b.id - a.id;
+        });
+    },
+
+    get visibleBackpackItems() {
+      const allowedTypes = {
+        main_hand: ['weapon'],
+        off_hand: ['weapon', 'shield'],
+        armor: ['armor'],
+        active: ['accessory', 'misc']
+      }[this.inventoryFilter];
+      if (!allowedTypes) return this.backpackItems;
+      return this.backpackItems.filter(item => allowedTypes.includes(item.item_type));
+    },
+
+    get inventoryFilterLabel() {
+      return {
+        main_hand: 'broń',
+        off_hand: 'broń lub tarcze',
+        armor: 'pancerze',
+        active: 'aktywne przedmioty'
+      }[this.inventoryFilter] || 'wszystkie przedmioty';
+    },
+
+    showItemsForSlot(slot) {
+      this.inventoryFilter = slot;
+      this.$nextTick(() => this.$refs.inventoryBackpack?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+    },
+
+    latestEquippedItem(itemTypes) {
+      return (this.currentCharacter?.inventory || [])
+        .filter(item => item.is_equipped && itemTypes.includes(item.item_type))
+        .sort((a, b) => b.id - a.id)[0] || null;
+    },
+
+    itemIcon(item) {
+      return {
+        weapon: '⚔️',
+        shield: '🔰',
+        armor: '🛡️',
+        accessory: '💍',
+        consumable: '🧪',
+        misc: '🔮'
+      }[item?.item_type] || '📦';
+    },
+
+    itemTypeLabel(item) {
+      return {
+        weapon: item?.hands_required === 2 ? 'Broń dwuręczna' : 'Broń jednoręczna',
+        shield: 'Tarcza',
+        armor: 'Zbroja',
+        accessory: 'Aktywny',
+        consumable: 'Zużywalny',
+        misc: 'Aktywny'
+      }[item?.item_type] || 'Przedmiot';
+    },
+
+    itemBonusLabel(item) {
+      if (!item || item.stat_bonus <= 0 || item.item_type === 'consumable') return '';
+      if (item.target_stat === 'hp_max') return `+${item.stat_bonus} maks. PW`;
+      if (item.target_stat === 'all') return `+${item.stat_bonus} wszystkie testy`;
+      if (item.target_stat === 'none') return '';
+      return `+${item.stat_bonus} ${this.statAbbreviation(item.target_stat)}`;
+    },
+
+    isNewInventoryItem(itemId) {
+      return this.newInventoryItemIds.includes(itemId);
+    },
+
+    markInventoryItemSeen(itemId) {
+      this.newInventoryItemIds = this.newInventoryItemIds.filter(id => id !== itemId);
     },
 
     get isPersonalNoteDirty() {
@@ -1239,15 +1391,29 @@ document.addEventListener('alpine:init', () => {
     },
 
     // --- Ekwipunek ---
-    async toggleEquip(itemId) {
+    async toggleEquip(item) {
+      if (!item || this.changingEquipmentItemId) return;
+      this.changingEquipmentItemId = item.id;
       try {
-        const res = await fetch(`/api/characters/${this.selectedCharacterId}/inventory/${itemId}/toggle-equip`, {
+        const res = await fetch(`/api/characters/${this.selectedCharacterId}/inventory/${item.id}/toggle-equip`, {
           method: 'POST'
         });
-        if (!res.ok) throw new Error('Nie udało się zmienić ekwipunku.');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Nie udało się zmienić ekwipunku.');
+        this.markInventoryItemSeen(item.id);
         await this.fetchSession();
+        if (data.is_equipped) {
+          const replaced = data.replaced_item_names?.length
+            ? ` Zastępuje: ${data.replaced_item_names.join(', ')}.`
+            : '';
+          this.addToast(`Założono: ${data.item_name}.${replaced}`, 'success');
+        } else {
+          this.addToast(`Odłożono do plecaka: ${data.item_name}.`, 'info');
+        }
       } catch (err) {
         this.addToast(err.message, 'error');
+      } finally {
+        this.changingEquipmentItemId = null;
       }
     },
 
@@ -1258,6 +1424,7 @@ document.addEventListener('alpine:init', () => {
         });
         if (!res.ok) throw new Error('Nie udało się użyć przedmiotu.');
         const data = await res.json();
+        this.markInventoryItemSeen(itemId);
         this.addToast(`Użyto przedmiotu. Odzyskano ${data.healed_by} HP! (Aktualne HP: ${data.new_hp})`, 'success');
         await this.fetchSession();
       } catch (err) {

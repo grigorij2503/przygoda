@@ -1,8 +1,8 @@
-const CACHE_NAME = 'ttrpg-gemini-v10';
+const CACHE_NAME = 'ttrpg-gemini-v11';
 const PRECACHE_ASSETS = [
   '/',
-  '/static/css/style.css',
-  '/static/js/app.js?v=10',
+  '/static/css/style.css?v=11',
+  '/static/js/app.js?v=11',
   '/static/manifest.json',
   '/static/icons/icon.svg',
   '/static/icons/icon-192.png',
@@ -80,7 +80,26 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. Static Assets (CSS, JS, Images, Icons, CDNs): Stale-While-Revalidate
+  // 3. CSS i JS: Network-first, żeby szablon nigdy nie działał ze starą logiką
+  if (
+    url.origin === self.location.origin &&
+    (url.pathname.startsWith('/static/css/') || url.pathname.startsWith('/static/js/'))
+  ) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // 4. Pozostałe statyczne zasoby: Stale-While-Revalidate
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       const fetchPromise = fetch(event.request)
