@@ -50,7 +50,7 @@
   <!-- Alpine.js CDN -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
   <!-- App Logic -->
-  <script src="/static/js/app.js?v=7"></script>
+  <script src="/static/js/app.js?v=9"></script>
 </head>
 <body x-data="rpgGame" class="min-h-screen text-gray-200 antialiased selection:bg-amber-600 selection:text-white">
 
@@ -424,6 +424,16 @@
             <span class="bg-amber-500/20 text-amber-400 px-1.5 py-0.2 rounded-full text-[10px]" x-text="session?.lore_entities?.length || 0"></span>
           </button>
 
+          <!-- Szybki powrót do nowego rozstrzygnięcia albo bieżącej tury -->
+          <button @click="openNewestStoryContent()" type="button"
+                  class="relative text-xs font-fantasy bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm"
+                  :class="hasUnreadTurn ? 'ring-2 ring-amber-400/70 animate-pulse' : ''"
+                  :aria-label="hasUnreadTurn ? 'Przejdź do nowego rozstrzygnięcia' : 'Przejdź do bieżącej tury'">
+            <span x-text="hasUnreadTurn ? '📜' : '⚡'"></span>
+            <span class="hidden md:inline" x-text="hasUnreadTurn ? 'Nowe wydarzenie' : 'Bieżąca tura'"></span>
+            <span x-show="hasUnreadTurn" x-cloak class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 border-2 border-slate-950"></span>
+          </button>
+
           <!-- Osobisty notes wybranej postaci -->
           <button @click="openPersonalNote()" title="Osobisty notes gracza"
                   class="text-xs font-fantasy bg-slate-900 hover:bg-slate-800 border border-emerald-500/40 text-emerald-300 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
@@ -522,38 +532,76 @@
           </button>
         </div>
 
-        <!-- Wstęp do kampanii (Prolog Zebranej Drużyny) -->
-        <div class="fantasy-card p-6 rounded-2xl border border-amber-900/30">
-          <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
-            <div class="flex items-center gap-2 text-xs font-fantasy text-amber-400 uppercase tracking-wider">
-              <span>📜</span> KRONIKA PRZYGODY • PROLOG DRUŻYNY
-            </div>
+        <!-- Wstęp do kampanii pozostaje pod ręką, ale nie wydłuża domyślnego widoku. -->
+        <details class="fantasy-card rounded-2xl border border-amber-900/30 overflow-hidden">
+          <summary class="p-4 cursor-pointer select-none flex items-center justify-between gap-3 text-xs font-fantasy text-amber-400 uppercase tracking-wider hover:bg-slate-900/50 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/70">
+            <span class="flex items-center gap-2"><span>📜</span> Prolog drużyny</span>
+            <span class="text-[10px] text-gray-500 normal-case tracking-normal">Rozwiń / zwiń</span>
+          </summary>
+          <div class="px-5 pb-5 pt-1 border-t border-slate-800/80">
+            <p class="text-gray-300 text-sm leading-relaxed italic whitespace-pre-line" x-text="session?.campaign_intro"></p>
           </div>
-          <p class="text-gray-300 text-sm leading-relaxed italic" x-text="session?.campaign_intro"></p>
-        </div>
+        </details>
 
         <!-- LISTA TUR -->
         <div id="story-log-container" class="space-y-6">
-          <template x-for="t in session?.turns || []" :key="t.id">
-            <article class="fantasy-card p-6 rounded-2xl border border-slate-800/80 hover:border-amber-900/50 transition">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
+            <div>
+              <h2 class="text-sm font-fantasy font-bold text-amber-300 uppercase tracking-wider">Bieżąca rozgrywka</h2>
+              <p class="text-[11px] text-gray-500">Najpierw rezultat ostatnich rzutów, potem nowe wyzwanie i deklaracja akcji.</p>
+            </div>
+            <button x-show="archivedStoryTurnCount > 0" x-cloak
+                    @click="toggleStoryArchive()" type="button"
+                    :aria-expanded="showStoryArchive.toString()" aria-controls="story-archive"
+                    class="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-fantasy border transition"
+                    :class="showStoryArchive
+                      ? 'bg-amber-950/60 border-amber-500/50 text-amber-300'
+                      : 'bg-slate-900/90 hover:bg-slate-800 border-slate-700 text-gray-300 hover:text-amber-300'">
+              <span x-text="showStoryArchive ? 'Ukryj starsze tury' : 'Pokaż archiwum (' + archivedStoryTurnCount + ')' "></span>
+              <svg class="w-3.5 h-3.5 transition-transform" :class="showStoryArchive ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </button>
+          </div>
+
+          <div id="story-archive" class="space-y-6">
+          <template x-for="t in visibleStoryTurns" :key="t.id">
+            <article :id="t.id === latestResolvedTurn?.id ? 'latest-resolved-turn-card' : (t.turn_number === session?.current_turn_number ? 'current-turn-card' : 'story-turn-' + t.id)"
+                     class="fantasy-card p-4 sm:p-6 rounded-2xl border hover:border-amber-900/50 transition scroll-mt-36"
+                     :class="t.id === latestResolvedTurn?.id
+                       ? 'border-emerald-600/40 shadow-lg shadow-emerald-950/10'
+                       : (t.turn_number === session?.current_turn_number ? 'border-amber-500/50 shadow-lg shadow-amber-950/20' : 'border-slate-800/80')">
               
               <!-- Nagłówek Tury -->
-              <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
-                <div class="flex items-center gap-2">
+              <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800"
+                   :class="isStoryTurnExpanded(t) ? 'mb-4' : ''">
+                <h3 class="flex items-center gap-2">
                   <span class="px-2.5 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-fantasy rounded-md">
                     TURA #<span x-text="t.turn_number"></span>
                   </span>
                   <span class="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-semibold tracking-wide"
                         :class="t.status === 'completed' ? 'bg-slate-900 text-gray-400 border border-slate-800' : 'bg-amber-950/80 text-amber-300 border border-amber-500/50 animate-pulse'"
-                        x-text="t.status === 'completed' ? 'Rozstrzygnięta' : '⚡ Aktywna tura w toku'">
+                        x-text="t.id === latestResolvedTurn?.id ? '📜 Najnowsze rozstrzygnięcie' : (t.status === 'completed' ? 'Rozstrzygnięta' : '⚡ Aktywna tura w toku')">
                   </span>
-                </div>
+                </h3>
                 
-                <!-- Przycisk generowania ilustracji Imagen 3 -->
-                <div x-show="t.status === 'completed'">
+                <div class="flex items-center gap-2 shrink-0">
+                  <button x-show="!isFeaturedStoryTurn(t)" x-cloak
+                          @click="toggleStoryTurn(t.id)" type="button"
+                          :aria-expanded="isStoryTurnExpanded(t).toString()"
+                          :aria-controls="'story-turn-' + t.id"
+                          class="inline-flex items-center gap-1.5 text-xs font-fantasy bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-amber-500/50 text-gray-300 hover:text-amber-300 px-3 py-1.5 rounded-lg transition">
+                    <span x-text="isStoryTurnExpanded(t) ? 'Zwiń' : 'Rozwiń'"></span>
+                    <svg class="w-3.5 h-3.5 transition-transform" :class="isStoryTurnExpanded(t) ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                  </button>
+
+                  <!-- Przycisk generowania ilustracji Imagen 3 -->
+                  <div x-show="t.status === 'completed'">
                   <template x-if="!t.image_url && !t.is_generating_image">
                     <button @click="generateImage(t.id)" class="text-xs font-fantasy bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-500/50 text-indigo-300 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-md">
-                      <span>🎨</span> Generuj ilustrację sceny
+                      <span>🎨</span> <span class="hidden sm:inline">Generuj ilustrację sceny</span>
                     </button>
                   </template>
                   <template x-if="t.is_generating_image">
@@ -562,8 +610,16 @@
                       Imagen 3 tworzy obraz...
                     </div>
                   </template>
+                  </div>
                 </div>
               </div>
+
+              <p x-show="!isStoryTurnExpanded(t)" x-cloak
+                 class="pt-3 text-xs text-gray-400 font-serif leading-relaxed max-h-12 overflow-hidden"
+                 x-text="t.gm_narration || t.next_turn_prompt || 'Brak opisu tej tury.'"></p>
+
+              <template x-if="isStoryTurnExpanded(t)">
+                <div :id="'turn-details-' + t.id">
 
               <!-- Wygenerowana Ilustracja -->
               <div x-show="t.image_url" class="mb-5 rounded-xl overflow-hidden border border-amber-900/40 relative group cursor-pointer" @click="openLightbox(t.image_url)">
@@ -667,13 +723,26 @@
                 </div>
               </div>
 
-              <!-- Wyzwanie na kolejną turę (dla tur ukończonych) -->
-              <div x-show="t.status === 'completed' && t.next_turn_prompt" x-data="{ showHints: false }" class="mt-4 pt-3 border-t border-slate-800/80 text-xs">
+              <!-- Narracyjne przejście z rozstrzygnięcia do nowej tury. -->
+              <div x-show="t.id === latestResolvedTurn?.id && currentStoryTurn && currentStoryTurn.id !== t.id"
+                   class="mt-5 pt-4 border-t border-emerald-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <p class="text-xs font-fantasy font-bold text-emerald-300 uppercase tracking-wider">Rozstrzygnięcie przeczytane?</p>
+                  <p class="text-[11px] text-gray-500" x-text="'Przejdź do aktualnego wyzwania w turze #' + currentStoryTurn.turn_number + '.'"></p>
+                </div>
+                <button @click="scrollToCurrentTurn()" type="button"
+                        class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-slate-950 text-xs font-fantasy font-bold shadow-lg transition">
+                  <span x-text="'PRZEJDŹ DO TURY #' + currentStoryTurn.turn_number"></span>
+                  <span aria-hidden="true">↓</span>
+                </button>
+              </div>
+
+              <!-- Podpowiedzi do aktywnej tury, bez powielania jej wyzwania w poprzedniej turze. -->
+              <div x-show="t.status !== 'completed' && t.suggested_actions?.length > 0" x-data="{ showHints: false }" class="mt-4 pt-3 border-t border-slate-800/80 text-xs">
                 <div class="flex items-start gap-2 text-amber-300/90 font-medium">
-                  <span class="text-base shrink-0 mt-0.5">⚡</span>
+                  <span class="text-base shrink-0 mt-0.5">💡</span>
                   <div class="flex-1 min-w-0">
-                    <span class="font-fantasy font-bold uppercase text-[11px] block text-amber-400 mb-1">Wyzwanie od Mistrza Gry:</span>
-                    <p class="whitespace-pre-line leading-relaxed text-amber-200/90 font-serif text-[13px]" x-text="t.next_turn_prompt"></p>
+                    <span class="font-fantasy font-bold uppercase text-[11px] block text-amber-400 mb-1">Sugerowane ścieżki działania:</span>
 
                     <!-- Zwijane podpowiedzi / sugerowane ścieżki -->
                     <template x-if="t.suggested_actions && t.suggested_actions.length > 0">
@@ -715,8 +784,11 @@
                   </div>
                 </div>
               </div>
+                </div>
+              </template>
             </article>
           </template>
+          </div>
         </div>
 
         <!-- DOLNY PANEL AKCJI (ACTION BAR) -->

@@ -21,6 +21,11 @@ document.addEventListener('alpine:init', () => {
     isResolvingTurn: false,
     isEditingSubmittedAction: false,
 
+    // Story log navigation
+    showStoryArchive: false,
+    expandedStoryTurnIds: [],
+    hasUnreadTurn: false,
+
     // Modals
     showCharModal: false,
     showIntroModal: false,
@@ -269,6 +274,9 @@ document.addEventListener('alpine:init', () => {
       this.closeWebSocket();
       this.chatMessages = [];
       this.chatSessionId = null;
+      this.showStoryArchive = false;
+      this.expandedStoryTurnIds = [];
+      this.hasUnreadTurn = false;
     },
 
     // --- Pobieranie Stanu Sesji ---
@@ -408,6 +416,108 @@ document.addEventListener('alpine:init', () => {
       const curTurn = this.session.turns.find(t => t.turn_number === this.session.current_turn_number);
       if (!curTurn) return false;
       return curTurn.actions.some(a => a.character_id === this.selectedCharacterId);
+    },
+
+    get storyTurnsDescending() {
+      if (!this.session?.turns) return [];
+      return [...this.session.turns].sort((a, b) => b.turn_number - a.turn_number);
+    },
+
+    get currentStoryTurn() {
+      if (!this.session) return null;
+      return this.storyTurnsDescending.find(
+        turn => turn.turn_number === this.session.current_turn_number
+      ) || null;
+    },
+
+    get latestResolvedTurn() {
+      return this.storyTurnsDescending.find(turn => turn.status === 'completed') || null;
+    },
+
+    get primaryStoryTurns() {
+      const turns = [this.latestResolvedTurn, this.currentStoryTurn].filter(Boolean);
+      return turns.filter((turn, index) => turns.findIndex(item => item.id === turn.id) === index);
+    },
+
+    get storyTurnsInReadingOrder() {
+      const primaryIds = new Set(this.primaryStoryTurns.map(turn => turn.id));
+      return [
+        ...this.primaryStoryTurns,
+        ...this.storyTurnsDescending.filter(turn => !primaryIds.has(turn.id))
+      ];
+    },
+
+    get visibleStoryTurns() {
+      return this.showStoryArchive
+        ? this.storyTurnsInReadingOrder
+        : this.primaryStoryTurns;
+    },
+
+    get archivedStoryTurnCount() {
+      return Math.max(0, this.storyTurnsDescending.length - this.primaryStoryTurns.length);
+    },
+
+    isFeaturedStoryTurn(turn) {
+      return this.primaryStoryTurns.some(item => item.id === turn.id);
+    },
+
+    isStoryTurnExpanded(turn) {
+      return this.isFeaturedStoryTurn(turn) || this.expandedStoryTurnIds.includes(turn.id);
+    },
+
+    toggleStoryTurn(turnId) {
+      if (this.expandedStoryTurnIds.includes(turnId)) {
+        this.expandedStoryTurnIds = this.expandedStoryTurnIds.filter(id => id !== turnId);
+      } else {
+        this.expandedStoryTurnIds = [...this.expandedStoryTurnIds, turnId];
+      }
+    },
+
+    toggleStoryArchive() {
+      this.showStoryArchive = !this.showStoryArchive;
+      if (!this.showStoryArchive) this.expandedStoryTurnIds = [];
+    },
+
+    isCurrentTurnNearViewport() {
+      const element = document.getElementById('current-turn-card');
+      if (!element) return true;
+      const rect = element.getBoundingClientRect();
+      return rect.bottom >= 0 && rect.top <= window.innerHeight * 1.25;
+    },
+
+    scrollToCurrentTurn(smooth = true) {
+      this.hasUnreadTurn = false;
+      this.$nextTick(() => {
+        const element = document.getElementById('current-turn-card');
+        if (!element) return;
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        element.scrollIntoView({
+          behavior: smooth && !reduceMotion ? 'smooth' : 'auto',
+          block: 'start'
+        });
+      });
+    },
+
+    scrollToLatestResolution(smooth = true) {
+      this.hasUnreadTurn = false;
+      this.$nextTick(() => {
+        const element = document.getElementById('latest-resolved-turn-card')
+          || document.getElementById('current-turn-card');
+        if (!element) return;
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        element.scrollIntoView({
+          behavior: smooth && !reduceMotion ? 'smooth' : 'auto',
+          block: 'start'
+        });
+      });
+    },
+
+    openNewestStoryContent() {
+      if (this.hasUnreadTurn) {
+        this.scrollToLatestResolution();
+      } else {
+        this.scrollToCurrentTurn();
+      }
     },
 
     get readyCount() {
@@ -576,11 +686,10 @@ document.addEventListener('alpine:init', () => {
 
         case 'PROLOGUE_STARTED':
           this.addToast('⚔️ Mistrz Gry Gemini wygłosił Prolog dla Zebranej Drużyny!', 'success');
+          this.showStoryArchive = false;
+          this.expandedStoryTurnIds = [];
           await this.fetchSession();
-          this.$nextTick(() => {
-            const el = document.getElementById('story-log-container');
-            if (el) el.scrollTop = 0;
-          });
+          this.scrollToCurrentTurn(false);
           break;
 
         case 'PLAYER_ACTION_SUBMITTED':
@@ -601,7 +710,8 @@ document.addEventListener('alpine:init', () => {
           if (this.session) this.session.is_turn_resolving = true;
           break;
 
-        case 'TURN_COMPLETED':
+        case 'TURN_COMPLETED': {
+          const followCurrentTurn = this.isCurrentTurnNearViewport();
           this.notifyGameEvent();
           this.turnError = '';
           this.isResolvingTurn = false;
@@ -609,11 +719,13 @@ document.addEventListener('alpine:init', () => {
           this.addToast(`Tura #${msg.completed_turn_number} zakończona! Mistrz Gry wydał werdykt.`, 'success');
           this.actionText = '';
           await this.fetchSession();
-          this.$nextTick(() => {
-            const el = document.getElementById('story-log-container');
-            if (el) el.scrollTop = el.scrollHeight;
-          });
+          if (followCurrentTurn) {
+            this.scrollToLatestResolution();
+          } else {
+            this.hasUnreadTurn = true;
+          }
           break;
+        }
 
         case 'IMAGE_GENERATING':
           this.addToast(`Rozpoczęto generowanie ilustracji dla Tury #${msg.turn_id}...`, 'info');
@@ -644,6 +756,9 @@ document.addEventListener('alpine:init', () => {
 
         case 'CAMPAIGN_RESET':
           this.addToast(msg.message, 'info');
+          this.showStoryArchive = false;
+          this.expandedStoryTurnIds = [];
+          this.hasUnreadTurn = false;
           await this.fetchSession();
           break;
 
