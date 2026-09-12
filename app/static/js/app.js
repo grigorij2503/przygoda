@@ -42,7 +42,16 @@ document.addEventListener('alpine:init', () => {
     showPersonalNoteModal: false,
     showMapModal: false,
     showLevelUpModal: false,
+    showProxyActionModal: false,
     lightboxImageUrl: '',
+
+    // Akcje zastępcze drużyny
+    proxyTargetCharacterId: null,
+    proxyVoteError: '',
+    isSubmittingProxyVote: false,
+    proxyNow: Date.now(),
+    proxyClockOffset: 0,
+    proxyClockTimer: null,
 
     // Personal Note
     personalNote: '',
@@ -155,6 +164,11 @@ document.addEventListener('alpine:init', () => {
         this.isOffline = true;
         this.addToast('Utracono połączenie z siecią. Jesteś w trybie offline.', 'warning');
       });
+
+      this.proxyClockTimer = setInterval(() => {
+        this.proxyNow = Date.now() + this.proxyClockOffset;
+        if (this.isAuthenticated && this.hasOpenProxyDecision) this.fetchSession();
+      }, 60000);
 
       // Obsługa instalacji PWA
       window.addEventListener('beforeinstallprompt', (e) => {
@@ -469,6 +483,8 @@ document.addEventListener('alpine:init', () => {
       this.showStoryArchive = false;
       this.expandedStoryTurnIds = [];
       this.hasUnreadTurn = false;
+      this.showProxyActionModal = false;
+      this.proxyTargetCharacterId = null;
       this.newInventoryItemIds = [];
       this.inventoryFilter = 'all';
     },
@@ -550,6 +566,17 @@ document.addEventListener('alpine:init', () => {
         if (!res.ok) throw new Error('Błąd ładowania sesji.');
         const data = await res.json();
         this.session = data;
+        const serverNow = Date.parse(data.server_time);
+        this.proxyClockOffset = Number.isFinite(serverNow) ? serverNow - Date.now() : 0;
+        this.proxyNow = Date.now() + this.proxyClockOffset;
+        if (this.proxyTargetCharacterId && (
+          !this.proxyTargetCharacter ||
+          this.proxyTargetCharacter.has_submitted_action ||
+          (this.proxyDecision && this.proxyDecision.status !== 'open')
+        )) {
+          this.showProxyActionModal = false;
+          this.proxyTargetCharacterId = null;
+        }
         if (this.showMapModal) {
           this.selectedMapNodeId = this.campaignMap?.current_node_id || null;
           this.scheduleMapRender();
@@ -1183,6 +1210,101 @@ document.addEventListener('alpine:init', () => {
       return this.session.characters.filter(c => c.is_alive).length;
     },
 
+    get hasOpenProxyDecision() {
+      return (this.session?.characters || []).some(
+        character => character.proxy_action?.decision?.status === 'open'
+      );
+    },
+
+    get proxyTargetCharacter() {
+      return (this.session?.characters || []).find(
+        character => character.id === this.proxyTargetCharacterId
+      ) || null;
+    },
+
+    get proxyDecision() {
+      return this.proxyTargetCharacter?.proxy_action?.decision || null;
+    },
+
+    get proxyOptions() {
+      return this.proxyDecision?.options || this.proxyTargetCharacter?.proxy_action?.options || [];
+    },
+
+    get myProxyVoteOptionId() {
+      return this.proxyDecision?.votes?.find(
+        vote => vote.voter_character_id === this.selectedCharacterId
+      )?.option_id || null;
+    },
+
+    canOpenProxyAction(character) {
+      const availableAt = Date.parse(character?.proxy_action?.available_at || '');
+      const isAvailable = character?.proxy_action?.available || (
+        Number.isFinite(availableAt) && this.proxyNow >= availableAt
+      );
+      if (
+        !isAvailable || this.session?.is_turn_resolving ||
+        character.id === this.selectedCharacterId || character.has_submitted_action
+      ) return false;
+      return Boolean(
+        this.currentCharacter?.is_alive &&
+        this.currentCharacter?.has_submitted_action &&
+        this.currentCharacter?.action_submission_source === 'player'
+      );
+    },
+
+    openProxyActionVote(character) {
+      if (!this.canOpenProxyAction(character)) return;
+      this.proxyTargetCharacterId = character.id;
+      this.proxyVoteError = '';
+      this.showProxyActionModal = true;
+    },
+
+    closeProxyActionVote() {
+      if (this.isSubmittingProxyVote) return;
+      this.showProxyActionModal = false;
+      this.proxyTargetCharacterId = null;
+      this.proxyVoteError = '';
+    },
+
+    proxyVoteTimeLabel() {
+      const voteHours = this.session?.proxy_action_config?.vote_hours || 2;
+      if (!this.proxyDecision?.closes_at) return `Pierwszy głos otworzy głosowanie na ${voteHours} godz.`;
+      const remainingMs = Date.parse(this.proxyDecision.closes_at) - this.proxyNow;
+      if (remainingMs <= 0) return 'Głosowanie jest domykane…';
+      const totalMinutes = Math.ceil(remainingMs / 60000);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      return `Pozostało: ${hours ? `${hours} godz. ` : ''}${minutes} min.`;
+    },
+
+    async submitProxyVote(optionId) {
+      if (!this.proxyTargetCharacter || !this.selectedCharacterId || this.isSubmittingProxyVote) return;
+      this.proxyVoteError = '';
+      this.isSubmittingProxyVote = true;
+      try {
+        const res = await fetch(`/api/proxy-actions/${this.proxyTargetCharacter.id}/votes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            voter_character_id: this.selectedCharacterId,
+            option_id: optionId
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || 'Nie udało się zapisać głosu.');
+        this.addToast(data.finalized ? 'Akcja zastępcza została wybrana.' : 'Twój głos został zapisany.', 'success');
+        await this.fetchSession();
+        if (data.finalized) {
+          this.showProxyActionModal = false;
+          this.proxyTargetCharacterId = null;
+        }
+      } catch (err) {
+        this.proxyVoteError = err.message;
+      } finally {
+        this.isSubmittingProxyVote = false;
+      }
+    },
+
     get isCurrentCharacterReady() {
       if (!this.currentCharacter) return false;
       return Boolean(this.currentCharacter.is_ready);
@@ -1233,6 +1355,8 @@ document.addEventListener('alpine:init', () => {
       window.removeEventListener('focus', this.notificationFocusHandler);
       document.removeEventListener('pointerup', this.notificationUnlockHandler);
       document.removeEventListener('keydown', this.notificationUnlockHandler);
+      clearInterval(this.proxyClockTimer);
+      this.proxyClockTimer = null;
       if (this.notificationAudio) this.notificationAudio.close().catch(() => {});
     },
 
@@ -1345,6 +1469,27 @@ document.addEventListener('alpine:init', () => {
 
         case 'PLAYER_ACTION_SUBMITTED':
           this.addToast(`Gracz ${msg.character_name} złożył akcję (${msg.ready_count}/${msg.total_players})`, 'info');
+          await this.fetchSession();
+          break;
+
+        case 'PROXY_ACTION_VOTE_UPDATED':
+          await this.fetchSession();
+          break;
+
+        case 'PROXY_ACTION_FINALIZED':
+          this.addToast(
+            `🗳️ Drużyna wybrała dla ${msg.target_character_name}: ${msg.selected_label}.`,
+            'success'
+          );
+          if (msg.target_character_id === this.proxyTargetCharacterId) {
+            this.showProxyActionModal = false;
+            this.proxyTargetCharacterId = null;
+          }
+          await this.fetchSession();
+          break;
+
+        case 'PROXY_ACTION_OVERRIDDEN':
+          this.addToast(`${msg.character_name} zastąpił akcję drużyny własną deklaracją.`, 'info');
           await this.fetchSession();
           break;
 

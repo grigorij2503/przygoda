@@ -108,6 +108,10 @@ class SubmitActionRequest(BaseModel):
     intent: Optional[Literal["attack", "defend", "interact", "support", "other"]] = None
     target_ref: Optional[str] = None
 
+class ProxyActionVoteRequest(BaseModel):
+    voter_character_id: int
+    option_id: str = Field(min_length=1, max_length=50)
+
 class PlayerActionDto(BaseModel):
     id: int
     character_id: int
@@ -130,6 +134,7 @@ class PlayerActionDto(BaseModel):
     damage_reduction: int = 0
     hp_delta: int = 0
     xp_gained: int = 0
+    submission_source: str = "player"
 
     model_config = ConfigDict(from_attributes=True)
 

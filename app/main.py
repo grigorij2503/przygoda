@@ -23,7 +23,7 @@ from starlette.requests import Request
 
 import secrets
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.config import UPLOADS_DIR, settings
 from app.combat import (
@@ -57,7 +57,19 @@ from app.gemini_service import (
     generate_scene_image_ai,
     resolve_turn_with_gemini,
 )
-from app.models import CampaignMap, ChatMessage, Character, GameSession, InventoryItem, NamedLoreEntity, PlayerAction, Turn, WebPushSubscription
+from app.models import (
+    CampaignMap,
+    ChatMessage,
+    Character,
+    GameSession,
+    InventoryItem,
+    NamedLoreEntity,
+    PlayerAction,
+    ProxyActionDecision,
+    ProxyActionVote,
+    Turn,
+    WebPushSubscription,
+)
 from app.push_service import is_web_push_configured, schedule_web_push
 from app.schemas import (
     DeletePushSubscriptionRequest,
@@ -71,6 +83,7 @@ from app.schemas import (
     NameEntityRequest,
     PrologueRequest,
     PrologueResponse,
+    ProxyActionVoteRequest,
     ResolveTurnRequest,
     SetupScenarioRequest,
     SubmitActionRequest,
@@ -91,6 +104,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 MAX_LEVEL = 25
 MAX_BASE_ATTRIBUTE = 12
 CHAT_HISTORY_LIMIT = 50
+PROXY_ACTION_WAIT = timedelta(hours=max(0.0, settings.PROXY_ACTION_WAIT_HOURS))
+PROXY_ACTION_VOTE_WINDOW = timedelta(hours=max(0.05, settings.PROXY_ACTION_VOTE_HOURS))
 GM_SESSION_COOKIE = "ttrpg_gm_session"
 GM_SESSION_TTL_SECONDS = 8 * 60 * 60
 GM_UNLOCK_MAX_ATTEMPTS = 5
@@ -119,6 +134,203 @@ ITEM_CLAIM_VERBS = (
     "strzal", "cios", "celuj", "tnij", "tne", "siek", "pchn", "kluj",
     "rzuc", "uderz", "rani", "zabij", "dobij",
 )
+
+
+def as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def build_proxy_action_options(session: GameSession, target: Character) -> list[dict]:
+    """Buduje bezpieczne akcje bez przedmiotów jednorazowych i trwałych decyzji."""
+    boss_alive = bool(session.active_boss_name and (session.active_boss_hp or 0) > 0)
+    if boss_alive:
+        boss_name = session.active_boss_name or "przeciwnika"
+        return [
+            {
+                "id": "attack",
+                "icon": "⚔️",
+                "label": "Atak",
+                "description": f"{target.name} atakuje {boss_name}, wykorzystując najlepszą dostępną broń.",
+                "action_text": f"Atakuję {boss_name}, wykorzystując najlepszą dostępną broń i dogodny moment.",
+                "intent": "attack",
+                "target_ref": "boss",
+            },
+            {
+                "id": "defend",
+                "icon": "🛡️",
+                "label": "Obrona",
+                "description": f"{target.name} przyjmuje bezpieczną pozycję i osłania drużynę.",
+                "action_text": "Przyjmuję bezpieczną pozycję obronną i osłaniam drużynę przed zagrożeniem.",
+                "intent": "defend",
+                "target_ref": None,
+            },
+            {
+                "id": "support",
+                "icon": "🤝",
+                "label": "Wsparcie",
+                "description": f"{target.name} wspiera najbardziej zagrożonych członków drużyny.",
+                "action_text": "Wspieram najbardziej zagrożonych członków drużyny i pomagam im utrzymać szyk.",
+                "intent": "support",
+                "target_ref": None,
+            },
+        ]
+
+    active_feature = next(
+        (
+            feature for feature in (session.active_boss_features or [])
+            if isinstance(feature, dict) and feature.get("state") == "active" and feature.get("id")
+        ),
+        None,
+    )
+    feature_name = active_feature.get("name") if active_feature else "otoczenie"
+    feature_id = str(active_feature.get("id")) if active_feature else None
+    return [
+        {
+            "id": "interact",
+            "icon": "🔎",
+            "label": "Zbadaj otoczenie",
+            "description": f"{target.name} ostrożnie bada {feature_name} i szuka użytecznej drogi naprzód.",
+            "action_text": f"Ostrożnie badam {feature_name} i szukam bezpiecznej, użytecznej drogi naprzód.",
+            "intent": "interact",
+            "target_ref": feature_id,
+        },
+        {
+            "id": "defend",
+            "icon": "🛡️",
+            "label": "Zachowaj ostrożność",
+            "description": f"{target.name} zabezpiecza pozycję i wypatruje zagrożeń.",
+            "action_text": "Zabezpieczam pozycję drużyny, zachowuję ostrożność i wypatruję zagrożeń.",
+            "intent": "defend",
+            "target_ref": None,
+        },
+        {
+            "id": "support",
+            "icon": "🤝",
+            "label": "Pomóż drużynie",
+            "description": f"{target.name} pomaga pozostałym w realizacji wspólnego planu.",
+            "action_text": "Pomagam drużynie w realizacji wspólnego planu i wspieram osobę, która najbardziej tego potrzebuje.",
+            "intent": "support",
+            "target_ref": None,
+        },
+    ]
+
+
+def proxy_vote_state(
+    decision: ProxyActionDecision,
+    alive_character_ids: set[int],
+) -> tuple[dict[str, int], int]:
+    eligible_ids = alive_character_ids - {decision.target_character_id}
+    counts = {str(option.get("id")): 0 for option in (decision.options or [])}
+    for vote in decision.votes:
+        if vote.voter_character_id in eligible_ids and vote.option_id in counts:
+            counts[vote.option_id] += 1
+    quorum = len(eligible_ids) // 2 + 1
+    return counts, quorum
+
+
+def choose_proxy_option(
+    decision: ProxyActionDecision,
+    alive_character_ids: set[int],
+    now: datetime,
+) -> dict | None:
+    counts, quorum = proxy_vote_state(decision, alive_character_ids)
+    options = decision.options or []
+    majority_id = next((option_id for option_id, count in counts.items() if count >= quorum), None)
+    if majority_id:
+        return next((option for option in options if option.get("id") == majority_id), None)
+    if now < (as_utc(decision.closes_at) or now):
+        return None
+
+    highest_count = max(counts.values(), default=0)
+    leaders = [option_id for option_id, count in counts.items() if count == highest_count]
+    selected_id = leaders[0] if len(leaders) == 1 else "defend"
+    return next((option for option in options if option.get("id") == selected_id), None)
+
+
+def finalize_proxy_decision(
+    db: AsyncSession,
+    decision: ProxyActionDecision,
+    turn: Turn,
+    alive_character_ids: set[int],
+    now: datetime,
+) -> dict | None:
+    if decision.status != "open":
+        return None
+    if decision.target_character_id not in alive_character_ids:
+        decision.status = "overridden"
+        decision.finalized_at = now
+        return None
+
+    existing_action = next(
+        (action for action in turn.actions if action.character_id == decision.target_character_id),
+        None,
+    )
+    if existing_action and existing_action.submission_source != "party_vote":
+        decision.status = "overridden"
+        decision.finalized_at = now
+        return None
+
+    selected = choose_proxy_option(decision, alive_character_ids, now)
+    if not selected:
+        return None
+
+    if existing_action:
+        action = existing_action
+        action.action_text = selected["action_text"]
+        action.intent = selected["intent"]
+        action.target_ref = selected.get("target_ref")
+        action.submitted_at = now
+    else:
+        action = PlayerAction(
+            turn_id=turn.id,
+            character_id=decision.target_character_id,
+            action_text=selected["action_text"],
+            intent=selected["intent"],
+            target_ref=selected.get("target_ref"),
+            submission_source="party_vote",
+            submitted_at=now,
+        )
+        db.add(action)
+        turn.actions.append(action)
+    action.submission_source = "party_vote"
+    decision.status = "finalized"
+    decision.selected_option_id = str(selected["id"])
+    decision.finalized_at = now
+    return {
+        "decision_id": decision.id,
+        "target_character_id": decision.target_character_id,
+        "selected_option_id": selected["id"],
+        "selected_label": selected["label"],
+    }
+
+
+def serialize_proxy_decision(
+    decision: ProxyActionDecision,
+    alive_character_ids: set[int],
+) -> dict:
+    counts, quorum = proxy_vote_state(decision, alive_character_ids)
+    return {
+        "id": decision.id,
+        "status": decision.status,
+        "opened_at": as_utc(decision.opened_at).isoformat() if decision.opened_at else None,
+        "closes_at": as_utc(decision.closes_at).isoformat() if decision.closes_at else None,
+        "selected_option_id": decision.selected_option_id,
+        "quorum": quorum,
+        "eligible_voters": max(0, len(alive_character_ids) - 1),
+        "options": [
+            {**option, "votes": counts.get(str(option.get("id")), 0)}
+            for option in (decision.options or [])
+        ],
+        "votes": [
+            {"voter_character_id": vote.voter_character_id, "option_id": vote.option_id}
+            for vote in decision.votes
+            if vote.voter_character_id in alive_character_ids
+        ],
+    }
 
 
 def create_gm_session_token(expires_at: int) -> str:
@@ -714,6 +926,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
         .options(
             selectinload(GameSession.characters).selectinload(Character.inventory),
             selectinload(GameSession.turns).selectinload(Turn.actions).selectinload(PlayerAction.character),
+            selectinload(GameSession.turns).selectinload(Turn.proxy_decisions).selectinload(ProxyActionDecision.votes),
             selectinload(GameSession.lore_entities),
             selectinload(GameSession.campaign_map),
         )
@@ -726,18 +939,52 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
     if game_session.campaign_map is None:
         game_session.campaign_map = await replace_campaign_map(db, game_session)
         session_changed = True
-    if session_changed:
-        await db.commit()
-
     current_turn = next(
         (t for t in game_session.turns if t.turn_number == game_session.current_turn_number),
         None,
     )
+    now = datetime.now(timezone.utc)
+    alive_character_ids = {character.id for character in game_session.characters if character.is_alive}
+    characters_by_id = {character.id: character for character in game_session.characters}
+    finalized_proxy_actions = []
+    if current_turn and not game_session.is_turn_resolving:
+        for decision in current_turn.proxy_decisions:
+            previous_status = decision.status
+            result = finalize_proxy_decision(db, decision, current_turn, alive_character_ids, now)
+            if result:
+                finalized_proxy_actions.append(result)
+                session_changed = True
+            elif decision.status != previous_status:
+                session_changed = True
+
+    if session_changed:
+        await db.commit()
+
+    for result in finalized_proxy_actions:
+        target = characters_by_id.get(result["target_character_id"])
+        await ws_manager.broadcast_to_session(game_session.id, {
+            "type": "PROXY_ACTION_FINALIZED",
+            **result,
+            "target_character_name": target.name if target else "Nieznany bohater",
+        })
+
     submitted_character_ids = [a.character_id for a in current_turn.actions] if current_turn else []
+    current_actions_by_character = {
+        action.character_id: action for action in current_turn.actions
+    } if current_turn else {}
+    proxy_decisions_by_character = {
+        decision.target_character_id: decision for decision in current_turn.proxy_decisions
+    } if current_turn else {}
+    proxy_available_at = (
+        (as_utc(current_turn.created_at) or now) + PROXY_ACTION_WAIT
+        if current_turn else None
+    )
 
     characters_dto = []
     for c in game_session.characters:
         xp_progress = get_xp_progress(c.level, c.xp)
+        current_action = current_actions_by_character.get(c.id)
+        proxy_decision = proxy_decisions_by_character.get(c.id)
         characters_dto.append({
             "id": c.id,
             "player_name": c.player_name,
@@ -757,6 +1004,27 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
             "is_ready": bool(getattr(c, "is_ready", False)),
             "status_effects": status_list(c.status_effects),
             "has_submitted_action": c.id in submitted_character_ids,
+            "action_submission_source": current_action.submission_source if current_action else None,
+            "proxy_action": {
+                "available": bool(
+                    c.is_alive
+                    and not current_action
+                    and current_turn
+                    and current_turn.status == "waiting_for_actions"
+                    and not game_session.is_turn_resolving
+                    and proxy_available_at
+                    and now >= proxy_available_at
+                    and len(alive_character_ids) > 1
+                ),
+                "available_at": proxy_available_at.isoformat() if proxy_available_at else None,
+                "options": (
+                    proxy_decision.options if proxy_decision else build_proxy_action_options(game_session, c)
+                ) if c.is_alive and current_turn else [],
+                "decision": (
+                    serialize_proxy_decision(proxy_decision, alive_character_ids)
+                    if proxy_decision else None
+                ),
+            } if current_turn else None,
             "inventory": [
                 {
                     "id": item.id,
@@ -809,7 +1077,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
                 {
                     "id": a.id,
                     "character_id": a.character_id,
-                    "character_name": a.character.name if a.character else "Nieznany",
+                    "character_name": characters_by_id.get(a.character_id).name if characters_by_id.get(a.character_id) else "Nieznany",
                     "action_text": a.action_text,
                     "intent": a.intent,
                     "target_ref": a.target_ref,
@@ -828,6 +1096,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
                     "damage_reduction": a.damage_reduction or 0,
                     "hp_delta": a.hp_delta or 0,
                     "xp_gained": a.xp_gained or 0,
+                    "submission_source": a.submission_source or "player",
                 }
                 for a in t.actions
             ],
@@ -841,6 +1110,11 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
         "campaign_intro": game_session.campaign_intro,
         "current_turn_number": game_session.current_turn_number,
         "is_turn_resolving": game_session.is_turn_resolving,
+        "server_time": now.isoformat(),
+        "proxy_action_config": {
+            "wait_hours": settings.PROXY_ACTION_WAIT_HOURS,
+            "vote_hours": settings.PROXY_ACTION_VOTE_HOURS,
+        },
         "status": getattr(game_session, "status", "in_progress") or "in_progress",
         "active_boss": {
             "name": game_session.active_boss_name,
@@ -1276,7 +1550,10 @@ async def resolve_turn_endpoint(payload: ResolveTurnRequest = ResolveTurnRequest
     s_stmt = (
         select(GameSession)
         .where(GameSession.room_code == payload.room_code)
-        .options(selectinload(GameSession.turns).selectinload(Turn.actions))
+        .options(
+            selectinload(GameSession.characters),
+            selectinload(GameSession.turns).selectinload(Turn.actions),
+        )
     )
     session = (await db.execute(s_stmt)).scalar_one_or_none()
     if not session:
@@ -1291,6 +1568,15 @@ async def resolve_turn_endpoint(payload: ResolveTurnRequest = ResolveTurnRequest
 
     if not turn.actions:
         raise HTTPException(status_code=400, detail="Żaden gracz nie złożył jeszcze akcji w tej turze")
+
+    alive_characters = [character for character in session.characters if character.is_alive]
+    submitted_ids = {action.character_id for action in turn.actions}
+    missing_characters = [character.name for character in alive_characters if character.id not in submitted_ids]
+    if missing_characters:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Brak akcji dla: {', '.join(missing_characters)}. Poczekaj na graczy albo wybierz akcję zastępczą.",
+        )
 
     session.is_turn_resolving = True
     turn.status = "resolving"
@@ -1595,6 +1881,150 @@ async def use_consumable_item(char_id: int, item_id: int, db: AsyncSession = Dep
     return {"success": True, "new_hp": char.current_hp, "healed_by": heal_amount}
 
 # --- Action Submission & Turn Gating Loop ---
+@app.post("/api/proxy-actions/{target_character_id}/votes")
+async def vote_for_proxy_action(
+    target_character_id: int,
+    payload: ProxyActionVoteRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    target_stmt = (
+        select(Character)
+        .options(selectinload(Character.session))
+        .where(Character.id == target_character_id)
+    )
+    target = (await db.execute(target_stmt)).scalar_one_or_none()
+    if not target or not target.is_alive:
+        raise HTTPException(status_code=404, detail="Nie znaleziono aktywnej postaci")
+
+    session = target.session
+    if session.is_turn_resolving:
+        raise HTTPException(status_code=400, detail="Tura jest już rozstrzygana")
+
+    turn_stmt = (
+        select(Turn)
+        .options(
+            selectinload(Turn.actions),
+            selectinload(Turn.proxy_decisions).selectinload(ProxyActionDecision.votes),
+        )
+        .where(Turn.session_id == session.id, Turn.turn_number == session.current_turn_number)
+        .with_for_update()
+    )
+    turn = (await db.execute(turn_stmt)).scalar_one_or_none()
+    if not turn or turn.status != "waiting_for_actions" or turn.mechanics_resolved_at is not None:
+        raise HTTPException(status_code=400, detail="Brak aktywnej tury oczekującej na akcje")
+
+    existing_action = next(
+        (action for action in turn.actions if action.character_id == target_character_id),
+        None,
+    )
+    if existing_action:
+        raise HTTPException(status_code=409, detail="Ta postać ma już zadeklarowaną akcję")
+
+    now = datetime.now(timezone.utc)
+    available_at = (as_utc(turn.created_at) or now) + PROXY_ACTION_WAIT
+    if now < available_at:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Głosowanie będzie dostępne od {available_at.isoformat()}",
+        )
+
+    alive_characters = (
+        await db.execute(
+            select(Character).where(Character.session_id == session.id, Character.is_alive == True)
+        )
+    ).scalars().all()
+    alive_character_ids = {character.id for character in alive_characters}
+    if len(alive_character_ids) < 2:
+        raise HTTPException(status_code=400, detail="Brak innych graczy uprawnionych do głosowania")
+    if payload.voter_character_id == target_character_id:
+        raise HTTPException(status_code=400, detail="Nie można głosować za własną postać")
+    if payload.voter_character_id not in alive_character_ids:
+        raise HTTPException(status_code=403, detail="Głosować może tylko żywa postać z tej sesji")
+    if not any(
+        action.character_id == payload.voter_character_id and action.submission_source == "player"
+        for action in turn.actions
+    ):
+        raise HTTPException(status_code=400, detail="Najpierw złóż własną akcję w tej turze")
+
+    decision = next(
+        (item for item in turn.proxy_decisions if item.target_character_id == target_character_id),
+        None,
+    )
+    if not decision:
+        decision = ProxyActionDecision(
+            turn_id=turn.id,
+            target_character_id=target_character_id,
+            options=build_proxy_action_options(session, target),
+            status="open",
+            opened_at=now,
+            closes_at=now + PROXY_ACTION_VOTE_WINDOW,
+            votes=[],
+        )
+        db.add(decision)
+        turn.proxy_decisions.append(decision)
+        await db.flush()
+    if decision.status != "open":
+        raise HTTPException(status_code=409, detail="To głosowanie zostało już zakończone")
+
+    if now >= (as_utc(decision.closes_at) or now):
+        finalized = finalize_proxy_decision(db, decision, turn, alive_character_ids, now)
+        await db.commit()
+        if finalized:
+            await ws_manager.broadcast_to_session(session.id, {
+                "type": "PROXY_ACTION_FINALIZED",
+                **finalized,
+                "target_character_name": target.name,
+            })
+        return {
+            "success": True,
+            "finalized": bool(finalized),
+            "decision": serialize_proxy_decision(decision, alive_character_ids),
+        }
+
+    valid_option_ids = {str(option.get("id")) for option in (decision.options or [])}
+    if payload.option_id not in valid_option_ids:
+        raise HTTPException(status_code=400, detail="Nieprawidłowa opcja akcji zastępczej")
+
+    vote = next(
+        (item for item in decision.votes if item.voter_character_id == payload.voter_character_id),
+        None,
+    )
+    if vote:
+        vote.option_id = payload.option_id
+        vote.updated_at = now
+    else:
+        vote = ProxyActionVote(
+            decision_id=decision.id,
+            voter_character_id=payload.voter_character_id,
+            option_id=payload.option_id,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(vote)
+        decision.votes.append(vote)
+
+    finalized = finalize_proxy_decision(db, decision, turn, alive_character_ids, now)
+    await db.commit()
+
+    await ws_manager.broadcast_to_session(session.id, {
+        "type": "PROXY_ACTION_VOTE_UPDATED",
+        "target_character_id": target.id,
+        "target_character_name": target.name,
+    })
+    if finalized:
+        await ws_manager.broadcast_to_session(session.id, {
+            "type": "PROXY_ACTION_FINALIZED",
+            **finalized,
+            "target_character_name": target.name,
+        })
+
+    return {
+        "success": True,
+        "finalized": bool(finalized),
+        "decision": serialize_proxy_decision(decision, alive_character_ids),
+    }
+
+
 @app.post("/api/actions")
 async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends(get_db)):
     # Pobierz postać z sesją
@@ -1616,8 +2046,12 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
     # Pobierz aktywną turę
     t_stmt = (
         select(Turn)
-        .options(selectinload(Turn.actions).selectinload(PlayerAction.character))
+        .options(
+            selectinload(Turn.actions).selectinload(PlayerAction.character),
+            selectinload(Turn.proxy_decisions),
+        )
         .where(Turn.session_id == session.id, Turn.turn_number == session.current_turn_number)
+        .with_for_update()
     )
     t_res = await db.execute(t_stmt)
     turn = t_res.scalar_one_or_none()
@@ -1635,10 +2069,13 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
     all_turn_actions = act_res.scalars().all()
 
     existing_action = next((a for a in all_turn_actions if a.character_id == character.id), None)
+    proxy_was_overridden = bool(existing_action and existing_action.submission_source == "party_vote")
     if existing_action:
         existing_action.action_text = action_text
         existing_action.intent = payload.intent
         existing_action.target_ref = payload.target_ref
+        existing_action.submission_source = "player"
+        existing_action.submitted_at = datetime.now(timezone.utc)
     else:
         new_action = PlayerAction(
             turn_id=turn.id,
@@ -1646,8 +2083,17 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
             action_text=action_text,
             intent=payload.intent,
             target_ref=payload.target_ref,
+            submission_source="player",
         )
         db.add(new_action)
+    if proxy_was_overridden:
+        decision = next(
+            (item for item in turn.proxy_decisions if item.target_character_id == character.id),
+            None,
+        )
+        if decision:
+            decision.status = "overridden"
+            decision.finalized_at = datetime.now(timezone.utc)
     await db.commit()
 
     # Pobierz aktualne akcje dla tej tury bezpośrednio z bazy
@@ -1673,6 +2119,12 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
         "ready_count": ready_count,
         "total_players": total_alive_players,
     })
+    if proxy_was_overridden:
+        await ws_manager.broadcast_to_session(session.id, {
+            "type": "PROXY_ACTION_OVERRIDDEN",
+            "character_id": character.id,
+            "character_name": character.name,
+        })
 
     # SPRAWDŹ CZY WSZYSCY ZŁOŻYLI AKCJE (TURN GATING)
     if ready_count >= total_alive_players and total_alive_players > 0:

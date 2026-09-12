@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     VAPID_PUBLIC_KEY: str = ""
     VAPID_PRIVATE_KEY: str = ""
     VAPID_SUBJECT: str = ""
+    PROXY_ACTION_WAIT_HOURS: float = 8
+    PROXY_ACTION_VOTE_HOURS: float = 2
 
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),

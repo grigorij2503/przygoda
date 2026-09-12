@@ -50,7 +50,7 @@
   <!-- Alpine.js CDN -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
   <!-- App Logic -->
-  <script src="/static/js/app.js?v=20"></script>
+  <script src="/static/js/app.js?v=21"></script>
 </head>
 <body x-data="rpgGame" class="min-h-screen text-gray-200 antialiased selection:bg-amber-600 selection:text-white">
 
@@ -741,6 +741,10 @@
                       <div class="flex-1">
                         <div class="flex items-center gap-2 mb-1">
                           <b class="text-amber-300 text-sm font-fantasy" x-text="act.character_name"></b>
+                          <span x-show="act.submission_source === 'party_vote'" x-cloak
+                                class="px-1.5 py-0.5 rounded bg-indigo-950/80 border border-indigo-500/40 text-indigo-300 text-[9px] not-italic">
+                            akcja wybrana przez drużynę
+                          </span>
                           <span class="text-gray-400 italic">„<span x-text="act.action_text"></span>”</span>
                         </div>
                         <p x-show="act.gm_individual_summary" class="text-gray-300 text-xs mt-1" x-text="act.gm_individual_summary"></p>
@@ -919,8 +923,15 @@
               </svg>
             </button>
             <div class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-950/60 border border-emerald-600/40 text-emerald-300 font-fantasy text-xs font-semibold">
-              <span>✓</span> TWOJA AKCJA ZOSTAŁA ZŁOŻONA NA TĘ TURĘ
+              <span>✓</span>
+              <span x-text="currentCharacter?.action_submission_source === 'party_vote'
+                ? 'DRUŻYNA WYBRAŁA AKCJĘ ZASTĘPCZĄ ZA CIEBIE'
+                : 'TWOJA AKCJA ZOSTAŁA ZŁOŻONA NA TĘ TURĘ'"></span>
             </div>
+            <p x-show="currentCharacter?.action_submission_source === 'party_vote'" x-cloak
+               class="text-xs text-indigo-300 mt-2">
+              Nadal możesz użyć opcji edycji poniżej i zastąpić ją własną deklaracją.
+            </p>
             <p class="text-xs text-gray-400 mt-2">
               Stan drużyny: 
               <b class="text-amber-300"><span x-text="readyCount"></span> z <span x-text="totalAlivePlayers"></span></b> graczy gotowych.
@@ -1453,11 +1464,19 @@
                   </div>
                 </div>
 
-                <div>
+                <div class="flex flex-col items-end gap-1.5">
                   <span class="px-2 py-1 rounded text-[10px] font-medium"
                         :class="p.has_submitted_action ? 'bg-emerald-950/80 border border-emerald-600/40 text-emerald-300' : 'bg-amber-950/60 border border-amber-600/30 text-amber-300'"
-                        x-text="p.has_submitted_action ? '✓ Gotowy' : '⏳ Czeka...'">
+                        x-text="p.has_submitted_action ? (p.action_submission_source === 'party_vote' ? '✓ Gotowy (drużyna)' : '✓ Gotowy') : '⏳ Czeka...'">
                   </span>
+                  <button x-show="canOpenProxyAction(p)" x-cloak type="button"
+                          @click="openProxyActionVote(p)"
+                          class="px-2 py-1 rounded text-[10px] font-semibold bg-indigo-950/80 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-900 transition">
+                    🗳️ Wybierz ruch za niego
+                  </button>
+                  <span x-show="p.proxy_action?.decision?.status === 'open'" x-cloak
+                        class="text-[9px] text-indigo-300"
+                        x-text="'Głosowanie • większość ' + p.proxy_action?.decision?.quorum + ' głosów'"></span>
                 </div>
               </div>
             </template>
@@ -1465,6 +1484,57 @@
         </div>
       </aside>
     </main>
+  </div>
+
+  <!-- ==================== MODAL: AKCJA ZASTĘPCZA DRUŻYNY ==================== -->
+  <div x-show="showProxyActionModal" x-cloak
+       @keydown.escape.window="closeProxyActionVote()"
+       class="fixed inset-0 z-[70] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="fantasy-card p-5 md:p-7 rounded-2xl max-w-xl w-full border border-indigo-500/50 shadow-2xl relative">
+      <button type="button" @click="closeProxyActionVote()" :disabled="isSubmittingProxyVote"
+              class="absolute top-3 right-3 text-gray-400 hover:text-white text-xl" aria-label="Zamknij">×</button>
+
+      <div class="pr-8">
+        <p class="text-[10px] uppercase tracking-[0.2em] text-indigo-300 mb-1">Akcja zastępcza drużyny</p>
+        <h3 class="text-xl font-fantasy font-bold text-amber-300">
+          Wybierz ruch dla <span x-text="proxyTargetCharacter?.name"></span>
+        </h3>
+        <p class="text-xs text-gray-400 mt-2">
+          Głos można zmienić do zamknięcia głosowania. Powracający gracz nadal może zastąpić wynik własną deklaracją.
+        </p>
+      </div>
+
+      <div class="mt-4 px-3 py-2 rounded-lg bg-slate-950/70 border border-slate-800 flex items-center justify-between text-[11px]">
+        <span class="text-gray-400" x-text="proxyVoteTimeLabel()"></span>
+        <span class="text-indigo-300 font-semibold"
+              x-text="'Potrzeba ' + (proxyDecision?.quorum || Math.floor((totalAlivePlayers - 1) / 2) + 1) + ' głosów'"></span>
+      </div>
+
+      <div class="mt-4 space-y-2">
+        <template x-for="option in proxyOptions" :key="option.id">
+          <button type="button" @click="submitProxyVote(option.id)" :disabled="isSubmittingProxyVote"
+                  class="w-full text-left p-3 rounded-xl border transition disabled:opacity-60"
+                  :class="myProxyVoteOptionId === option.id
+                    ? 'bg-indigo-900/50 border-indigo-400 text-white ring-1 ring-indigo-400/50'
+                    : 'bg-slate-950/70 border-slate-800 text-gray-200 hover:border-indigo-500/60 hover:bg-slate-900'">
+            <div class="flex items-center justify-between gap-3">
+              <span class="font-fantasy font-bold text-sm">
+                <span x-text="option.icon"></span> <span x-text="option.label"></span>
+              </span>
+              <span class="shrink-0 px-2 py-0.5 rounded-full bg-slate-900 text-indigo-300 text-[10px]"
+                    x-text="(option.votes || 0) + ' gł.'"></span>
+            </div>
+            <p class="text-[11px] text-gray-400 mt-1" x-text="option.description"></p>
+          </button>
+        </template>
+      </div>
+
+      <p x-show="proxyVoteError" x-text="proxyVoteError"
+         class="mt-3 text-xs text-red-300 bg-red-950/40 border border-red-700/40 rounded-lg px-3 py-2"></p>
+      <p class="mt-3 text-[10px] text-gray-500"
+         x-text="'Przy braku większości po ' + (session?.proxy_action_config?.vote_hours || 2) + ' godz. wygrywa najpopularniejsza opcja; remis albo brak głosów oznacza obronę.'">
+      </p>
+    </div>
   </div>
 
   <!-- ==================== MODAL: NAZWIJ ODKRYCIE (LORE NAMING) ==================== -->

@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, JSON, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -136,10 +136,14 @@ class Turn(Base):
 
     session = relationship("GameSession", back_populates="turns")
     actions = relationship("PlayerAction", back_populates="turn", cascade="all, delete-orphan")
+    proxy_decisions = relationship("ProxyActionDecision", back_populates="turn", cascade="all, delete-orphan")
 
 
 class PlayerAction(Base):
     __tablename__ = "player_actions"
+    __table_args__ = (
+        UniqueConstraint("turn_id", "character_id", name="uq_player_action_turn_character"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     turn_id = Column(Integer, ForeignKey("turns.id", ondelete="CASCADE"), nullable=False)
@@ -162,10 +166,54 @@ class PlayerAction(Base):
     damage_reduction = Column(Integer, nullable=False, default=0)
     hp_delta = Column(Integer, nullable=False, default=0)
     xp_gained = Column(Integer, nullable=False, default=0)
+    submission_source = Column(String(30), nullable=False, default="player")
     submitted_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     turn = relationship("Turn", back_populates="actions")
     character = relationship("Character", back_populates="actions")
+
+
+class ProxyActionDecision(Base):
+    __tablename__ = "proxy_action_decisions"
+    __table_args__ = (
+        UniqueConstraint("turn_id", "target_character_id", name="uq_proxy_decision_turn_target"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    turn_id = Column(Integer, ForeignKey("turns.id", ondelete="CASCADE"), nullable=False, index=True)
+    target_character_id = Column(Integer, ForeignKey("characters.id", ondelete="CASCADE"), nullable=False, index=True)
+    options = Column(JSON, nullable=False, default=list)
+    status = Column(String(30), nullable=False, default="open")  # open, finalized, overridden
+    selected_option_id = Column(String(50), nullable=True)
+    opened_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    closes_at = Column(DateTime, nullable=False)
+    finalized_at = Column(DateTime, nullable=True)
+
+    turn = relationship("Turn", back_populates="proxy_decisions")
+    target_character = relationship("Character", foreign_keys=[target_character_id])
+    votes = relationship("ProxyActionVote", back_populates="decision", cascade="all, delete-orphan")
+
+
+class ProxyActionVote(Base):
+    __tablename__ = "proxy_action_votes"
+    __table_args__ = (
+        UniqueConstraint("decision_id", "voter_character_id", name="uq_proxy_vote_decision_voter"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    decision_id = Column(Integer, ForeignKey("proxy_action_decisions.id", ondelete="CASCADE"), nullable=False, index=True)
+    voter_character_id = Column(Integer, ForeignKey("characters.id", ondelete="CASCADE"), nullable=False, index=True)
+    option_id = Column(String(50), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    decision = relationship("ProxyActionDecision", back_populates="votes")
+    voter_character = relationship("Character", foreign_keys=[voter_character_id])
 
 
 class NamedLoreEntity(Base):

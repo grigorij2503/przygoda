@@ -66,9 +66,18 @@ async def init_db():
             ("player_actions", "damage_reduction", "INTEGER NOT NULL DEFAULT 0"),
             ("player_actions", "hp_delta", "INTEGER NOT NULL DEFAULT 0"),
             ("player_actions", "xp_gained", "INTEGER NOT NULL DEFAULT 0"),
+            ("player_actions", "submission_source", "VARCHAR(30) NOT NULL DEFAULT 'player'"),
         ]
         for table, col, col_type in new_columns:
             try:
                 await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type};"))
             except Exception:
                 pass
+        try:
+            await conn.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_player_action_turn_character "
+                "ON player_actions (turn_id, character_id);"
+            ))
+        except Exception:
+            # Zachowaj start aplikacji z historyczną bazą, nawet jeśli zawiera stare duplikaty.
+            pass
