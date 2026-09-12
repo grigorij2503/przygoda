@@ -45,6 +45,10 @@ from app.inventory import (
     get_effectively_equipped_items,
     hands_used,
 )
+from app.loot import (
+    resolve_inventory_mechanics,
+    validate_special_action,
+)
 from app.map_generator import (
     GENERATOR_VERSION,
     adjacent_node_ids,
@@ -368,9 +372,6 @@ def require_gm(request: Request) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Wymagane odblokowanie Narzędzi MG",
         )
-CRAFTING_KEYWORDS = (
-    "lacz", "polacz", "wzmacn", "ulepsz", "przekuw", "przerab", "wytwarz",
-)
 LEGACY_STARTER_ITEM_UPDATES = {
     ("Krasnoludzki Miecz", "Solidne żelazne ostrze"): (
         "Krasnoludzki Miecz",
@@ -605,38 +606,6 @@ def validate_action_item_claim(
             return f"{label} znajduje się w plecaku, ale nie w aktywnym slocie. Najpierw użyj przycisku „Załóż”."
 
     return None
-
-
-def infer_crafting_source_items(
-    action_text: str,
-    inventory: List[InventoryItem],
-) -> list[InventoryItem]:
-    """Rozpoznaje posiadane przedmioty wymienione w akcji łączenia lub ulepszania."""
-    normalized_action = normalize_game_text(action_text)
-    if not any(keyword in normalized_action for keyword in CRAFTING_KEYWORDS):
-        return []
-
-    ignored_name_parts = {
-        "magicz", "runicz", "starozy", "wzmocn", "krasnol", "mistrz", "ognia", "cienia",
-    }
-    matched_items = []
-    for item in inventory:
-        normalized_name = normalize_game_text(item.name)
-        if normalized_name in normalized_action:
-            matched_items.append(item)
-            continue
-
-        meaningful_parts = [
-            part
-            for part in re.findall(r"[a-z0-9]+", normalized_name)
-            if len(part) >= 4 and not any(part.startswith(ignored) for ignored in ignored_name_parts)
-        ]
-        if any(part[:4] in normalized_action for part in meaningful_parts):
-            matched_items.append(item)
-
-    # Automatyczny fallback jest celowo konserwatywny: dwa wymienione składniki
-    # jasno wskazują na crafting. Dla ulepszeń jednego przedmiotu źródło zwraca Gemini.
-    return matched_items if len(matched_items) >= 2 else []
 
 
 @asynccontextmanager
@@ -1134,6 +1103,20 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
             "wait_hours": settings.PROXY_ACTION_WAIT_HOURS,
             "vote_hours": settings.PROXY_ACTION_VOTE_HOURS,
         },
+        "inventory_rules": {
+            "crafting_available": (
+                int(game_session.crafting_available_until_turn or 0)
+                == game_session.current_turn_number
+            ),
+            "crafting_available_until_turn": int(
+                game_session.crafting_available_until_turn or 0
+            ),
+            "current_location_searched": bool(
+                game_session.campaign_map
+                and game_session.campaign_map.current_node_id
+                in (game_session.looted_location_ids or [])
+            ),
+        },
         "status": getattr(game_session, "status", "in_progress") or "in_progress",
         "active_boss": {
             "name": game_session.active_boss_name,
@@ -1203,6 +1186,9 @@ async def reset_campaign(
         session.active_boss_effects = []
         session.active_boss_features = []
         session.active_boss_telegraph = None
+        session.last_loot_character_id = None
+        session.looted_location_ids = []
+        session.crafting_available_until_turn = 0
         await db.execute(
             update(Character)
             .where(Character.session_id == session.id)
@@ -1272,6 +1258,9 @@ async def setup_scenario(
     session.active_boss_effects = []
     session.active_boss_features = []
     session.active_boss_telegraph = None
+    session.last_loot_character_id = None
+    session.looted_location_ids = []
+    session.crafting_available_until_turn = 0
     session.pending_naming_category = None
     session.pending_naming_prompt = None
     session.pending_naming_character_id = None
@@ -2047,7 +2036,14 @@ async def vote_for_proxy_action(
 @app.post("/api/actions")
 async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends(get_db)):
     # Pobierz postać z sesją
-    c_stmt = select(Character).options(selectinload(Character.session), selectinload(Character.inventory)).where(Character.id == payload.character_id)
+    c_stmt = (
+        select(Character)
+        .options(
+            selectinload(Character.session).selectinload(GameSession.campaign_map),
+            selectinload(Character.inventory),
+        )
+        .where(Character.id == payload.character_id)
+    )
     c_res = await db.execute(c_stmt)
     character = c_res.scalar_one_or_none()
     if not character:
@@ -2076,6 +2072,17 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
         raise HTTPException(status_code=400, detail=item_claim_error)
 
     session = character.session
+    special_action_error = validate_special_action(
+        action_text=action_text,
+        inventory=character.inventory,
+        session=session,
+        current_turn_number=session.current_turn_number,
+        inferred_intent=infer_action_intent(action_text, action_intent),
+        uses_magic=bool(magic_ability),
+        campaign_map=session.campaign_map,
+    )
+    if special_action_error:
+        raise HTTPException(status_code=400, detail=special_action_error)
     if session.is_turn_resolving:
         raise HTTPException(status_code=400, detail="Mistrz Gry właśnie rozpatruje tę turę. Poczekaj na zakończenie.")
 
@@ -2216,6 +2223,10 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             characters = (await db.execute(c_stmt)).scalars().all()
             char_map = {c.id: c for c in characters}
             ensure_boss_encounter(session, characters)
+            map_stmt = select(CampaignMap).where(CampaignMap.session_id == session_id)
+            campaign_map = (await db.execute(map_stmt)).scalar_one_or_none()
+            if campaign_map is None:
+                campaign_map = await replace_campaign_map(db, session)
 
             # 1. Mechanika tury jest zapisywana dokładnie raz. Retry ponawia wyłącznie narrację.
             actions_with_rolls = []
@@ -2257,6 +2268,26 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                         list(characters),
                         list(turn.actions),
                     )
+                inventory_resolution = resolve_inventory_mechanics(
+                    session,
+                    turn,
+                    list(characters),
+                    campaign_map,
+                )
+                turn.combat_events = [
+                    *(turn.combat_events or []),
+                    *inventory_resolution.events,
+                ]
+                for new_item in inventory_resolution.new_items:
+                    owner = char_map.get(new_item.character_id)
+                    if owner and new_item not in owner.inventory:
+                        owner.inventory.append(new_item)
+                    db.add(new_item)
+                for consumed_item in inventory_resolution.consumed_items:
+                    owner = char_map.get(consumed_item.character_id)
+                    if owner and consumed_item in owner.inventory:
+                        owner.inventory.remove(consumed_item)
+                    await db.delete(consumed_item)
                 turn.mechanics_resolved_at = datetime.now(timezone.utc)
                 await db.commit()
 
@@ -2288,10 +2319,6 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             lore_res = await db.execute(lore_stmt)
             lore_entities = lore_res.scalars().all()
 
-            map_stmt = select(CampaignMap).where(CampaignMap.session_id == session_id)
-            campaign_map = (await db.execute(map_stmt)).scalar_one_or_none()
-            if campaign_map is None:
-                campaign_map = await replace_campaign_map(db, session)
             map_context = build_map_narrator_context(campaign_map)
 
             # 2. Wywołanie Gemini API
@@ -2315,9 +2342,6 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                 for event in (turn.combat_events or [])
                 if isinstance(event, dict)
             )
-            action_text_by_character = {
-                action.character_id: action.action_text for action in turn.actions
-            }
             for conseq in gemini_result.player_consequences:
                 char = char_map.get(conseq.character_id)
                 if not char:
@@ -2366,42 +2390,10 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                         "unspent_stat_points": char.unspent_stat_points,
                     })
 
-                # Nowe przedmioty
-                declared_source_names = []
-                for new_item in conseq.new_items:
-                    declared_source_names.extend(new_item.source_item_names)
-                    item_rec = InventoryItem(
-                        character_id=char.id,
-                        name=new_item.name,
-                        description=new_item.description,
-                        item_type=new_item.item_type,
-                        target_stat=new_item.target_stat,
-                        stat_bonus=new_item.stat_bonus,
-                        damage_power=(
-                            6 if new_item.item_type == "weapon" and new_item.hands_required == 2
-                            else 4 if new_item.item_type == "weapon"
-                            else 0
-                        ),
-                        hands_required=new_item.hands_required,
-                        is_equipped=False,
-                        quantity=1,
-                    )
-                    db.add(item_rec)
-
-                # Zużyte, utracone oraz wykorzystane do craftingu przedmioty.
-                # Oprócz deklaracji modelu backend sam rozpoznaje składniki wymienione
-                # w akcji łączenia/ulepszania, jeżeli powstał nowy przedmiot.
-                inferred_sources = (
-                    infer_crafting_source_items(
-                        action_text_by_character.get(char.id, ""),
-                        list(char.inventory),
-                    )
-                    if conseq.new_items
-                    else []
-                )
-                removal_names = [*conseq.removed_item_names, *declared_source_names]
-                items_to_consume = {item.id: item for item in inferred_sources}
-                for removal_name in removal_names:
+                # Narrator może nadal rozliczyć fabularną utratę przedmiotu, ale nie
+                # tworzy łupu ani rezultatów craftingu. Te zmiany zapisuje mechanika.
+                items_to_consume = {}
+                for removal_name in conseq.removed_item_names:
                     normalized_removal_name = normalize_game_text(removal_name)
                     if not normalized_removal_name:
                         continue

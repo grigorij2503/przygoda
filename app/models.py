@@ -24,6 +24,9 @@ class GameSession(Base):
     active_boss_effects = Column(JSON, default=list)
     active_boss_features = Column(JSON, default=list)
     active_boss_telegraph = Column(JSON, nullable=True)
+    last_loot_character_id = Column(Integer, nullable=True)
+    looted_location_ids = Column(JSON, default=list)
+    crafting_available_until_turn = Column(Integer, nullable=False, default=0)
 
     pending_naming_category = Column(String(50), nullable=True)  # boss, location, weapon, attack
     pending_naming_prompt = Column(Text, nullable=True)

@@ -19,7 +19,6 @@ from app.schemas import (
     GeminiTurnResolutionSchema,
     GenerateIntroResponse,
     MapLocationUpdateSchema,
-    NewItemSchema,
     NamingOpportunitySchema,
     PlayerConsequenceSchema,
     PrologueResponse,
@@ -326,13 +325,11 @@ async def resolve_turn_with_gemini(
         "3. STAN ZDROWIA I ZAGROŻENIA: W narracji wspominaj o stanie fizycznym bohaterów – ranach, krwawieniu, zmęczeniu, utracie tchu lub determinacji.\n"
         "4. CIĄGŁOŚĆ OPOWIEŚCI: Nie twórz suchych raportów punktowych! Każda tura to żywy, emocjonujący fragment wciągającej powieści dark fantasy.\n\n"
         "5. PRAWDZIWY EKWIPUNEK: Pole inventory przy postaci jest jedynym źródłem prawdy o posiadanych przedmiotach. Nie pozwalaj użyć ani uzyskać korzyści z przedmiotu, którego tam nie ma. Broń, tarcza i zbroja dają korzyść tylko, gdy mają equipped=true. Jeśli deklaracja mimo zabezpieczeń odwołuje się do nieposiadanego przedmiotu, opisz brak przedmiotu i improwizację zgodną z wynikiem rzutu, zamiast materializować wyposażenie.\n"
-        "6. ŁĄCZENIE I ULEPSZANIE: Gdy w wyniku akcji powstaje nowy lub ulepszony przedmiot z posiadanych składników, wpisz dokładne nazwy WSZYSTKICH zużytych składników z inventory do source_item_names nowego przedmiotu. Nie pozostawiaj składników w ekwipunku. Jeśli nic nowego nie powstało, source_item_names pozostaje puste. Przedmioty utracone z innych powodów wpisuj do removed_item_names.\n\n"
+        "6. ŁUP I CRAFTING: Ekwipunek rozlicza wyłącznie backend. Zdarzenia item_found, item_crafted i loot_search_empty w combat_events są ostateczne — opisz je dokładnie i nie dodawaj żadnych innych znalezisk. W każdym player_consequences ustaw new_items=[]; przedmioty utracone z innych przyczyn nadal wpisuj do removed_item_names.\n\n"
         "7. MAGIA KLASOWA: Pole magic_ability przy akcji jest jedynym źródłem prawdy o użytym czarze, modlitwie lub cudzie. Nie rozszerzaj efektu poza opis tej zdolności. Puste magic_ability oznacza zwykłą, niemagiczną akcję. Pole available_magic zawiera wyłącznie zdolności odblokowane dla danej postaci; nie przyznawaj dostępu do innych mocy.\n\n"
         "ZASADY WYJŚCIA JSON:\n"
         "1. gm_story_narration: Głęboka, barwna i kinowa narracja Mistrza Gry w języku polskim podsumowująca akcje graczy i zmieniającą się sytuację (min. 3-5 soczystych zdań).\n"
-        "2. player_consequences: Dla KAŻDEGO gracza: individual_summary (fabularne podsumowanie jego losu), hp_delta (utracone/odzyskane HP), xp_gained (50-120 XP), new_items, removed_item_names. Podczas aktywnej walki z bossem ustaw hp_delta dokładnie na hp_delta_from_combat_engine; nie dodawaj własnych obrażeń.\n"
-        "   OPISY PRZEDMIOTÓW: Każdy nowy przedmiot opisz jednym krótkim, naturalnym zdaniem po polsku, które mówi graczowi, co daje lub robi przedmiot. Zachowaj lekko swobodny ton, np. 'Wzbudza respekt u rozmówców'. Dla przedmiotów zużywalnych podaj efekt wprost, np. 'Odnawia 10 punktów życia'. Nie powtarzaj w opisie technicznego zapisu '+1 do statystyki'.\n"
-        "   SLOTY PRZEDMIOTÓW: Dla weapon ustaw hands_required na 1 albo 2 zgodnie z naturą broni. Tarczę zapisuj jako item_type='shield' i hands_required=1.\n"
+        "2. player_consequences: Dla KAŻDEGO gracza: individual_summary (fabularne podsumowanie jego losu), hp_delta (utracone/odzyskane HP), xp_gained (50-120 XP), new_items=[] oraz removed_item_names. Podczas aktywnej walki z bossem ustaw hp_delta dokładnie na hp_delta_from_combat_engine; nie dodawaj własnych obrażeń.\n"
         "3. next_turn_prompt: Nowa sytuacja fabularna i konkretne, bezpośrednie wyzwanie rzucone drużynie na otwarcie kolejnej tury (zawsze kończące się pytaniem 'Co robicie?').\n"
         "4. suggested_actions: Dokładnie 3 zróżnicowane i konkretne ścieżki działania na otwarcie kolejnej tury dopasowane do NOWEJ sytuacji.\n"
         "5. scene_image_prompt: Sugestywny prompt po angielsku dla modelu generującego obraz (Gemini 2.5 Flash Image)...\n"
@@ -490,15 +487,7 @@ def _generate_rich_offline_resolution(
             individual_summary=desc,
             hp_delta=hp_delta,
             xp_gained=xp,
-            new_items=[
-                NewItemSchema(
-                    name="Starożytny Sztylet Cienia",
-                    description="Pomaga zniknąć przeciwnikowi z oczu tuż przed ciosem",
-                    item_type="weapon",
-                    target_stat="agility",
-                    stat_bonus=1
-                )
-            ] if tier == "critical_success" else [],
+            new_items=[],
             removed_item_names=[]
         ))
 
@@ -524,6 +513,25 @@ def _generate_rich_offline_resolution(
             elif event_type == "status_damage":
                 event_sentences.append(
                     f"Efekt {event.get('effect')} zadaje {event.get('target')} {event.get('damage')} obrażeń."
+                )
+            elif event_type == "item_found":
+                finder = event.get("found_by")
+                recipient = event.get("actor")
+                if finder and finder != recipient:
+                    event_sentences.append(
+                        f"{finder} odnajduje „{event.get('item')}”, a wspólny łup trafia do {recipient}."
+                    )
+                else:
+                    event_sentences.append(
+                        f"{recipient} zdobywa wspólny łup drużyny: „{event.get('item')}”."
+                    )
+            elif event_type == "item_crafted":
+                event_sentences.append(
+                    f"{event.get('actor')} scala trzy składniki w przedmiot „{event.get('item')}”."
+                )
+            elif event_type == "loot_search_empty":
+                event_sentences.append(
+                    "Dokładne przeszukanie tej lokacji nie przynosi wartościowego łupu."
                 )
         if event_sentences:
             combat_summary = "\n\n" + " ".join(event_sentences)

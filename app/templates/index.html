@@ -988,7 +988,20 @@
               <button @click="setQuickAction('Ostrożnie badam otoczenie w poszukiwaniu ukrytych mechanizmów lub słabych punktów komnaty.', 'other')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
                 🔍 Zwiad / Rozpoznanie
               </button>
+              <button x-show="!(session?.active_boss?.hp > 0) && !session?.inventory_rules?.current_location_searched" x-cloak
+                      @click="setQuickAction('Dokładnie przeszukuję tę lokację w poszukiwaniu wartościowego łupu.', 'interact')"
+                      class="text-[11px] bg-amber-950/60 hover:bg-amber-900/60 border border-amber-700/60 text-amber-200 px-2.5 py-1 rounded-md transition">
+                🎒 Szukaj łupu
+              </button>
             </div>
+
+            <div x-show="session?.inventory_rules?.crafting_available" x-cloak
+                 class="mb-3 rounded-lg border border-cyan-600/40 bg-cyan-950/30 px-3 py-2 text-[11px] text-cyan-200">
+              🔨 Warsztat jest dostępny w tej turze. Crafting jest całą akcją: wpisz dokładne nazwy trzech przedmiotów tego samego typu, które chcesz scalić.
+            </div>
+            <p class="mb-3 text-[10px] text-gray-500">
+              Jedna tura obejmuje jeden główny zamiar. Każdą lokację można przeszukać tylko raz, a boss pozostawia jeden wspólny łup.
+            </p>
 
             <div class="space-y-3">
               <div x-show="selectedMagicAbility" x-cloak
