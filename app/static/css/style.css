@@ -536,7 +536,8 @@ body {
 }
 
 .campaign-map-viewport {
-  min-height: 22rem;
+  min-height: 16rem;
+  flex: 1 1 auto;
   overflow: auto;
   background:
     radial-gradient(circle at 50% 45%, rgba(8, 47, 73, 0.18), transparent 48%),
@@ -619,6 +620,31 @@ body {
   filter: drop-shadow(0 0 10px rgba(34, 211, 238, 0.3));
 }
 
+.campaign-map-node[role="button"] {
+  cursor: pointer;
+  outline: none;
+}
+
+.campaign-map-node[role="button"]:hover .campaign-map-room,
+.campaign-map-node[role="button"]:focus .campaign-map-room,
+.campaign-map-node--selected .campaign-map-room {
+  stroke: #e2e8f0;
+  stroke-width: 3;
+}
+
+.campaign-map-order-marker {
+  fill: #020617;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.campaign-map-order-label {
+  fill: currentColor;
+  font: 700 8px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  pointer-events: none;
+}
+
 .campaign-map-glyph {
   fill: currentColor;
   font: 700 20px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -656,7 +682,7 @@ body {
   }
 
   .campaign-map-viewport {
-    min-height: 30rem;
+    min-height: 22rem;
   }
 }
 

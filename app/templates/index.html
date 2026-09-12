@@ -45,7 +45,7 @@
   </script>
 
   <!-- Custom Stylesheet -->
-  <link rel="stylesheet" href="/static/css/style.css?v=15">
+  <link rel="stylesheet" href="/static/css/style.css?v=16">
 
   <!-- Alpine.js CDN -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
@@ -1530,27 +1530,50 @@
       </div>
 
       <div x-show="campaignMap" class="p-4 md:px-6 border-t border-slate-800 bg-slate-950/70">
-        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div class="grid lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.65fr)] gap-5">
           <div class="min-w-0">
-            <span class="text-[10px] uppercase tracking-widest text-cyan-500 font-mono">Bieżąca lokacja</span>
-            <h4 class="text-base font-fantasy font-bold text-cyan-200 truncate" x-text="currentMapNode?.name"></h4>
-            <p class="text-[11px] text-gray-500 mt-1">Mapa jest wspólna. Przejście zmienia pozycję drużyny, ale nie rozstrzyga tury ani rzutu.</p>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-[10px] uppercase tracking-widest text-cyan-500 font-mono"
+                    x-text="selectedMapNode?.id === campaignMap?.current_node_id ? 'Bieżąca lokacja' : 'Odwiedzona lokacja'"></span>
+              <span x-show="selectedMapNode?.discovered_turn !== null && selectedMapNode?.discovered_turn !== undefined"
+                    class="text-[9px] px-2 py-0.5 rounded-full border border-slate-700 text-slate-400 font-mono"
+                    x-text="selectedMapNode?.discovered_turn === 0 ? 'początek wyprawy' : `odkryta w turze ${selectedMapNode?.discovered_turn}`"></span>
+            </div>
+            <h4 class="text-base font-fantasy font-bold text-cyan-200 mt-0.5" x-text="selectedMapNode?.name"></h4>
+            <p x-show="selectedMapNode?.system_name"
+               class="text-[10px] text-slate-500 mt-0.5"
+               x-text="`Nazwa systemowa: ${selectedMapNode?.system_name}`"></p>
+            <p class="text-xs text-gray-400 mt-1 leading-relaxed" x-text="selectedMapNode?.description"></p>
+
+            <div x-show="selectedMapNode?.contents?.length" class="mt-3">
+              <span class="text-[9px] uppercase tracking-widest text-slate-500 font-mono">Zauważone elementy</span>
+              <div class="flex flex-wrap gap-1.5 mt-1.5">
+                <template x-for="element in selectedMapNode?.contents || []" :key="element">
+                  <span class="text-[10px] px-2 py-1 rounded-md bg-slate-900 border border-slate-700/70 text-slate-300" x-text="element"></span>
+                </template>
+              </div>
+            </div>
           </div>
-          <div class="flex flex-wrap items-center gap-2 lg:justify-end">
-            <span x-show="availableMapNodes.length === 0" class="text-xs text-gray-500">Brak dostępnych przejść.</span>
-            <template x-for="node in availableMapNodes" :key="node.id">
-              <button type="button" @click="moveOnMap(node.id)"
-                      :disabled="isMovingOnMap || session?.is_turn_resolving"
-                      class="px-3 py-2 rounded-lg border border-cyan-700/60 bg-cyan-950/30 hover:bg-cyan-900/50 text-cyan-200 text-xs font-fantasy transition disabled:opacity-40 disabled:cursor-not-allowed">
-                <span x-text="'Przejdź: ' + node.name"></span>
-              </button>
-            </template>
+
+          <div class="min-w-0">
+            <span class="text-[10px] uppercase tracking-widest text-slate-500 font-mono">Przebyta trasa</span>
+            <div class="flex flex-wrap gap-1.5 mt-2">
+              <template x-for="node in visitedMapNodes" :key="node.id">
+                <button type="button" @click="selectMapNode(node.id)"
+                        :class="node.id === selectedMapNode?.id ? 'border-cyan-500/70 bg-cyan-950/50 text-cyan-200' : 'border-slate-700 bg-slate-900/70 text-slate-400 hover:text-slate-200'"
+                        class="px-2.5 py-1.5 rounded-lg border text-[10px] transition text-left">
+                  <b class="font-mono mr-1" x-text="node.visit_order"></b>
+                  <span x-text="node.name"></span>
+                  <span x-show="node.id === campaignMap?.current_node_id" class="text-cyan-400 ml-1">●</span>
+                </button>
+              </template>
+            </div>
+            <p class="text-[10px] text-gray-600 mt-2">Mapa jest tylko podglądem. Pozycję i odkrycia aktualizuje przebieg opowieści po zakończeniu tury.</p>
           </div>
         </div>
-        <p x-show="mapError" x-text="mapError" class="mt-3 text-xs text-rose-300 bg-rose-950/50 border border-rose-800/60 rounded-lg p-2.5"></p>
         <div class="flex flex-wrap gap-4 mt-3 text-[10px] font-mono text-gray-500">
           <span><i class="campaign-map-legend campaign-map-legend--current"></i> drużyna</span>
-          <span><i class="campaign-map-legend campaign-map-legend--available"></i> dostępna</span>
+          <span><i class="campaign-map-legend campaign-map-legend--available"></i> niezbadane przejście</span>
           <span><i class="campaign-map-legend campaign-map-legend--visited"></i> odwiedzona</span>
           <span><i class="campaign-map-legend campaign-map-legend--hidden"></i> nieodkryta</span>
         </div>

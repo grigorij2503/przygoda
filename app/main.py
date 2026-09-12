@@ -64,7 +64,6 @@ from app.schemas import (
     GenerateImageRequest,
     GenerateIntroRequest,
     GenerateIntroResponse,
-    MoveMapRequest,
     NameEntityRequest,
     PrologueRequest,
     PrologueResponse,
@@ -209,6 +208,104 @@ async def replace_campaign_map(db: AsyncSession, session: GameSession) -> Campai
         db.add(campaign_map)
     await db.flush()
     return campaign_map
+
+
+def build_map_narrator_context(campaign_map: CampaignMap) -> dict:
+    """Udostępnia narratorowi wyłącznie bieżący węzeł i legalne sąsiednie przejścia."""
+    layout = campaign_map.layout or {}
+    current_node_id = campaign_map.current_node_id or layout.get("start_node_id")
+    allowed_ids = {current_node_id, *adjacent_node_ids(layout, current_node_id)}
+    nodes_by_id = {
+        str(node.get("id")): node
+        for node in layout.get("nodes", [])
+    }
+    return {
+        "current_node_id": current_node_id,
+        "allowed_destinations": [
+            {
+                "id": node_id,
+                "name": nodes_by_id[node_id].get("name", "Lokacja"),
+                "type": nodes_by_id[node_id].get("type", "unknown"),
+            }
+            for node_id in sorted(allowed_ids)
+            if node_id in nodes_by_id
+        ],
+        "visited_locations": [
+            {
+                "id": node_id,
+                "name": nodes_by_id[node_id].get("name", "Lokacja"),
+            }
+            for node_id in (campaign_map.discovered_node_ids or [])
+            if node_id in nodes_by_id
+        ],
+    }
+
+
+def apply_map_narrative_update(
+    campaign_map: CampaignMap,
+    map_update,
+    turn_number: int,
+) -> None:
+    """Waliduje ruch narratora i zapisuje opis odwiedzonego miejsca w JSON mapy."""
+    if not map_update:
+        return
+
+    layout = json.loads(json.dumps(campaign_map.layout or {}))
+    current_node_id = campaign_map.current_node_id or layout.get("start_node_id")
+    allowed_ids = {current_node_id, *adjacent_node_ids(layout, current_node_id)}
+    requested_node_id = str(map_update.destination_node_id or "").strip()
+    destination_node_id = requested_node_id if requested_node_id in allowed_ids else current_node_id
+    known_node_ids = {str(node.get("id")) for node in layout.get("nodes", [])}
+    if destination_node_id not in known_node_ids:
+        return
+
+    discovered = list(campaign_map.discovered_node_ids or [])
+    first_visit = destination_node_id not in discovered
+    if first_visit:
+        discovered.append(destination_node_id)
+
+    for node in layout.get("nodes", []):
+        if str(node.get("id")) != destination_node_id:
+            continue
+        summary = decode_display_text(map_update.location_summary)
+        if summary:
+            node["exploration_summary"] = summary[:1200]
+        elements = [
+            decode_display_text(str(element))[:100]
+            for element in (map_update.notable_elements or [])[:5]
+            if decode_display_text(str(element))
+        ]
+        if elements:
+            node["notable_elements"] = list(dict.fromkeys(elements))
+        if first_visit or node.get("discovered_turn") is None:
+            node["discovered_turn"] = turn_number
+        node["last_visited_turn"] = turn_number
+        break
+
+    campaign_map.layout = layout
+    campaign_map.current_node_id = destination_node_id
+    campaign_map.discovered_node_ids = discovered
+    campaign_map.updated_at = datetime.now(timezone.utc)
+
+
+def apply_custom_location_name(
+    campaign_map: CampaignMap,
+    custom_name: str,
+    named_by: str,
+) -> str | None:
+    """Przypisuje nazwę z Kroniki do aktualnie odwiedzanego węzła mapy."""
+    layout = json.loads(json.dumps(campaign_map.layout or {}))
+    current_node_id = campaign_map.current_node_id or layout.get("start_node_id")
+    for node in layout.get("nodes", []):
+        if str(node.get("id")) != current_node_id:
+            continue
+        node["system_name"] = node.get("system_name") or node.get("name") or "Lokacja"
+        node["custom_name"] = custom_name
+        node["named_by"] = named_by
+        campaign_map.layout = layout
+        campaign_map.updated_at = datetime.now(timezone.utc)
+        return current_node_id
+    return None
 
 
 def get_xp_progress(level: int, xp: int) -> dict:
@@ -696,59 +793,6 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
     }
 
 
-@app.post("/api/session/map/move")
-async def move_on_campaign_map(payload: MoveMapRequest, db: AsyncSession = Depends(get_db)):
-    stmt = (
-        select(GameSession)
-        .where(GameSession.room_code == payload.room_code)
-        .options(
-            selectinload(GameSession.campaign_map),
-            selectinload(GameSession.characters),
-        )
-    )
-    session = (await db.execute(stmt)).scalar_one_or_none()
-    if not session:
-        raise HTTPException(status_code=404, detail="Sesja nie została znaleziona")
-    if session.is_turn_resolving:
-        raise HTTPException(status_code=409, detail="Poczekaj na zakończenie rozstrzygania tury")
-
-    campaign_map = session.campaign_map or await replace_campaign_map(db, session)
-    layout = campaign_map.layout or {}
-    known_node_ids = {str(node.get("id")) for node in layout.get("nodes", [])}
-    destination_node_id = payload.destination_node_id.strip()
-    if destination_node_id not in known_node_ids:
-        raise HTTPException(status_code=400, detail="Wybrana lokacja nie istnieje na mapie")
-
-    available = adjacent_node_ids(layout, campaign_map.current_node_id)
-    if destination_node_id not in available:
-        raise HTTPException(status_code=400, detail="Do tej lokacji nie prowadzi bezpośrednie przejście")
-
-    campaign_map.current_node_id = destination_node_id
-    campaign_map.discovered_node_ids = list(dict.fromkeys([
-        *(campaign_map.discovered_node_ids or []),
-        destination_node_id,
-    ]))
-    campaign_map.updated_at = datetime.now(timezone.utc)
-    await db.commit()
-
-    traveler = next(
-        (character for character in session.characters if character.id == payload.character_id),
-        None,
-    )
-    node = next(
-        item for item in layout.get("nodes", []) if item.get("id") == destination_node_id
-    )
-    await ws_manager.broadcast_to_session(session.id, {
-        "type": "MAP_UPDATED",
-        "node_id": destination_node_id,
-        "node_name": node.get("name", "Nowa lokacja"),
-        "character_name": traveler.name if traveler else None,
-    })
-    return {
-        "success": True,
-        "campaign_map": serialize_campaign_map(campaign_map),
-    }
-
 @app.post("/api/generate-intro", response_model=GenerateIntroResponse)
 async def generate_intro(payload: GenerateIntroRequest, request: Request):
     require_gm(request)
@@ -984,7 +1028,10 @@ async def name_entity(payload: NameEntityRequest, db: AsyncSession = Depends(get
     s_stmt = (
         select(GameSession)
         .where(GameSession.id == payload.session_id)
-        .options(selectinload(GameSession.characters).selectinload(Character.inventory))
+        .options(
+            selectinload(GameSession.characters).selectinload(Character.inventory),
+            selectinload(GameSession.campaign_map),
+        )
     )
     session = (await db.execute(s_stmt)).scalar_one_or_none()
     if not session:
@@ -997,22 +1044,30 @@ async def name_entity(payload: NameEntityRequest, db: AsyncSession = Depends(get
 
     category = session.pending_naming_category or "lore"
     description = session.pending_naming_prompt or "Odkrycie w świecie gry"
+    custom_name = payload.custom_name.strip()
+    if not custom_name:
+        raise HTTPException(status_code=400, detail="Nazwa nie może być pusta")
 
     lore_ent = NamedLoreEntity(
         session_id=session.id,
         category=category,
         original_description=description,
-        custom_name=payload.custom_name.strip(),
+        custom_name=custom_name,
         named_by_character_id=payload.character_id,
         named_by_character_name=char_name,
         is_active=True
     )
     db.add(lore_ent)
 
+    map_node_id = None
+    if category == "location":
+        campaign_map = session.campaign_map or await replace_campaign_map(db, session)
+        map_node_id = apply_custom_location_name(campaign_map, custom_name, char_name)
+
     # Jeśli to boss, aktywuj na sesji
     if category == "boss":
         encounter = build_boss_encounter(session.characters, description)
-        session.active_boss_name = payload.custom_name.strip()
+        session.active_boss_name = custom_name
         session.active_boss_title = description
         session.active_boss_hp = encounter["hp"]
         session.active_boss_max_hp = encounter["max_hp"]
@@ -1027,7 +1082,7 @@ async def name_entity(payload: NameEntityRequest, db: AsyncSession = Depends(get
     if category == "weapon" and char:
         db.add(InventoryItem(
             character_id=char.id,
-            name=payload.custom_name.strip(),
+            name=custom_name,
             description=f"Nie wybacza błędów i nosi imię nadane przez {char_name}",
             item_type="weapon",
             target_stat="strength",
@@ -1048,8 +1103,9 @@ async def name_entity(payload: NameEntityRequest, db: AsyncSession = Depends(get
     await ws_manager.broadcast_to_session(session.id, {
         "type": "LORE_ENTITY_NAMED",
         "category": category,
-        "custom_name": payload.custom_name.strip(),
+        "custom_name": custom_name,
         "named_by": char_name,
+        "map_node_id": map_node_id,
         "boss": {
             "name": session.active_boss_name,
             "title": session.active_boss_title,
@@ -1064,7 +1120,11 @@ async def name_entity(payload: NameEntityRequest, db: AsyncSession = Depends(get
         } if session.active_boss_name else None
     })
 
-    return {"success": True, "custom_name": payload.custom_name.strip()}
+    return {
+        "success": True,
+        "custom_name": custom_name,
+        "map_node_id": map_node_id,
+    }
 
 @app.post("/api/session/trigger-naming")
 async def trigger_naming(payload: TriggerNamingRequest, db: AsyncSession = Depends(get_db)):
@@ -1649,13 +1709,20 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             lore_res = await db.execute(lore_stmt)
             lore_entities = lore_res.scalars().all()
 
+            map_stmt = select(CampaignMap).where(CampaignMap.session_id == session_id)
+            campaign_map = (await db.execute(map_stmt)).scalar_one_or_none()
+            if campaign_map is None:
+                campaign_map = await replace_campaign_map(db, session)
+            map_context = build_map_narrator_context(campaign_map)
+
             # 2. Wywołanie Gemini API
             gemini_result = await resolve_turn_with_gemini(
                 session=session,
                 turn=turn,
                 actions_with_rolls=actions_with_rolls,
                 characters=characters,
-                lore_entities=lore_entities
+                lore_entities=lore_entities,
+                map_context=map_context,
             )
 
             # 3. Zastosowanie konsekwencji dla postaci
@@ -1797,6 +1864,7 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             turn.suggested_actions = gemini_result.suggested_actions
             turn.image_prompt = gemini_result.scene_image_prompt
             turn.status = "completed"
+            apply_map_narrative_update(campaign_map, gemini_result.map_update, turn.turn_number)
 
             # 4. Otwórz nową turę
             new_turn_number = session.current_turn_number + 1

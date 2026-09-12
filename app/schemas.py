@@ -84,11 +84,6 @@ class CharacterDto(BaseModel):
 class ResolveTurnRequest(BaseModel):
     room_code: str = "kampania-1"
 
-class MoveMapRequest(BaseModel):
-    room_code: str = "kampania-1"
-    destination_node_id: str = Field(min_length=1, max_length=50)
-    character_id: Optional[int] = None
-
 class SubmitActionRequest(BaseModel):
     character_id: int
     action_text: str
@@ -173,6 +168,18 @@ class NamingOpportunitySchema(BaseModel):
     description: str = Field(description="Opis odkrytego elementu, np. 'Monstrualny demon o płonących rogach' lub 'Ukryta komnata pełna starych ksiąg'")
     prompt_for_player: str = Field(description="Pytanie zachęcające gracza do nazwania, np. 'Jak nazwiesz tego przerażającego władcę cieni?'")
 
+class MapLocationUpdateSchema(BaseModel):
+    destination_node_id: str = Field(
+        description="ID bieżącej albo bezpośrednio sąsiedniej lokacji z przekazanej listy dozwolonych lokacji"
+    )
+    location_summary: str = Field(
+        description="Krótki opis tego, co drużyna zobaczyła i co wydarzyło się w tej lokacji"
+    )
+    notable_elements: List[str] = Field(
+        default_factory=list,
+        description="Maksymalnie 5 krótkich nazw istotnych elementów obecnych w lokacji",
+    )
+
 class GeminiTurnResolutionSchema(BaseModel):
     gm_story_narration: str = Field(description="Główna, nastrojowa narracja Mistrza Gry łącząca akcje wszystkich graczy i ich rzuty kośćmi")
     player_consequences: List[PlayerConsequenceSchema] = Field(description="Szczegółowe skutki mechaniczne i fabularne dla każdego gracza")
@@ -183,6 +190,10 @@ class GeminiTurnResolutionSchema(BaseModel):
         description="Dokładnie 3 konkretne, zróżnicowane podpowiedzi taktyczne lub ścieżki działania dla drużyny na kolejną turę (np. natarcie/siła, spryt/flanka, wiedza/magia)"
     )
     naming_opportunity: Optional[NamingOpportunitySchema] = Field(default=None, description="Opcjonalna okazja do nazwania nowego bossa, niezwykłej lokacji, potężnej broni lub ataku zespołowego przez gracza")
+    map_update: Optional[MapLocationUpdateSchema] = Field(
+        default=None,
+        description="Aktualizacja kroniki mapy; nie może tworzyć lokacji ani przejść spoza przekazanej mapy",
+    )
 
 class GenerateImageRequest(BaseModel):
     turn_id: int

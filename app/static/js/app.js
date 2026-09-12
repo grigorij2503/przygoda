@@ -52,8 +52,7 @@ document.addEventListener('alpine:init', () => {
     isSavingPersonalNote: false,
 
     // Campaign Map
-    isMovingOnMap: false,
-    mapError: '',
+    selectedMapNodeId: null,
 
     // Level Up
     isSpendingStatPoint: false,
@@ -393,7 +392,10 @@ document.addEventListener('alpine:init', () => {
         if (!res.ok) throw new Error('Błąd ładowania sesji.');
         const data = await res.json();
         this.session = data;
-        if (this.showMapModal) this.scheduleMapRender();
+        if (this.showMapModal) {
+          this.selectedMapNodeId = this.campaignMap?.current_node_id || null;
+          this.scheduleMapRender();
+        }
 
         if (previousCharacterId === this.selectedCharacterId && previousInventoryItemIds) {
           const currentItems = this.currentCharacter?.inventory || [];
@@ -735,14 +737,26 @@ document.addEventListener('alpine:init', () => {
       ) || null;
     },
 
-    get availableMapNodes() {
-      const available = new Set(this.campaignMap?.available_node_ids || []);
-      return (this.campaignMap?.nodes || []).filter(node => available.has(node.id));
+    get visitedMapNodes() {
+      return (this.campaignMap?.nodes || [])
+        .filter(node => ['current', 'visited'].includes(node.visibility))
+        .sort((first, second) => (first.visit_order || 0) - (second.visit_order || 0));
+    },
+
+    get selectedMapNode() {
+      return this.visitedMapNodes.find(node => node.id === this.selectedMapNodeId)
+        || this.currentMapNode;
     },
 
     openMap() {
-      this.mapError = '';
+      this.selectedMapNodeId = this.campaignMap?.current_node_id || null;
       this.showMapModal = true;
+      this.scheduleMapRender();
+    },
+
+    selectMapNode(nodeId) {
+      if (!this.visitedMapNodes.some(node => node.id === nodeId)) return;
+      this.selectedMapNodeId = nodeId;
       this.scheduleMapRender();
     },
 
@@ -788,6 +802,18 @@ document.addEventListener('alpine:init', () => {
 
       (map.nodes || []).forEach(node => {
         const group = createSvgElement('g', { class: this.mapNodeClass(node) });
+        if (['current', 'visited'].includes(node.visibility)) {
+          group.setAttribute('role', 'button');
+          group.setAttribute('tabindex', '0');
+          group.setAttribute('aria-label', `Pokaż opis lokacji: ${node.name}`);
+          group.addEventListener('click', () => this.selectMapNode(node.id));
+          group.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              this.selectMapNode(node.id);
+            }
+          });
+        }
         group.appendChild(createSvgElement('rect', {
           x: node.x - node.width / 2,
           y: node.y - node.height / 2,
@@ -824,6 +850,20 @@ document.addEventListener('alpine:init', () => {
             'text-anchor': 'middle',
             class: 'campaign-map-party'
           }, '● DRUŻYNA'));
+        }
+        if (node.visit_order) {
+          group.appendChild(createSvgElement('circle', {
+            cx: node.x - node.width / 2 + 12,
+            cy: node.y - node.height / 2 + 12,
+            r: 9,
+            class: 'campaign-map-order-marker'
+          }));
+          group.appendChild(createSvgElement('text', {
+            x: node.x - node.width / 2 + 12,
+            y: node.y - node.height / 2 + 15,
+            'text-anchor': 'middle',
+            class: 'campaign-map-order-label'
+          }, String(node.visit_order)));
         }
         fragment.appendChild(group);
       });
@@ -872,42 +912,14 @@ document.addEventListener('alpine:init', () => {
     },
 
     mapNodeClass(node) {
-      return `campaign-map-node campaign-map-node--${node?.visibility || 'hidden'}`;
+      const selectedClass = node?.id === this.selectedMapNodeId
+        ? ' campaign-map-node--selected'
+        : '';
+      return `campaign-map-node campaign-map-node--${node?.visibility || 'hidden'}${selectedClass}`;
     },
 
     mapEdgeClass(edge) {
       return `campaign-map-edge campaign-map-edge--${edge?.visibility || 'hidden'}`;
-    },
-
-    canTravelToMapNode(nodeId) {
-      return (this.campaignMap?.available_node_ids || []).includes(nodeId);
-    },
-
-    async moveOnMap(destinationNodeId) {
-      if (!this.canTravelToMapNode(destinationNodeId) || this.isMovingOnMap) return;
-      this.isMovingOnMap = true;
-      this.mapError = '';
-      try {
-        const res = await fetch('/api/session/map/move', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            room_code: this.roomCode,
-            destination_node_id: destinationNodeId,
-            character_id: this.selectedCharacterId
-          })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Nie udało się przejść do lokacji.');
-        if (this.session) this.session.campaign_map = data.campaign_map;
-        this.scheduleMapRender();
-        const destination = this.currentMapNode?.name || 'nowej lokacji';
-        this.addToast(`🗺️ Drużyna dotarła do: ${destination}.`, 'success');
-      } catch (err) {
-        this.mapError = err.message;
-      } finally {
-        this.isMovingOnMap = false;
-      }
     },
 
     get latestResolvedTurn() {
@@ -1205,14 +1217,6 @@ document.addEventListener('alpine:init', () => {
             this.scrollToLatestResolution();
           } else {
             this.hasUnreadTurn = true;
-          }
-          break;
-        }
-
-        case 'MAP_UPDATED': {
-          await this.fetchSession();
-          if (msg.character_name && msg.character_name !== this.currentCharacter?.name) {
-            this.addToast(`🗺️ ${msg.character_name} przesunął drużynę: ${msg.node_name}.`, 'info');
           }
           break;
         }

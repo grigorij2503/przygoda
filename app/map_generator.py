@@ -29,6 +29,28 @@ BRANCH_NAMES = (
     ("guardroom", "Strażnica Bez Wartowników"),
 )
 
+ROOM_DETAILS = {
+    "entrance": ("Kamienny próg prowadzący w głąb wyprawy.", ["ślady drużyny", "główne wejście"]),
+    "finale": ("Najgłębsza część kompleksu, w której zbiegają się ślady głównego zagrożenia.", ["stare pieczęcie", "źródło niepokoju"]),
+    "gallery": ("Długi trakt otoczony nieruchomymi posągami.", ["kamienne figury", "zakurzone nisze"]),
+    "crypt": ("Chłodna krypta z rzędami zapomnianych grobów.", ["sarkofagi", "wyblakłe epitafia"]),
+    "library": ("Pozostałości archiwum, którego zbiory przetrwały tylko częściowo.", ["zwęglone księgi", "pulpity"]),
+    "armory": ("Dawna zbrojownia nosząca ślady gwałtownego opuszczenia.", ["stojaki na broń", "zardzewiałe pancerze"]),
+    "shrine": ("Niewielkie miejsce kultu o niepewnym przeznaczeniu.", ["ołtarz", "wygasłe świece"]),
+    "hall": ("Rozległa sala podtrzymywana przez popękane filary.", ["rumowisko", "kamienne kolumny"]),
+    "bridge": ("Wąska przeprawa nad ciemną rozpadliną.", ["kamienna balustrada", "przepaść"]),
+    "prison": ("Rząd wilgotnych cel zamkniętych ciężkimi kratami.", ["kraty", "zerwane łańcuchy"]),
+    "well": ("Stara studnia, z której głębi wraca każde echo.", ["kamienna cembrowina", "ciemna toń"]),
+    "forge": ("Wygasły warsztat pokryty sadzą i metalowym pyłem.", ["palenisko", "kowadło"]),
+    "chamber": ("Zamknięta komnata oznaczona śladami dawnych pieczęci.", ["runiczne znaki", "zamknięte wnęki"]),
+    "crossroads": ("Kilka korytarzy spotyka się w jednym, łatwym do obrony punkcie.", ["drogowskazy", "ślady przejścia"]),
+    "treasury": ("Ukryte pomieszczenie przeznaczone niegdyś na kosztowności.", ["puste skrzynie", "zamki i okucia"]),
+    "cave": ("Naturalna grota przebijająca się przez starsze mury.", ["osypisko", "skalna szczelina"]),
+    "study": ("Mała pracownia pełna narzędzi i fragmentów planów.", ["stół kreślarski", "mapy"]),
+    "tomb": ("Samotny grobowiec pozbawiony czytelnego imienia.", ["kamienna płyta", "grobowe dary"]),
+    "guardroom": ("Opuszczona strażnica kontrolująca pobliskie przejścia.", ["ławki straży", "otwory obserwacyjne"]),
+}
+
 
 def generate_campaign_map(seed: int, title: str, theme: str) -> dict[str, Any]:
     """Buduje niewielki, spójny graf lokacji gotowy do renderowania w SVG."""
@@ -111,6 +133,10 @@ def _node(
     rng: random.Random,
     main_path: bool,
 ) -> dict[str, Any]:
+    description, contents = ROOM_DETAILS.get(
+        room_type,
+        ("Nieopisane jeszcze pomieszczenie wyprawy.", []),
+    )
     return {
         "id": node_id,
         "x": x,
@@ -119,6 +145,9 @@ def _node(
         "height": rng.choice((70, 78, 86)),
         "type": room_type,
         "name": name,
+        "description": description,
+        "contents": list(contents),
+        "discovered_turn": 0 if room_type == "entrance" else None,
         "main_path": main_path,
     }
 
@@ -152,11 +181,17 @@ def adjacent_node_ids(layout: dict[str, Any], node_id: str) -> set[str]:
 def serialize_campaign_map(campaign_map: Any) -> dict[str, Any]:
     layout = campaign_map.layout or {}
     current_node_id = campaign_map.current_node_id or layout.get("start_node_id")
-    discovered = set(campaign_map.discovered_node_ids or [])
-    discovered.add(current_node_id)
+    discovered_history = list(campaign_map.discovered_node_ids or [])
+    if current_node_id not in discovered_history:
+        discovered_history.append(current_node_id)
+    discovered = set(discovered_history)
     available = adjacent_node_ids(layout, current_node_id)
 
     nodes = []
+    discovery_order = {
+        node_id: index + 1
+        for index, node_id in enumerate(discovered_history)
+    }
     for raw_node in layout.get("nodes", []):
         node = dict(raw_node)
         node_id = node.get("id")
@@ -169,9 +204,29 @@ def serialize_campaign_map(campaign_map: Any) -> dict[str, Any]:
         else:
             visibility = "hidden"
         node["visibility"] = visibility
-        if visibility == "hidden":
+        node["visit_order"] = discovery_order.get(node_id)
+        if visibility in {"hidden", "available"}:
             node["name"] = "Nieodkryta lokacja"
             node["type"] = "unknown"
+            node["custom_name"] = None
+            node["system_name"] = None
+            node["named_by"] = None
+            node["description"] = "To miejsce nie zostało jeszcze odwiedzone."
+            node["contents"] = []
+            node["discovered_turn"] = None
+        else:
+            default_description, default_contents = ROOM_DETAILS.get(
+                node.get("type"),
+                ("Odwiedzone miejsce wyprawy.", []),
+            )
+            system_name = node.get("system_name") or node.get("name") or "Odwiedzone miejsce"
+            custom_name = node.get("custom_name")
+            node["name"] = custom_name or system_name
+            node["system_name"] = system_name if custom_name else None
+            node["description"] = node.get("exploration_summary") or node.get("description") or default_description
+            node["contents"] = node.get("notable_elements") or node.get("contents") or list(default_contents)
+            if node.get("discovered_turn") is None and node["visit_order"] == 1:
+                node["discovered_turn"] = 0
         nodes.append(node)
 
     edges = []

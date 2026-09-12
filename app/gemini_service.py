@@ -17,6 +17,7 @@ from app.models import Character, GameSession, Turn
 from app.schemas import (
     GeminiTurnResolutionSchema,
     GenerateIntroResponse,
+    MapLocationUpdateSchema,
     NewItemSchema,
     NamingOpportunitySchema,
     PlayerConsequenceSchema,
@@ -228,7 +229,8 @@ async def resolve_turn_with_gemini(
     turn: Turn,
     actions_with_rolls: List[dict],
     characters: List[Character],
-    lore_entities: Optional[List[any]] = None
+    lore_entities: Optional[List[any]] = None,
+    map_context: Optional[dict] = None,
 ) -> GeminiTurnResolutionSchema:
     """
     Kluczowa funkcja narracyjna:
@@ -331,6 +333,10 @@ async def resolve_turn_with_gemini(
         "4. suggested_actions: Dokładnie 3 zróżnicowane i konkretne ścieżki działania na otwarcie kolejnej tury dopasowane do NOWEJ sytuacji.\n"
         "5. scene_image_prompt: Sugestywny prompt po angielsku dla modelu generującego obraz (Gemini 2.5 Flash Image)...\n"
         "6. naming_opportunity (opcjonalne): Jeśli w tej turze drużyna odkryła coś wyjątkowego (nowy wróg, sekretne miejsce, oręż, unikalny manewr).\n"
+        "7. map_update: Uzupełnij kronikę mapy. destination_node_id MUSI być jednym z ID w campaign_map.allowed_destinations. "
+        "Pozostaw current_node_id, jeżeli narracja nie przeniosła całej drużyny do innego pomieszczenia. "
+        "location_summary ma krótko opisywać wyłącznie to, co naprawdę pojawiło się w narracji tej tury, "
+        "a notable_elements zawiera maksymalnie 5 konkretnych elementów sceny. Nie twórz nowych węzłów ani przejść.\n"
         f"{boss_info}"
     )
 
@@ -345,11 +351,14 @@ async def resolve_turn_with_gemini(
         "combat_events": getattr(turn, "combat_events", None) or [],
         "boss_environment_features": getattr(session, "active_boss_features", None) or [],
         "boss_next_telegraphed_attack": getattr(session, "active_boss_telegraph", None),
+        "campaign_map": map_context or {},
     }
 
     if not client:
         logger.info("Brak klienta Gemini API – używam inteligentnej symulacji fabularnej offline.")
-        return _generate_rich_offline_resolution(session, turn, actions_with_rolls, characters)
+        return _generate_rich_offline_resolution(
+            session, turn, actions_with_rolls, characters, map_context=map_context
+        )
 
     # Zapytanie do Gemini API z rotacją modeli i ponawianiem próby
     try:
@@ -368,13 +377,16 @@ async def resolve_turn_with_gemini(
         return GeminiTurnResolutionSchema(**data)
     except Exception as e:
         logger.warning(f"Gemini API niedostępne ({type(e).__name__}: {e}). Przełączam na dynamiczną symulację offline.")
-        return _generate_rich_offline_resolution(session, turn, actions_with_rolls, characters)
+        return _generate_rich_offline_resolution(
+            session, turn, actions_with_rolls, characters, map_context=map_context
+        )
 
 def _generate_rich_offline_resolution(
     session: GameSession,
     turn: Turn,
     actions_with_rolls: List[dict],
-    characters: List[Character]
+    characters: List[Character],
+    map_context: Optional[dict] = None,
 ) -> GeminiTurnResolutionSchema:
     """Generuje dynamiczną, wciągającą fabularnie narrację offline reagującą na akcje graczy."""
     consequences = []
@@ -537,13 +549,40 @@ def _generate_rich_offline_resolution(
             prompt_for_player="Pradawna bestia staje na waszej drodze. Jak nazwiesz tego potężnego wroga?"
         )
 
+    map_update = None
+    if map_context:
+        current_node_id = map_context.get("current_node_id")
+        allowed_destinations = map_context.get("allowed_destinations") or []
+        destination_node_id = current_node_id
+        movement_words = ("idę", "idziemy", "wchodz", "przechodz", "ruszam", "uciek", "odwrót")
+        successful_move = any(
+            any(word in (action.get("action_text") or "").lower() for word in movement_words)
+            and action.get("outcome_tier") not in {"failure", "critical_failure"}
+            for action in actions_with_rolls
+        )
+        if successful_move:
+            destination_node_id = next(
+                (
+                    location.get("id")
+                    for location in allowed_destinations
+                    if location.get("id") != current_node_id
+                ),
+                current_node_id,
+            )
+        map_update = MapLocationUpdateSchema(
+            destination_node_id=destination_node_id,
+            location_summary=" ".join(story_beats)[:900],
+            notable_elements=[],
+        )
+
     return GeminiTurnResolutionSchema(
         gm_story_narration=full_narrative,
         player_consequences=consequences,
         scene_image_prompt=f"Dark fantasy oil painting of adventurers inside {session.title}, cinematic shadows, gritty texture",
         next_turn_prompt=next_challenge,
         suggested_actions=suggested,
-        naming_opportunity=naming_opp
+        naming_opportunity=naming_opp,
+        map_update=map_update,
     )
 
 async def generate_scene_image_ai(prompt: str, turn_id: int) -> str:
