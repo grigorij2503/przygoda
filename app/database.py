@@ -58,6 +58,7 @@ async def init_db():
             ("turns", "mechanics_resolved_at", "DATETIME"),
             ("turns", "combat_events", "JSON"),
             ("player_actions", "intent", "VARCHAR(30)"),
+            ("player_actions", "magic_ability_id", "VARCHAR(80)"),
             ("player_actions", "target_ref", "VARCHAR(100)"),
             ("player_actions", "status_modifier", "INTEGER NOT NULL DEFAULT 0"),
             ("player_actions", "damage_dealt", "INTEGER NOT NULL DEFAULT 0"),

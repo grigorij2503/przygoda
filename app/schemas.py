@@ -94,6 +94,7 @@ class CharacterDto(BaseModel):
     is_alive: bool
     is_ready: bool = False
     status_effects: List[dict] = []
+    magic_book: Optional[dict] = None
     inventory: List[InventoryItemDto] = []
 
     model_config = ConfigDict(from_attributes=True)
@@ -105,6 +106,7 @@ class ResolveTurnRequest(BaseModel):
 class SubmitActionRequest(BaseModel):
     character_id: int
     action_text: str
+    magic_ability_id: Optional[str] = Field(default=None, max_length=80)
     intent: Optional[Literal["attack", "defend", "interact", "support", "other"]] = None
     target_ref: Optional[str] = None
 
@@ -117,6 +119,8 @@ class PlayerActionDto(BaseModel):
     character_id: int
     character_name: str
     action_text: str
+    magic_ability_id: Optional[str] = None
+    magic_ability: Optional[dict] = None
     intent: Optional[str] = None
     target_ref: Optional[str] = None
     tested_stat: Optional[str] = None

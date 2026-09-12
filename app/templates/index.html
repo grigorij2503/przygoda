@@ -149,7 +149,7 @@
       <div class="p-5 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
         <div class="flex items-center gap-4">
           <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-2xl shrink-0">
-            <span x-text="currentCharacter ? (currentCharacter.character_class === 'Wojownik' ? '⚔️' : currentCharacter.character_class === 'Mag' ? '✨' : currentCharacter.character_class === 'Łotrzyk' ? '🏹' : '🛡️') : '👤'"></span>
+            <span x-text="currentCharacter ? (currentCharacter.character_class === 'Wojownik' ? '⚔️' : currentCharacter.character_class === 'Czarodziej' ? '✨' : currentCharacter.character_class === 'Kleryk' ? '☀️' : currentCharacter.character_class === 'Łotrzyk' ? '🏹' : '🛡️') : '👤'"></span>
           </div>
           <div>
             <template x-if="currentCharacter">
@@ -745,6 +745,11 @@
                                 class="px-1.5 py-0.5 rounded bg-indigo-950/80 border border-indigo-500/40 text-indigo-300 text-[9px] not-italic">
                             akcja wybrana przez drużynę
                           </span>
+                          <span x-show="act.magic_ability" x-cloak
+                                class="px-1.5 py-0.5 rounded bg-violet-950/80 border border-violet-500/40 text-violet-200 text-[9px] not-italic">
+                            <span x-text="act.magic_ability?.icon"></span>
+                            <span x-text="act.magic_ability?.name"></span>
+                          </span>
                           <span class="text-gray-400 italic">„<span x-text="act.action_text"></span>”</span>
                         </div>
                         <p x-show="act.gm_individual_summary" class="text-gray-300 text-xs mt-1" x-text="act.gm_individual_summary"></p>
@@ -977,9 +982,6 @@
               <button @click="setQuickAction('Cofam się za osłonę i oddaję precyzyjny strzał z dystansu.', 'attack', 'boss')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
                 🏹 Strzał z dystansu
               </button>
-              <button @click="setQuickAction('Splatając magiczne energie, rzucam zaklęcie ofensywne w stronę przeciwników.', 'attack', 'boss')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
-                ✨ Czar ofensywny
-              </button>
               <button @click="setQuickAction('Wyciągam tarczę i zasłaniam sojusznika przed nadciągającym ciosem.', 'defend')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
                 🛡️ Obrona sojusznika
               </button>
@@ -989,6 +991,16 @@
             </div>
 
             <div class="space-y-3">
+              <div x-show="selectedMagicAbility" x-cloak
+                   class="flex items-center justify-between gap-3 rounded-lg border border-violet-500/40 bg-violet-950/40 px-3 py-2 text-[11px]">
+                <span class="min-w-0 text-violet-200">
+                  <span x-text="selectedMagicAbility?.icon"></span>
+                  Wybrana zdolność: <b x-text="selectedMagicAbility?.name"></b>
+                </span>
+                <button type="button" @click="magicAbilityId = null" class="shrink-0 text-gray-400 hover:text-white underline">
+                  Odłącz
+                </button>
+              </div>
               <textarea x-model="actionText" rows="2" placeholder="Opisz dokładnie co zamierza zrobić Twoja postać... Silnik dedukuje atrybut i rzuci d20."
                         class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 transition resize-none"></textarea>
 
@@ -1166,6 +1178,48 @@
               </div>
             </div>
           </div>
+
+          <!-- Magia klasowa: backend zwraca ten widok wyłącznie Czarodziejowi lub Klerykowi. -->
+          <section x-show="magicBook" x-cloak class="mb-6 rounded-xl border border-violet-800/60 bg-gradient-to-br from-violet-950/45 to-slate-950/80 p-4">
+            <div class="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <h4 class="text-xs font-fantasy font-bold uppercase tracking-widest text-violet-300">
+                  <span x-text="magicBook?.icon"></span>
+                  <span x-text="magicBook?.title"></span>
+                </h4>
+                <p class="text-[10px] text-gray-500 mt-1">Kliknij odblokowaną zdolność, aby przygotować deklarację akcji.</p>
+              </div>
+              <span class="shrink-0 rounded-md border border-violet-700/50 bg-violet-950/70 px-2 py-1 text-[9px] font-mono text-violet-300"
+                    x-text="magicBook ? (magicBook.resource_label + ' • ' + statShortLabel(magicBook.casting_stat)) : ''"></span>
+            </div>
+
+            <div class="space-y-2 max-h-80 overflow-y-auto pr-1">
+              <template x-for="ability in magicBook?.abilities || []" :key="ability.id">
+                <button type="button" @click="selectMagicAbility(ability)"
+                        :disabled="!ability.unlocked || hasSubmittedCurrentTurn || session?.is_turn_resolving"
+                        class="w-full rounded-lg border p-3 text-left transition disabled:cursor-not-allowed"
+                        :class="ability.unlocked
+                          ? (magicAbilityId === ability.id
+                            ? 'border-violet-400 bg-violet-900/45 shadow-lg shadow-violet-950/30'
+                            : 'border-slate-700/80 bg-slate-950/70 hover:border-violet-500/70 hover:bg-violet-950/30')
+                          : 'border-slate-800 bg-slate-950/40 opacity-55'">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-2">
+                        <span x-text="ability.icon"></span>
+                        <strong class="text-xs text-violet-100" x-text="ability.name"></strong>
+                      </div>
+                      <p class="mt-1 text-[10px] leading-relaxed text-gray-400" x-text="ability.description"></p>
+                    </div>
+                    <span class="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-mono"
+                          :class="ability.unlocked ? 'bg-emerald-950 text-emerald-300 border border-emerald-700/50' : 'bg-slate-900 text-gray-500 border border-slate-700'"
+                          x-text="ability.unlocked ? 'DOSTĘPNA' : ('POZIOM ' + ability.required_level)"></span>
+                  </div>
+                  <div class="mt-2 text-[9px] uppercase tracking-wider text-violet-400/70" x-text="ability.category"></div>
+                </button>
+              </template>
+            </div>
+          </section>
 
           <!-- Ekwipunek i Przedmioty -->
           <section class="equipment-panel" aria-labelledby="equipment-heading">

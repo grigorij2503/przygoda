@@ -149,6 +149,7 @@ class PlayerAction(Base):
     turn_id = Column(Integer, ForeignKey("turns.id", ondelete="CASCADE"), nullable=False)
     character_id = Column(Integer, ForeignKey("characters.id", ondelete="CASCADE"), nullable=False)
     action_text = Column(Text, nullable=False)
+    magic_ability_id = Column(String(80), nullable=True, default=None)
     intent = Column(String(30), nullable=True, default=None)
     target_ref = Column(String(100), nullable=True, default=None)
     tested_stat = Column(String(50), nullable=True, default=None)

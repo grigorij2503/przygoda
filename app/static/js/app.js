@@ -16,6 +16,7 @@ document.addEventListener('alpine:init', () => {
     actionText: '',
     actionIntent: null,
     actionTargetRef: null,
+    magicAbilityId: null,
     isSubmittingAction: false,
     actionError: '',
     turnError: '',
@@ -638,6 +639,7 @@ document.addEventListener('alpine:init', () => {
 
     selectCharacter(charId) {
       this.selectedCharacterId = charId;
+      this.magicAbilityId = null;
       this.newInventoryItemIds = [];
       this.inventoryFilter = 'all';
       localStorage.setItem('rpg_selected_char', charId);
@@ -674,6 +676,14 @@ document.addEventListener('alpine:init', () => {
     get currentCharacter() {
       if (!this.session || !this.selectedCharacterId) return null;
       return this.session.characters.find(c => c.id === this.selectedCharacterId);
+    },
+
+    get magicBook() {
+      return this.currentCharacter?.magic_book || null;
+    },
+
+    get selectedMagicAbility() {
+      return this.magicBook?.abilities?.find(ability => ability.id === this.magicAbilityId) || null;
     },
 
     get handItems() {
@@ -1516,6 +1526,7 @@ document.addEventListener('alpine:init', () => {
           this.actionText = '';
           this.actionIntent = null;
           this.actionTargetRef = null;
+          this.magicAbilityId = null;
           await this.fetchSession();
           if (followCurrentTurn) {
             this.scrollToLatestResolution();
@@ -1963,6 +1974,7 @@ document.addEventListener('alpine:init', () => {
           body: JSON.stringify({
             character_id: this.selectedCharacterId,
             action_text: this.actionText.trim(),
+            magic_ability_id: this.magicAbilityId,
             intent: this.actionIntent,
             target_ref: this.actionTargetRef
           })
@@ -2015,6 +2027,7 @@ document.addEventListener('alpine:init', () => {
         const myAction = curTurn.actions?.find(a => a.character_id === this.selectedCharacterId);
         if (myAction) {
           this.actionText = myAction.action_text;
+          this.magicAbilityId = myAction.magic_ability_id || null;
           this.actionIntent = myAction.intent || null;
           this.actionTargetRef = myAction.target_ref || null;
         }
@@ -2031,6 +2044,7 @@ document.addEventListener('alpine:init', () => {
 
     setQuickAction(text, intent = null, targetRef = null) {
       this.actionText = text;
+      this.magicAbilityId = null;
       this.actionIntent = intent;
       this.actionTargetRef = targetRef;
       this.$nextTick(() => {
@@ -2041,6 +2055,23 @@ document.addEventListener('alpine:init', () => {
         }
       });
       this.addToast('⚡ Wybrano ścieżkę działania – możesz ją dostosować przed zatwierdzeniem!', 'info');
+    },
+
+    selectMagicAbility(ability) {
+      if (!ability?.unlocked) return;
+      this.actionText = ability.action_text;
+      this.magicAbilityId = ability.id;
+      this.actionIntent = ability.intent || null;
+      this.actionTargetRef = ability.target_ref || null;
+      this.actionError = '';
+      this.$nextTick(() => {
+        const textarea = document.querySelector('textarea[x-model="actionText"]');
+        if (textarea) {
+          textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          textarea.focus();
+        }
+      });
+      this.addToast(`Wybrano: ${ability.name}. Możesz dopisać cel lub sposób wykonania.`, 'info');
     },
 
     setEncounterAction(feature) {

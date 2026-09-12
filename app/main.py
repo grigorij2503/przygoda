@@ -51,6 +51,12 @@ from app.map_generator import (
     generate_campaign_map,
     serialize_campaign_map,
 )
+from app.magic import (
+    get_magic_ability,
+    get_magic_book,
+    get_magic_casting_stat,
+    validate_magic_action,
+)
 from app.gemini_service import (
     generate_campaign_intro_ai,
     generate_party_prologue_ai,
@@ -556,13 +562,20 @@ def decode_display_text(value: str | None) -> str:
     return html.unescape(value or "").replace("\u00a0", " ").strip()
 
 
-def validate_action_item_claim(action_text: str, inventory: List[InventoryItem]) -> str | None:
+def validate_action_item_claim(
+    action_text: str,
+    inventory: List[InventoryItem],
+    ignored_labels: set[str] | None = None,
+) -> str | None:
     """Blokuje jawne użycie broni lub pancerza, którego postać nie ma albo nie założyła."""
     normalized_action = normalize_game_text(action_text)
     action_clauses = re.split(r"[,.!?;]", normalized_action)
     effectively_equipped_items = get_effectively_equipped_items(inventory)
+    ignored_labels = ignored_labels or set()
 
     for label, claim_aliases, inventory_aliases, item_types in ITEM_CLAIM_RULES:
+        if label in ignored_labels:
+            continue
         claims_item = any(
             any(alias in clause for alias in claim_aliases)
             and any(verb in clause for verb in ITEM_CLAIM_VERBS)
@@ -1003,6 +1016,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
             "is_alive": c.is_alive,
             "is_ready": bool(getattr(c, "is_ready", False)),
             "status_effects": status_list(c.status_effects),
+            "magic_book": get_magic_book(c.character_class, c.level),
             "has_submitted_action": c.id in submitted_character_ids,
             "action_submission_source": current_action.submission_source if current_action else None,
             "proxy_action": {
@@ -1079,6 +1093,11 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
                     "character_id": a.character_id,
                     "character_name": characters_by_id.get(a.character_id).name if characters_by_id.get(a.character_id) else "Nieznany",
                     "action_text": a.action_text,
+                    "magic_ability_id": a.magic_ability_id,
+                    "magic_ability": get_magic_ability(
+                        characters_by_id.get(a.character_id).character_class,
+                        a.magic_ability_id,
+                    ) if characters_by_id.get(a.character_id) else None,
                     "intent": a.intent,
                     "target_ref": a.target_ref,
                     "tested_stat": a.tested_stat,
@@ -1642,9 +1661,9 @@ async def create_character(
     elif "mag" in cls_lower or "czaro" in cls_lower:
         starter_items.append(InventoryItem(character_id=char.id, name="Runiczny Kostur", description="Skupia magię i pomaga odczytać najciemniejsze runy", item_type="weapon", target_stat="intellect", stat_bonus=1, hands_required=2, is_equipped=True))
         starter_items.append(InventoryItem(character_id=char.id, name="Amulet Ognia", description="Podsyca zaklęcia i odwagę właściciela", item_type="accessory", target_stat="intellect", stat_bonus=1, is_equipped=True))
-    else:  # Bard / Kleryk / Inny
+    else:  # Kleryk / klasa zgodna z tym archetypem
         starter_items.append(InventoryItem(character_id=char.id, name="Srebrzysta Buława", description="Dodaje powagi modlitwom i ciężaru uderzeniom", item_type="weapon", target_stat="strength", stat_bonus=1, is_equipped=True))
-        starter_items.append(InventoryItem(character_id=char.id, name="Sygnet Charyzmy", description="Wzbudza respekt u rozmówców", item_type="accessory", target_stat="charisma", stat_bonus=1, is_equipped=True))
+        starter_items.append(InventoryItem(character_id=char.id, name="Sygnet Wiary", description="Wzmacnia głos kleryka podczas modlitw i świętych obrzędów", item_type="accessory", target_stat="charisma", stat_bonus=1, is_equipped=True))
 
     # Każdy dostaje miksturę leczenia
     starter_items.append(InventoryItem(character_id=char.id, name="Mikstura Lecznicza", description="Odnawia 10 punktów życia", item_type="consumable", target_stat="none", stat_bonus=10, is_equipped=False))
@@ -2035,7 +2054,24 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
         raise HTTPException(status_code=404, detail="Postać nie istnieje")
 
     action_text = payload.action_text.strip()
-    item_claim_error = validate_action_item_claim(action_text, character.inventory)
+    magic_ability, magic_action_error = validate_magic_action(
+        character.character_class,
+        character.level,
+        action_text,
+        payload.magic_ability_id,
+    )
+    if magic_action_error:
+        raise HTTPException(status_code=400, detail=magic_action_error)
+    action_intent = magic_ability["intent"] if magic_ability else payload.intent
+    action_target_ref = magic_ability["target_ref"] if magic_ability else payload.target_ref
+    ignored_item_claims = (
+        {"Tarcza"} if magic_ability and magic_ability["id"] == "spectral_shield" else set()
+    )
+    item_claim_error = validate_action_item_claim(
+        action_text,
+        character.inventory,
+        ignored_labels=ignored_item_claims,
+    )
     if item_claim_error:
         raise HTTPException(status_code=400, detail=item_claim_error)
 
@@ -2072,8 +2108,9 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
     proxy_was_overridden = bool(existing_action and existing_action.submission_source == "party_vote")
     if existing_action:
         existing_action.action_text = action_text
-        existing_action.intent = payload.intent
-        existing_action.target_ref = payload.target_ref
+        existing_action.magic_ability_id = magic_ability["id"] if magic_ability else None
+        existing_action.intent = action_intent
+        existing_action.target_ref = action_target_ref
         existing_action.submission_source = "player"
         existing_action.submitted_at = datetime.now(timezone.utc)
     else:
@@ -2081,8 +2118,9 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
             turn_id=turn.id,
             character_id=character.id,
             action_text=action_text,
-            intent=payload.intent,
-            target_ref=payload.target_ref,
+            magic_ability_id=magic_ability["id"] if magic_ability else None,
+            intent=action_intent,
+            target_ref=action_target_ref,
             submission_source="player",
         )
         db.add(new_action)
@@ -2189,6 +2227,8 @@ async def resolve_turn_background(session_id: int, turn_id: int):
 
                     action.intent = infer_action_intent(action.action_text, action.intent)
                     dc, tested_stat_override = action_dc(session, action)
+                    if get_magic_ability(char.character_class, action.magic_ability_id):
+                        tested_stat_override = get_magic_casting_stat(char.character_class)
                     roll_penalty = status_roll_penalty(char)
                     tested_stat, d20_raw, stat_mod, item_mod, total, outcome_tier = resolve_dice_roll(
                         action.action_text,
@@ -2228,6 +2268,7 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                     "character_id": char.id,
                     "character_name": char.name,
                     "action_text": action.action_text,
+                    "magic_ability": get_magic_ability(char.character_class, action.magic_ability_id),
                     "intent": action.intent,
                     "target_ref": action.target_ref,
                     "tested_stat": action.tested_stat,

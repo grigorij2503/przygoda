@@ -13,6 +13,7 @@ from google import genai
 from google.genai import types
 
 from app.config import settings, UPLOADS_DIR
+from app.magic import get_unlocked_magic_abilities
 from app.models import Character, GameSession, Turn
 from app.schemas import (
     GeminiTurnResolutionSchema,
@@ -263,6 +264,7 @@ async def resolve_turn_with_gemini(
                 }
                 for item in c.inventory
             ],
+            "available_magic": get_unlocked_magic_abilities(c.character_class, c.level),
         })
 
     actions_context = []
@@ -271,6 +273,7 @@ async def resolve_turn_with_gemini(
             "character_id": a["character_id"],
             "character_name": a["character_name"],
             "action_declared": a["action_text"],
+            "magic_ability": a.get("magic_ability"),
             "intent": a.get("intent"),
             "target_ref": a.get("target_ref"),
             "tested_attribute": a["tested_stat"],
@@ -324,6 +327,7 @@ async def resolve_turn_with_gemini(
         "4. CIĄGŁOŚĆ OPOWIEŚCI: Nie twórz suchych raportów punktowych! Każda tura to żywy, emocjonujący fragment wciągającej powieści dark fantasy.\n\n"
         "5. PRAWDZIWY EKWIPUNEK: Pole inventory przy postaci jest jedynym źródłem prawdy o posiadanych przedmiotach. Nie pozwalaj użyć ani uzyskać korzyści z przedmiotu, którego tam nie ma. Broń, tarcza i zbroja dają korzyść tylko, gdy mają equipped=true. Jeśli deklaracja mimo zabezpieczeń odwołuje się do nieposiadanego przedmiotu, opisz brak przedmiotu i improwizację zgodną z wynikiem rzutu, zamiast materializować wyposażenie.\n"
         "6. ŁĄCZENIE I ULEPSZANIE: Gdy w wyniku akcji powstaje nowy lub ulepszony przedmiot z posiadanych składników, wpisz dokładne nazwy WSZYSTKICH zużytych składników z inventory do source_item_names nowego przedmiotu. Nie pozostawiaj składników w ekwipunku. Jeśli nic nowego nie powstało, source_item_names pozostaje puste. Przedmioty utracone z innych powodów wpisuj do removed_item_names.\n\n"
+        "7. MAGIA KLASOWA: Pole magic_ability przy akcji jest jedynym źródłem prawdy o użytym czarze, modlitwie lub cudzie. Nie rozszerzaj efektu poza opis tej zdolności. Puste magic_ability oznacza zwykłą, niemagiczną akcję. Pole available_magic zawiera wyłącznie zdolności odblokowane dla danej postaci; nie przyznawaj dostępu do innych mocy.\n\n"
         "ZASADY WYJŚCIA JSON:\n"
         "1. gm_story_narration: Głęboka, barwna i kinowa narracja Mistrza Gry w języku polskim podsumowująca akcje graczy i zmieniającą się sytuację (min. 3-5 soczystych zdań).\n"
         "2. player_consequences: Dla KAŻDEGO gracza: individual_summary (fabularne podsumowanie jego losu), hp_delta (utracone/odzyskane HP), xp_gained (50-120 XP), new_items, removed_item_names. Podczas aktywnej walki z bossem ustaw hp_delta dokładnie na hp_delta_from_combat_engine; nie dodawaj własnych obrażeń.\n"
