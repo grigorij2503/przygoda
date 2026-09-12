@@ -442,6 +442,35 @@ document.addEventListener('alpine:init', () => {
       return Array.from({ length: 5 }, (_, index) => this.activeItems[index] || null);
     },
 
+    get equippedStatItems() {
+      const items = [
+        this.mainHandItem,
+        this.offHandItem,
+        this.equippedArmor,
+        ...this.activeItems
+      ].filter(Boolean);
+
+      return items.filter((item, index) =>
+        items.findIndex(candidate => candidate.id === item.id) === index
+      );
+    },
+
+    equipmentStatBonus(stat) {
+      return this.equippedStatItems.reduce((total, item) => {
+        if (item.target_stat !== stat && item.target_stat !== 'all') return total;
+        return total + Number(item.stat_bonus || 0);
+      }, 0);
+    },
+
+    totalCharacterStat(stat) {
+      return Number(this.currentCharacter?.[stat] || 0) + this.equipmentStatBonus(stat);
+    },
+
+    formatSignedStat(value) {
+      const numericValue = Number(value || 0);
+      return `${numericValue >= 0 ? '+' : ''}${numericValue}`;
+    },
+
     get backpackItems() {
       const equippedItemIds = new Set([
         ...this.handItems.map(item => item.id),

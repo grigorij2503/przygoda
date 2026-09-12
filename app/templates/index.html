@@ -50,7 +50,7 @@
   <!-- Alpine.js CDN -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
   <!-- App Logic -->
-  <script src="/static/js/app.js?v=15"></script>
+  <script src="/static/js/app.js?v=16"></script>
 </head>
 <body x-data="rpgGame" class="min-h-screen text-gray-200 antialiased selection:bg-amber-600 selection:text-white">
 
@@ -1061,14 +1061,23 @@
 
           <!-- Atrybuty Postaci -->
           <div class="mb-6">
-            <span class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 block mb-2">Atrybuty bazowe:</span>
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Atrybuty:</span>
+              <span class="text-[9px] font-mono text-gray-600">bazowe + wyposażenie</span>
+            </div>
             <div class="grid grid-cols-2 gap-2">
               <div x-data="{ showInfo: false }" class="relative">
                 <button type="button" @click="showInfo = !showInfo" @keydown.escape.window="showInfo = false"
                         :aria-expanded="showInfo" aria-label="Wyjaśnij atrybut Siła"
                         class="w-full bg-slate-950/80 hover:border-amber-600/60 p-2.5 rounded-lg border border-slate-800 text-center transition relative">
                   <span class="text-[10px] text-gray-500 block uppercase">Siła (STR)</span>
-                  <span class="text-base font-bold text-amber-300" x-text="'+' + currentCharacter?.strength"></span>
+                  <span class="text-lg leading-tight font-bold text-amber-300 block" x-text="formatSignedStat(totalCharacterStat('strength'))"></span>
+                  <span class="mt-1 flex items-center justify-center gap-1.5 text-[9px] leading-none font-mono">
+                    <span class="text-gray-500" x-text="'baz. ' + formatSignedStat(currentCharacter?.strength)"></span>
+                    <template x-if="equipmentStatBonus('strength') !== 0">
+                      <span class="text-emerald-400" x-text="'ekw. ' + formatSignedStat(equipmentStatBonus('strength'))"></span>
+                    </template>
+                  </span>
                   <span class="absolute top-1.5 right-2 text-[10px] text-gray-600">ⓘ</span>
                 </button>
                 <div x-show="showInfo" x-cloak x-transition @click.outside="showInfo = false"
@@ -1082,7 +1091,13 @@
                         :aria-expanded="showInfo" aria-label="Wyjaśnij atrybut Zręczność"
                         class="w-full bg-slate-950/80 hover:border-amber-600/60 p-2.5 rounded-lg border border-slate-800 text-center transition relative">
                   <span class="text-[10px] text-gray-500 block uppercase">Zręczność (AGI)</span>
-                  <span class="text-base font-bold text-amber-300" x-text="'+' + currentCharacter?.agility"></span>
+                  <span class="text-lg leading-tight font-bold text-amber-300 block" x-text="formatSignedStat(totalCharacterStat('agility'))"></span>
+                  <span class="mt-1 flex items-center justify-center gap-1.5 text-[9px] leading-none font-mono">
+                    <span class="text-gray-500" x-text="'baz. ' + formatSignedStat(currentCharacter?.agility)"></span>
+                    <template x-if="equipmentStatBonus('agility') !== 0">
+                      <span class="text-emerald-400" x-text="'ekw. ' + formatSignedStat(equipmentStatBonus('agility'))"></span>
+                    </template>
+                  </span>
                   <span class="absolute top-1.5 right-2 text-[10px] text-gray-600">ⓘ</span>
                 </button>
                 <div x-show="showInfo" x-cloak x-transition @click.outside="showInfo = false"
@@ -1096,7 +1111,13 @@
                         :aria-expanded="showInfo" aria-label="Wyjaśnij atrybut Rozum"
                         class="w-full bg-slate-950/80 hover:border-amber-600/60 p-2.5 rounded-lg border border-slate-800 text-center transition relative">
                   <span class="text-[10px] text-gray-500 block uppercase">Rozum (INT)</span>
-                  <span class="text-base font-bold text-amber-300" x-text="'+' + currentCharacter?.intellect"></span>
+                  <span class="text-lg leading-tight font-bold text-amber-300 block" x-text="formatSignedStat(totalCharacterStat('intellect'))"></span>
+                  <span class="mt-1 flex items-center justify-center gap-1.5 text-[9px] leading-none font-mono">
+                    <span class="text-gray-500" x-text="'baz. ' + formatSignedStat(currentCharacter?.intellect)"></span>
+                    <template x-if="equipmentStatBonus('intellect') !== 0">
+                      <span class="text-emerald-400" x-text="'ekw. ' + formatSignedStat(equipmentStatBonus('intellect'))"></span>
+                    </template>
+                  </span>
                   <span class="absolute top-1.5 right-2 text-[10px] text-gray-600">ⓘ</span>
                 </button>
                 <div x-show="showInfo" x-cloak x-transition @click.outside="showInfo = false"
@@ -1110,7 +1131,13 @@
                         :aria-expanded="showInfo" aria-label="Wyjaśnij atrybut Charyzma"
                         class="w-full bg-slate-950/80 hover:border-amber-600/60 p-2.5 rounded-lg border border-slate-800 text-center transition relative">
                   <span class="text-[10px] text-gray-500 block uppercase">Charyzma (CHA)</span>
-                  <span class="text-base font-bold text-amber-300" x-text="'+' + currentCharacter?.charisma"></span>
+                  <span class="text-lg leading-tight font-bold text-amber-300 block" x-text="formatSignedStat(totalCharacterStat('charisma'))"></span>
+                  <span class="mt-1 flex items-center justify-center gap-1.5 text-[9px] leading-none font-mono">
+                    <span class="text-gray-500" x-text="'baz. ' + formatSignedStat(currentCharacter?.charisma)"></span>
+                    <template x-if="equipmentStatBonus('charisma') !== 0">
+                      <span class="text-emerald-400" x-text="'ekw. ' + formatSignedStat(equipmentStatBonus('charisma'))"></span>
+                    </template>
+                  </span>
                   <span class="absolute top-1.5 right-2 text-[10px] text-gray-600">ⓘ</span>
                 </button>
                 <div x-show="showInfo" x-cloak x-transition @click.outside="showInfo = false"
