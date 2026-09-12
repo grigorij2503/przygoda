@@ -41,13 +41,19 @@ from app.inventory import (
     get_effectively_equipped_items,
     hands_used,
 )
+from app.map_generator import (
+    GENERATOR_VERSION,
+    adjacent_node_ids,
+    generate_campaign_map,
+    serialize_campaign_map,
+)
 from app.gemini_service import (
     generate_campaign_intro_ai,
     generate_party_prologue_ai,
     generate_scene_image_ai,
     resolve_turn_with_gemini,
 )
-from app.models import ChatMessage, Character, GameSession, InventoryItem, NamedLoreEntity, PlayerAction, Turn
+from app.models import CampaignMap, ChatMessage, Character, GameSession, InventoryItem, NamedLoreEntity, PlayerAction, Turn
 from app.schemas import (
     CharacterDto,
     CreateSessionRequest,
@@ -55,6 +61,7 @@ from app.schemas import (
     GenerateImageRequest,
     GenerateIntroRequest,
     GenerateIntroResponse,
+    MoveMapRequest,
     NameEntityRequest,
     PrologueRequest,
     PrologueResponse,
@@ -133,6 +140,35 @@ LEGACY_STARTER_ITEM_UPDATES = {
         "Dodaje powagi modlitwom i ciężaru uderzeniom",
     ),
 }
+
+
+async def replace_campaign_map(db: AsyncSession, session: GameSession) -> CampaignMap:
+    """Tworzy nową mapę bez modyfikowania tur, postaci ani mechaniki kampanii."""
+    seed = secrets.randbits(63)
+    layout = generate_campaign_map(seed, session.title or "Wyprawa", session.setting_theme or "Dark Fantasy")
+    existing = (
+        await db.execute(select(CampaignMap).where(CampaignMap.session_id == session.id))
+    ).scalar_one_or_none()
+    if existing:
+        existing.seed = seed
+        existing.generator_version = GENERATOR_VERSION
+        existing.layout = layout
+        existing.current_node_id = layout["start_node_id"]
+        existing.discovered_node_ids = [layout["start_node_id"]]
+        existing.updated_at = datetime.now(timezone.utc)
+        campaign_map = existing
+    else:
+        campaign_map = CampaignMap(
+            session=session,
+            seed=seed,
+            generator_version=GENERATOR_VERSION,
+            layout=layout,
+            current_node_id=layout["start_node_id"],
+            discovered_node_ids=[layout["start_node_id"]],
+        )
+        db.add(campaign_map)
+    await db.flush()
+    return campaign_map
 
 
 def get_xp_progress(level: int, xp: int) -> dict:
@@ -281,6 +317,18 @@ async def lifespan(app: FastAPI):
             db.add(initial_turn)
             await db.commit()
             logger.info("Utworzono domyślną sesję gry 'kampania-1'.")
+        # Starsze, już rozgrywane kampanie otrzymują mapę bez resetowania ich stanu.
+        sessions = (
+            await db.execute(select(GameSession).options(selectinload(GameSession.campaign_map)))
+        ).scalars().all()
+        backfilled_maps = 0
+        for existing_session in sessions:
+            if existing_session.campaign_map is None:
+                await replace_campaign_map(db, existing_session)
+                backfilled_maps += 1
+        if backfilled_maps:
+            await db.commit()
+            logger.info("Utworzono mapy dla %s istniejących kampanii.", backfilled_maps)
         # Porządkuje starsze zapisy, w których można było założyć dowolną liczbę
         # przedmiotów. Najnowsze przedmioty zostają w dostępnych slotach.
         characters = (
@@ -391,13 +439,18 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
             selectinload(GameSession.characters).selectinload(Character.inventory),
             selectinload(GameSession.turns).selectinload(Turn.actions).selectinload(PlayerAction.character),
             selectinload(GameSession.lore_entities),
+            selectinload(GameSession.campaign_map),
         )
     )
     res = await db.execute(stmt)
     game_session = res.scalar_one_or_none()
     if not game_session:
         raise HTTPException(status_code=404, detail="Sesja nie została znaleziona")
-    if ensure_boss_encounter(game_session, game_session.characters):
+    session_changed = ensure_boss_encounter(game_session, game_session.characters)
+    if game_session.campaign_map is None:
+        game_session.campaign_map = await replace_campaign_map(db, game_session)
+        session_changed = True
+    if session_changed:
         await db.commit()
 
     current_turn = next(
@@ -542,8 +595,63 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
             }
             for le in (game_session.lore_entities or [])
         ],
+        "campaign_map": serialize_campaign_map(game_session.campaign_map),
         "characters": characters_dto,
         "turns": turns_dto,
+    }
+
+
+@app.post("/api/session/map/move")
+async def move_on_campaign_map(payload: MoveMapRequest, db: AsyncSession = Depends(get_db)):
+    stmt = (
+        select(GameSession)
+        .where(GameSession.room_code == payload.room_code)
+        .options(
+            selectinload(GameSession.campaign_map),
+            selectinload(GameSession.characters),
+        )
+    )
+    session = (await db.execute(stmt)).scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Sesja nie została znaleziona")
+    if session.is_turn_resolving:
+        raise HTTPException(status_code=409, detail="Poczekaj na zakończenie rozstrzygania tury")
+
+    campaign_map = session.campaign_map or await replace_campaign_map(db, session)
+    layout = campaign_map.layout or {}
+    known_node_ids = {str(node.get("id")) for node in layout.get("nodes", [])}
+    destination_node_id = payload.destination_node_id.strip()
+    if destination_node_id not in known_node_ids:
+        raise HTTPException(status_code=400, detail="Wybrana lokacja nie istnieje na mapie")
+
+    available = adjacent_node_ids(layout, campaign_map.current_node_id)
+    if destination_node_id not in available:
+        raise HTTPException(status_code=400, detail="Do tej lokacji nie prowadzi bezpośrednie przejście")
+
+    campaign_map.current_node_id = destination_node_id
+    campaign_map.discovered_node_ids = list(dict.fromkeys([
+        *(campaign_map.discovered_node_ids or []),
+        destination_node_id,
+    ]))
+    campaign_map.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    traveler = next(
+        (character for character in session.characters if character.id == payload.character_id),
+        None,
+    )
+    node = next(
+        item for item in layout.get("nodes", []) if item.get("id") == destination_node_id
+    )
+    await ws_manager.broadcast_to_session(session.id, {
+        "type": "MAP_UPDATED",
+        "node_id": destination_node_id,
+        "node_name": node.get("name", "Nowa lokacja"),
+        "character_name": traveler.name if traveler else None,
+    })
+    return {
+        "success": True,
+        "campaign_map": serialize_campaign_map(campaign_map),
     }
 
 @app.post("/api/generate-intro", response_model=GenerateIntroResponse)
@@ -601,6 +709,7 @@ async def reset_campaign(payload: CreateSessionRequest, db: AsyncSession = Depen
             image_prompt=f"Dark fantasy oil painting of adventurers in {payload.setting_theme}",
         )
         db.add(initial_turn)
+        await replace_campaign_map(db, session)
         await db.commit()
 
         await ws_manager.broadcast_to_session(session.id, {
@@ -665,6 +774,8 @@ async def setup_scenario(payload: SetupScenarioRequest, db: AsyncSession = Depen
     turn1.next_turn_prompt = "Drużyna zbiera się w karczmie przed wyruszeniem na wyprawę..."
     turn1.suggested_actions = []
 
+    await replace_campaign_map(db, session)
+
     await db.commit()
 
     await ws_manager.broadcast_to_session(session.id, {
@@ -702,7 +813,8 @@ async def start_prologue(payload: PrologueRequest, db: AsyncSession = Depends(ge
         .where(GameSession.room_code == payload.room_code)
         .options(
             selectinload(GameSession.characters).selectinload(Character.inventory),
-            selectinload(GameSession.turns)
+            selectinload(GameSession.turns),
+            selectinload(GameSession.campaign_map),
         )
     )
     res = await db.execute(stmt)
@@ -746,6 +858,9 @@ async def start_prologue(payload: PrologueRequest, db: AsyncSession = Depends(ge
     turn1.next_turn_prompt = prologue_data.first_challenge
     turn1.suggested_actions = prologue_data.suggested_actions
     turn1.status = "waiting_for_actions"
+
+    if session.campaign_map is None:
+        await replace_campaign_map(db, session)
 
     await db.commit()
 

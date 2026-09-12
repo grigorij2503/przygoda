@@ -81,6 +81,11 @@ class CharacterDto(BaseModel):
 class ResolveTurnRequest(BaseModel):
     room_code: str = "kampania-1"
 
+class MoveMapRequest(BaseModel):
+    room_code: str = "kampania-1"
+    destination_node_id: str = Field(min_length=1, max_length=50)
+    character_id: Optional[int] = None
+
 class SubmitActionRequest(BaseModel):
     character_id: int
     action_text: str

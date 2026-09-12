@@ -529,6 +529,137 @@ body {
   50% { box-shadow: 0 0 22px rgba(245, 158, 11, 0.28), inset 3px 0 0 #fbbf24; }
 }
 
+/* Deterministyczna mapa kampanii renderowana z danych, nie z obrazu AI. */
+.campaign-map-modal {
+  max-height: calc(100vh - 1rem);
+  overflow: hidden;
+}
+
+.campaign-map-viewport {
+  min-height: 22rem;
+  overflow: auto;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(8, 47, 73, 0.18), transparent 48%),
+    #020406;
+  scrollbar-color: rgba(34, 211, 238, 0.35) rgba(15, 23, 42, 0.7);
+}
+
+.campaign-map-svg {
+  display: block;
+  width: 100%;
+  min-width: 56rem;
+  min-height: 28rem;
+}
+
+.campaign-map-edge {
+  fill: none;
+  stroke: #475569;
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1 7;
+  vector-effect: non-scaling-stroke;
+}
+
+.campaign-map-edge--hidden {
+  stroke: #1e293b;
+  opacity: 0.2;
+}
+
+.campaign-map-edge--visited {
+  stroke: #64748b;
+  opacity: 0.72;
+}
+
+.campaign-map-edge--available {
+  stroke: #d97706;
+  opacity: 0.95;
+}
+
+.campaign-map-door {
+  fill: #d97706;
+  stroke: #fbbf24;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.campaign-map-node {
+  color: #334155;
+}
+
+.campaign-map-room {
+  fill: #030507;
+  stroke: currentColor;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.campaign-map-room-dots {
+  color: currentColor;
+  pointer-events: none;
+}
+
+.campaign-map-node--hidden {
+  color: #334155;
+  opacity: 0.28;
+}
+
+.campaign-map-node--visited {
+  color: #94a3b8;
+  opacity: 0.8;
+}
+
+.campaign-map-node--available {
+  color: #f59e0b;
+  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.2));
+}
+
+.campaign-map-node--current {
+  color: #22d3ee;
+  filter: drop-shadow(0 0 10px rgba(34, 211, 238, 0.3));
+}
+
+.campaign-map-glyph {
+  fill: currentColor;
+  font: 700 20px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.campaign-map-label {
+  fill: currentColor;
+  font: 600 10px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: 0.02em;
+}
+
+.campaign-map-party {
+  fill: #67e8f9;
+  font: 700 9px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: 0.12em;
+}
+
+.campaign-map-legend {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-right: 0.25rem;
+  border: 1px solid currentColor;
+  vertical-align: -0.05rem;
+}
+
+.campaign-map-legend--current { color: #22d3ee; background: rgba(34, 211, 238, 0.28); }
+.campaign-map-legend--available { color: #f59e0b; background: rgba(245, 158, 11, 0.25); }
+.campaign-map-legend--visited { color: #94a3b8; background: rgba(148, 163, 184, 0.2); }
+.campaign-map-legend--hidden { color: #334155; background: rgba(51, 65, 85, 0.16); }
+
+@media (min-width: 768px) {
+  .campaign-map-modal {
+    max-height: calc(100vh - 2.5rem);
+  }
+
+  .campaign-map-viewport {
+    min-height: 30rem;
+  }
+}
+
 /* Pulsing Turn Waiting Animation */
 @keyframes rune-pulse {
   0%, 100% {

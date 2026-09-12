@@ -39,6 +39,7 @@ document.addEventListener('alpine:init', () => {
     showNamingModal: false,
     showLoreBookModal: false,
     showPersonalNoteModal: false,
+    showMapModal: false,
     showLevelUpModal: false,
     lightboxImageUrl: '',
 
@@ -48,6 +49,10 @@ document.addEventListener('alpine:init', () => {
     personalNoteError: '',
     isLoadingPersonalNote: false,
     isSavingPersonalNote: false,
+
+    // Campaign Map
+    isMovingOnMap: false,
+    mapError: '',
 
     // Level Up
     isSpendingStatPoint: false,
@@ -311,6 +316,7 @@ document.addEventListener('alpine:init', () => {
         if (!res.ok) throw new Error('Błąd ładowania sesji.');
         const data = await res.json();
         this.session = data;
+        if (this.showMapModal) this.scheduleMapRender();
 
         if (previousCharacterId === this.selectedCharacterId && previousInventoryItemIds) {
           const currentItems = this.currentCharacter?.inventory || [];
@@ -642,6 +648,191 @@ document.addEventListener('alpine:init', () => {
       ) || null;
     },
 
+    get campaignMap() {
+      return this.session?.campaign_map || null;
+    },
+
+    get currentMapNode() {
+      return this.campaignMap?.nodes?.find(
+        node => node.id === this.campaignMap.current_node_id
+      ) || null;
+    },
+
+    get availableMapNodes() {
+      const available = new Set(this.campaignMap?.available_node_ids || []);
+      return (this.campaignMap?.nodes || []).filter(node => available.has(node.id));
+    },
+
+    openMap() {
+      this.mapError = '';
+      this.showMapModal = true;
+      this.scheduleMapRender();
+    },
+
+    scheduleMapRender() {
+      this.$nextTick(() => this.renderCampaignMap());
+    },
+
+    renderCampaignMap() {
+      const drawing = this.$refs.campaignMapDrawing;
+      const map = this.campaignMap;
+      if (!drawing || !map) return;
+
+      const svgNamespace = 'http://www.w3.org/2000/svg';
+      const createSvgElement = (tagName, attributes = {}, textContent = null) => {
+        const element = document.createElementNS(svgNamespace, tagName);
+        Object.entries(attributes).forEach(([name, value]) => {
+          if (value !== null && value !== undefined) element.setAttribute(name, String(value));
+        });
+        if (textContent !== null) element.textContent = textContent;
+        return element;
+      };
+
+      const fragment = document.createDocumentFragment();
+      (map.edges || []).forEach(edge => {
+        const group = createSvgElement('g');
+        group.appendChild(createSvgElement('path', {
+          d: this.mapEdgePath(edge),
+          class: this.mapEdgeClass(edge)
+        }));
+        if (edge.kind === 'door' && edge.visibility !== 'hidden') {
+          const door = this.mapDoorPosition(edge);
+          group.appendChild(createSvgElement('rect', {
+            x: door.x - 5,
+            y: door.y - 5,
+            width: 10,
+            height: 10,
+            rx: 1,
+            class: 'campaign-map-door'
+          }));
+        }
+        fragment.appendChild(group);
+      });
+
+      (map.nodes || []).forEach(node => {
+        const group = createSvgElement('g', { class: this.mapNodeClass(node) });
+        group.appendChild(createSvgElement('rect', {
+          x: node.x - node.width / 2,
+          y: node.y - node.height / 2,
+          width: node.width,
+          height: node.height,
+          rx: 3,
+          class: 'campaign-map-room'
+        }));
+        group.appendChild(createSvgElement('rect', {
+          x: node.x - node.width / 2 + 5,
+          y: node.y - node.height / 2 + 5,
+          width: node.width - 10,
+          height: node.height - 10,
+          rx: 2,
+          fill: 'url(#room-dots)',
+          class: 'campaign-map-room-dots'
+        }));
+        group.appendChild(createSvgElement('text', {
+          x: node.x,
+          y: node.y - 9,
+          'text-anchor': 'middle',
+          class: 'campaign-map-glyph'
+        }, this.mapNodeIcon(node.type)));
+        group.appendChild(createSvgElement('text', {
+          x: node.x,
+          y: node.y + 13,
+          'text-anchor': 'middle',
+          class: 'campaign-map-label'
+        }, this.mapNodeDisplayName(node)));
+        if (node.visibility === 'current') {
+          group.appendChild(createSvgElement('text', {
+            x: node.x,
+            y: node.y + node.height / 2 + 17,
+            'text-anchor': 'middle',
+            class: 'campaign-map-party'
+          }, '● DRUŻYNA'));
+        }
+        fragment.appendChild(group);
+      });
+
+      drawing.replaceChildren(fragment);
+    },
+
+    mapNodeById(nodeId) {
+      return this.campaignMap?.nodes?.find(node => node.id === nodeId) || null;
+    },
+
+    mapEdgePath(edge) {
+      const source = this.mapNodeById(edge?.from);
+      const target = this.mapNodeById(edge?.to);
+      if (!source || !target) return '';
+      if (Math.abs(target.x - source.x) >= Math.abs(target.y - source.y)) {
+        const middleX = Math.round((source.x + target.x) / 2);
+        return `M ${source.x} ${source.y} H ${middleX} V ${target.y} H ${target.x}`;
+      }
+      const middleY = Math.round((source.y + target.y) / 2);
+      return `M ${source.x} ${source.y} V ${middleY} H ${target.x} V ${target.y}`;
+    },
+
+    mapDoorPosition(edge) {
+      const source = this.mapNodeById(edge?.from);
+      const target = this.mapNodeById(edge?.to);
+      if (!source || !target) return { x: 0, y: 0 };
+      if (Math.abs(target.x - source.x) >= Math.abs(target.y - source.y)) {
+        return { x: Math.round((source.x + target.x) / 2), y: source.y };
+      }
+      return { x: source.x, y: Math.round((source.y + target.y) / 2) };
+    },
+
+    mapNodeIcon(type) {
+      return {
+        entrance: '⇥', finale: '☠', treasury: '$', shrine: '†', crypt: '☗',
+        library: '≡', armory: '⚔', bridge: '═', prison: '#', well: '○',
+        forge: '♨', tomb: '⌂', cave: '∩', study: '?', guardroom: '!',
+        crossroads: '+', gallery: '◇', hall: '□', chamber: '◆', unknown: '·'
+      }[type] || '·';
+    },
+
+    mapNodeDisplayName(node) {
+      const name = String(node?.name || 'Nieodkryta lokacja');
+      return name.length > 22 ? `${name.slice(0, 21)}…` : name;
+    },
+
+    mapNodeClass(node) {
+      return `campaign-map-node campaign-map-node--${node?.visibility || 'hidden'}`;
+    },
+
+    mapEdgeClass(edge) {
+      return `campaign-map-edge campaign-map-edge--${edge?.visibility || 'hidden'}`;
+    },
+
+    canTravelToMapNode(nodeId) {
+      return (this.campaignMap?.available_node_ids || []).includes(nodeId);
+    },
+
+    async moveOnMap(destinationNodeId) {
+      if (!this.canTravelToMapNode(destinationNodeId) || this.isMovingOnMap) return;
+      this.isMovingOnMap = true;
+      this.mapError = '';
+      try {
+        const res = await fetch('/api/session/map/move', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            room_code: this.roomCode,
+            destination_node_id: destinationNodeId,
+            character_id: this.selectedCharacterId
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Nie udało się przejść do lokacji.');
+        if (this.session) this.session.campaign_map = data.campaign_map;
+        this.scheduleMapRender();
+        const destination = this.currentMapNode?.name || 'nowej lokacji';
+        this.addToast(`🗺️ Drużyna dotarła do: ${destination}.`, 'success');
+      } catch (err) {
+        this.mapError = err.message;
+      } finally {
+        this.isMovingOnMap = false;
+      }
+    },
+
     get latestResolvedTurn() {
       return this.storyTurnsDescending.find(turn => turn.status === 'completed') || null;
     },
@@ -937,6 +1128,14 @@ document.addEventListener('alpine:init', () => {
             this.scrollToLatestResolution();
           } else {
             this.hasUnreadTurn = true;
+          }
+          break;
+        }
+
+        case 'MAP_UPDATED': {
+          await this.fetchSession();
+          if (msg.character_name && msg.character_name !== this.currentCharacter?.name) {
+            this.addToast(`🗺️ ${msg.character_name} przesunął drużynę: ${msg.node_name}.`, 'info');
           }
           break;
         }

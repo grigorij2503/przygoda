@@ -36,6 +36,12 @@ class GameSession(Base):
     turns = relationship("Turn", back_populates="session", cascade="all, delete-orphan")
     lore_entities = relationship("NamedLoreEntity", back_populates="session", cascade="all, delete-orphan")
     chat_messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
+    campaign_map = relationship(
+        "CampaignMap",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
 
 
 class Character(Base):
@@ -167,3 +173,29 @@ class ChatMessage(Base):
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
     session = relationship("GameSession", back_populates="chat_messages")
+
+
+class CampaignMap(Base):
+    __tablename__ = "campaign_maps"
+
+    id = Column(Integer, primary_key=True)
+    session_id = Column(
+        Integer,
+        ForeignKey("game_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    seed = Column(Integer, nullable=False)
+    generator_version = Column(Integer, nullable=False, default=1)
+    layout = Column(JSON, nullable=False)
+    current_node_id = Column(String(50), nullable=False)
+    discovered_node_ids = Column(JSON, nullable=False, default=list)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    session = relationship("GameSession", back_populates="campaign_map")

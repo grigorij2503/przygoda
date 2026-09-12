@@ -45,12 +45,12 @@
   </script>
 
   <!-- Custom Stylesheet -->
-  <link rel="stylesheet" href="/static/css/style.css?v=14">
+  <link rel="stylesheet" href="/static/css/style.css?v=15">
 
   <!-- Alpine.js CDN -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
   <!-- App Logic -->
-  <script src="/static/js/app.js?v=16"></script>
+  <script src="/static/js/app.js?v=18"></script>
 </head>
 <body x-data="rpgGame" class="min-h-screen text-gray-200 antialiased selection:bg-amber-600 selection:text-white">
 
@@ -465,6 +465,12 @@
             <span x-text="hasUnreadTurn ? '📜' : '⚡'"></span>
             <span class="hidden md:inline" x-text="hasUnreadTurn ? 'Nowe wydarzenie' : 'Bieżąca tura'"></span>
             <span x-show="hasUnreadTurn" x-cloak class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 border-2 border-slate-950"></span>
+          </button>
+
+          <!-- Wspólna mapa wyprawy -->
+          <button @click="openMap()" title="Mapa wspólnej wyprawy"
+                  class="text-xs font-fantasy bg-slate-900 hover:bg-slate-800 border border-cyan-500/40 text-cyan-300 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+            <span>🗺️</span> <span class="hidden md:inline">Mapa</span>
           </button>
 
           <!-- Osobisty notes wybranej postaci -->
@@ -1480,6 +1486,74 @@
           <span x-show="isSubmittingNaming">ZAPISYWANIE...</span>
         </button>
       </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: MAPA KAMPANII ==================== -->
+  <div x-show="showMapModal" @keydown.escape.window="showMapModal = false" @click.self="showMapModal = false"
+       class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-2 md:p-5" x-cloak>
+    <div class="campaign-map-modal fantasy-card rounded-2xl w-full max-w-7xl border border-cyan-900/70 shadow-2xl flex flex-col" @click.stop>
+      <div class="flex flex-wrap items-center justify-between gap-3 p-4 md:px-6 border-b border-slate-800">
+        <div>
+          <h3 class="text-xl md:text-2xl font-fantasy font-bold text-cyan-200 flex items-center gap-2">
+            <span>🗺️</span> MAPA WYPRAWY
+          </h3>
+          <p class="text-[10px] md:text-xs text-gray-400 mt-1">
+            Odwiedzone: <b class="text-cyan-300" x-text="campaignMap?.discovered_count || 0"></b>
+            / <b class="text-gray-300" x-text="campaignMap?.total_nodes || 0"></b> lokacji
+          </p>
+        </div>
+        <button @click="showMapModal = false" class="text-gray-400 hover:text-white text-xl" aria-label="Zamknij mapę">✕</button>
+      </div>
+
+      <div x-show="campaignMap" class="campaign-map-viewport">
+        <svg class="campaign-map-svg" role="img" aria-label="Schemat odkrytych pomieszczeń i korytarzy"
+             :viewBox="`0 0 ${campaignMap?.width || 1100} ${campaignMap?.height || 500}`"
+             preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <pattern id="map-grid" width="16" height="16" patternUnits="userSpaceOnUse">
+              <path d="M 16 0 L 0 0 0 16" fill="none" stroke="rgba(71,85,105,0.12)" stroke-width="1"></path>
+            </pattern>
+            <pattern id="room-dots" width="12" height="12" patternUnits="userSpaceOnUse">
+              <circle cx="6" cy="6" r="1" fill="#64748b" opacity="0.32"></circle>
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#map-grid)"></rect>
+
+          <g x-ref="campaignMapDrawing"></g>
+        </svg>
+      </div>
+
+      <div x-show="!campaignMap" class="h-72 flex items-center justify-center text-gray-400 text-sm">
+        Mapa kampanii nie jest jeszcze dostępna.
+      </div>
+
+      <div x-show="campaignMap" class="p-4 md:px-6 border-t border-slate-800 bg-slate-950/70">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div class="min-w-0">
+            <span class="text-[10px] uppercase tracking-widest text-cyan-500 font-mono">Bieżąca lokacja</span>
+            <h4 class="text-base font-fantasy font-bold text-cyan-200 truncate" x-text="currentMapNode?.name"></h4>
+            <p class="text-[11px] text-gray-500 mt-1">Mapa jest wspólna. Przejście zmienia pozycję drużyny, ale nie rozstrzyga tury ani rzutu.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 lg:justify-end">
+            <span x-show="availableMapNodes.length === 0" class="text-xs text-gray-500">Brak dostępnych przejść.</span>
+            <template x-for="node in availableMapNodes" :key="node.id">
+              <button type="button" @click="moveOnMap(node.id)"
+                      :disabled="isMovingOnMap || session?.is_turn_resolving"
+                      class="px-3 py-2 rounded-lg border border-cyan-700/60 bg-cyan-950/30 hover:bg-cyan-900/50 text-cyan-200 text-xs font-fantasy transition disabled:opacity-40 disabled:cursor-not-allowed">
+                <span x-text="'Przejdź: ' + node.name"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+        <p x-show="mapError" x-text="mapError" class="mt-3 text-xs text-rose-300 bg-rose-950/50 border border-rose-800/60 rounded-lg p-2.5"></p>
+        <div class="flex flex-wrap gap-4 mt-3 text-[10px] font-mono text-gray-500">
+          <span><i class="campaign-map-legend campaign-map-legend--current"></i> drużyna</span>
+          <span><i class="campaign-map-legend campaign-map-legend--available"></i> dostępna</span>
+          <span><i class="campaign-map-legend campaign-map-legend--visited"></i> odwiedzona</span>
+          <span><i class="campaign-map-legend campaign-map-legend--hidden"></i> nieodkryta</span>
+        </div>
+      </div>
     </div>
   </div>
 
