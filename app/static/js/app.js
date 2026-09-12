@@ -114,6 +114,13 @@ document.addEventListener('alpine:init', () => {
     notificationLastSound: 0,
     notificationFocusHandler: null,
     notificationUnlockHandler: null,
+    pushSupported: false,
+    pushConfigured: false,
+    pushEnabled: false,
+    pushPermission: 'default',
+    pushBusy: false,
+    pushPublicKey: '',
+    serviceWorkerRegistration: null,
 
     // Inventory
     newInventoryItemIds: [],
@@ -184,10 +191,160 @@ document.addEventListener('alpine:init', () => {
       if ('serviceWorker' in navigator) {
         try {
           const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+          this.serviceWorkerRegistration = registration;
           logger('Service Worker zarejestrowany, scope:', registration.scope);
+          await this.refreshPushState();
         } catch (err) {
           console.warn('Rejestracja Service Workera nie powiodła się:', err);
         }
+      }
+    },
+
+    get pushButtonLabel() {
+      if (this.pushBusy) return '⏳ Push...';
+      if (!this.pushSupported) return 'Push niedostępny';
+      if (this.pushEnabled) return '📲 Push wł.';
+      if (!this.pushConfigured) return 'Push nieskonfig.';
+      if (this.pushPermission === 'denied') return 'Push zablokowany';
+      return '📵 Push wył.';
+    },
+
+    get pushButtonTitle() {
+      if (!this.pushSupported) return 'Ta przeglądarka lub połączenie nie obsługuje Web Push.';
+      if (!this.pushConfigured) return 'Serwer nie ma jeszcze skonfigurowanych kluczy VAPID.';
+      if (this.pushPermission === 'denied') return 'Powiadomienia są zablokowane w ustawieniach przeglądarki lub systemu.';
+      return this.pushEnabled
+        ? 'Wyłącz systemowe powiadomienia o wzmiankach i zakończeniu tury.'
+        : 'Włącz systemowe powiadomienia o wzmiankach i zakończeniu tury.';
+    },
+
+    async refreshPushState() {
+      this.pushSupported = Boolean(
+        window.isSecureContext &&
+        'serviceWorker' in navigator &&
+        'PushManager' in window &&
+        'Notification' in window
+      );
+      this.pushPermission = 'Notification' in window ? Notification.permission : 'denied';
+      if (!this.pushSupported || !this.serviceWorkerRegistration) return;
+
+      try {
+        const res = await fetch('/api/push/config');
+        if (!res.ok) throw new Error('Nie udało się pobrać konfiguracji Web Push.');
+        const config = await res.json();
+        this.pushConfigured = config.configured === true;
+        this.pushPublicKey = config.public_key || '';
+        const subscription = await this.serviceWorkerRegistration.pushManager.getSubscription();
+        this.pushEnabled = Boolean(subscription);
+        if (subscription && this.isAuthenticated && this.selectedCharacterId && this.pushConfigured) {
+          await this.savePushSubscription(subscription);
+        }
+      } catch (error) {
+        console.warn('Nie udało się sprawdzić Web Push:', error);
+      }
+    },
+
+    urlBase64ToUint8Array(value) {
+      const padding = '='.repeat((4 - value.length % 4) % 4);
+      const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const raw = window.atob(base64);
+      return Uint8Array.from([...raw].map(character => character.charCodeAt(0)));
+    },
+
+    async savePushSubscription(subscription) {
+      if (!this.isAuthenticated || !this.selectedCharacterId) {
+        throw new Error('Wybierz postać przed włączeniem powiadomień push.');
+      }
+      const res = await fetch('/api/push/subscriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          room_code: this.roomCode,
+          password: this.roomPassword,
+          character_id: this.selectedCharacterId,
+          subscription: subscription.toJSON()
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || 'Nie udało się zapisać subskrypcji push.');
+    },
+
+    async syncPushSubscription() {
+      if (!this.pushEnabled || !this.pushConfigured || !this.serviceWorkerRegistration || !this.selectedCharacterId) return;
+      try {
+        const subscription = await this.serviceWorkerRegistration.pushManager.getSubscription();
+        if (subscription) await this.savePushSubscription(subscription);
+      } catch (error) {
+        console.warn('Nie udało się zsynchronizować subskrypcji push:', error);
+      }
+    },
+
+    async enablePushNotifications() {
+      if (!this.pushSupported) throw new Error('Web Push nie jest dostępny w tej przeglądarce lub bez HTTPS.');
+      if (!this.pushConfigured) throw new Error('Administrator nie skonfigurował jeszcze kluczy VAPID.');
+      if (!this.selectedCharacterId) throw new Error('Najpierw wybierz postać.');
+
+      const permission = await Notification.requestPermission();
+      this.pushPermission = permission;
+      if (permission !== 'granted') {
+        throw new Error('Nie udzielono zgody na powiadomienia. Zmień ją w ustawieniach przeglądarki.');
+      }
+
+      let subscription = await this.serviceWorkerRegistration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await this.serviceWorkerRegistration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: this.urlBase64ToUint8Array(this.pushPublicKey)
+        });
+      }
+
+      try {
+        await this.savePushSubscription(subscription);
+      } catch (error) {
+        await subscription.unsubscribe().catch(() => {});
+        throw error;
+      }
+      this.pushEnabled = true;
+      this.addToast('Powiadomienia push zostały włączone.', 'success');
+    },
+
+    async disablePushNotifications(silent = false) {
+      const subscription = await this.serviceWorkerRegistration?.pushManager.getSubscription();
+      if (subscription) {
+        try {
+          await fetch('/api/push/subscriptions', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              password: this.roomPassword,
+              endpoint: subscription.endpoint
+            })
+          });
+        } catch (error) {
+          console.warn('Nie udało się usunąć subskrypcji push z serwera:', error);
+        }
+        await subscription.unsubscribe().catch(() => {});
+      }
+      this.pushEnabled = false;
+      if (!silent) this.addToast('Powiadomienia push zostały wyłączone.', 'info');
+    },
+
+    async togglePushNotifications() {
+      if (this.pushBusy) return;
+      this.pushBusy = true;
+      try {
+        if (this.pushEnabled) {
+          await this.disablePushNotifications();
+        } else {
+          await this.enablePushNotifications();
+        }
+      } catch (error) {
+        const iosHint = /iphone|ipad|ipod/i.test(navigator.userAgent) && !this.isPWAInstalled
+          ? ' Na iPhonie dodaj aplikację do ekranu początkowego i uruchom ją z ikony.'
+          : '';
+        this.addToast(`${error.message}${iosHint}`, 'error');
+      } finally {
+        this.pushBusy = false;
       }
     },
 
@@ -292,8 +449,9 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
-    logout() {
+    async logout() {
       fetch('/api/admin/lock', { method: 'POST' }).catch(() => {});
+      await this.disablePushNotifications(true);
       this.clearNotifications();
       this.isAuthenticated = false;
       this.isGmAuthenticated = false;
@@ -457,6 +615,7 @@ document.addEventListener('alpine:init', () => {
       this.inventoryFilter = 'all';
       localStorage.setItem('rpg_selected_char', charId);
       this.initWebSocket();
+      this.syncPushSubscription();
       this.addToast(`Wybrano postać: ${this.currentCharacter?.name}`, 'success');
       if ((this.currentCharacter?.unspent_stat_points || 0) > 0) {
         this.showLevelUpModal = true;

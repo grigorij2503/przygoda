@@ -32,6 +32,9 @@ Kompletna, produkcyjna aplikacja webowa do rozgrywek turowych w klimacie **Dark 
    - Dostęp do pokoju po podaniu hasła (`ROOM_PASSWORD`).
    - Wybór istniejącej postaci lub kreator z alokacją punktów atrybutów i startowym ekwipunkiem.
    - Generator Wstępu do Kampanii AI (wybór scenariusza i motywu, generowanie wstępu i natychmiastowy reset stołu).
+7. **Powiadomienia Web Push bez Firebase:**
+   - Systemowe powiadomienia po zakończeniu tury oraz przy wzmiankach `@postać` i `@all`.
+   - Subskrypcje są przypisane do wybranej postaci i działają po zamknięciu PWA.
 
 ---
 
@@ -94,7 +97,16 @@ HOST=0.0.0.0
 PORT=8000
 DATABASE_URL=sqlite+aiosqlite:///./ttrpg_game.db
 SECRET_KEY=tajny_klucz_bezpieczenstwa_salt_2026
+
+# Web Push (wygeneruj raz: python -m app.generate_vapid_keys --write-env --subject mailto:admin@twojadomena.pl)
+VAPID_PUBLIC_KEY=...
+VAPID_PRIVATE_KEY=...
+VAPID_SUBJECT=mailto:admin@twojadomena.pl
 ```
+
+Web Push wymaga HTTPS poza środowiskiem `localhost`. Po uzupełnieniu wartości VAPID
+uruchom aplikację ponownie, wybierz postać i użyj przycisku `Push wył.` w panelu czatu.
+Na iOS/iPadOS aplikacja musi być dodana do ekranu początkowego.
 
 > **Uwaga:** Jeśli nie podasz klucza `GEMINI_API_KEY`, aplikacja automatycznie przełączy się na inteligentny symulator narracyjny offline z generatorami wektorowych grafik runicznych, dzięki czemu możesz w pełni przetestować mechanikę gry lokalnie przed podpięciem konta Google AI Studio!
 

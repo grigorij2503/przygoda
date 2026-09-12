@@ -1,8 +1,8 @@
-const CACHE_NAME = 'ttrpg-gemini-v20';
+const CACHE_NAME = 'ttrpg-gemini-v21';
 const PRECACHE_ASSETS = [
   '/',
   '/static/css/style.css?v=16',
-  '/static/js/app.js?v=19',
+  '/static/js/app.js?v=20',
   '/static/manifest.json',
   '/static/icons/icon.svg',
   '/static/icons/icon-192.png',
@@ -44,6 +44,54 @@ self.addEventListener('activate', (event) => {
       );
     }).then(() => self.clients.claim())
   );
+});
+
+// Systemowe powiadomienia, także gdy karta lub PWA są zamknięte.
+self.addEventListener('push', (event) => {
+  event.waitUntil((async () => {
+    const visibleClients = await self.clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true
+    });
+    if (visibleClients.some(client => client.visibilityState === 'visible')) return;
+
+    let payload = {};
+    try {
+      payload = event.data ? event.data.json() : {};
+    } catch (error) {
+      payload = { body: event.data?.text() || 'W grze wydarzyło się coś nowego.' };
+    }
+
+    const title = payload.title || 'TTRPG Gemini Master';
+    await self.registration.showNotification(title, {
+      body: payload.body || 'W grze wydarzyło się coś nowego.',
+      icon: '/static/icons/icon-192.png',
+      badge: '/static/icons/icon-192.png',
+      tag: payload.tag || 'ttrpg-update',
+      renotify: true,
+      data: { url: payload.url || '/' }
+    });
+  })());
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil((async () => {
+    let targetUrl = new URL(event.notification.data?.url || '/', self.location.origin);
+    if (targetUrl.origin !== self.location.origin) {
+      targetUrl = new URL('/', self.location.origin);
+    }
+
+    const windowClients = await self.clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true
+    });
+    for (const client of windowClients) {
+      if ('navigate' in client) await client.navigate(targetUrl.href);
+      return client.focus();
+    }
+    return self.clients.openWindow(targetUrl.href);
+  })());
 });
 
 // Fetch Event: intelligent caching strategy

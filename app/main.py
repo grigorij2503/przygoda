@@ -421,6 +421,8 @@ async def lifespan(app: FastAPI):
     logger.info("Baza danych zainicjalizowana.")
     if not settings.GM_PIN:
         logger.warning("GM_PIN nie jest ustawiony. Narzędzia Mistrza Gry pozostaną zablokowane.")
+    if not is_web_push_configured():
+        logger.info("Web Push jest wyłączony. Uzupełnij VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY i VAPID_SUBJECT.")
     # Upewnij się, że istnieje domyślna sesja
     async for db in get_db():
         stmt = select(GameSession).where(GameSession.room_code == "kampania-1")
@@ -1443,9 +1445,11 @@ async def delete_character(char_id: int, db: AsyncSession = Depends(get_db)):
     session_id = char.session_id
     char_name = char.name
 
-    # Usuń przedmioty postaci
-    from sqlalchemy import delete as sql_delete
-    await db.execute(sql_delete(InventoryItem).where(InventoryItem.character_id == char_id))
+    # Usuń dane zależne również w SQLite bez włączonego ON DELETE CASCADE.
+    await db.execute(delete(InventoryItem).where(InventoryItem.character_id == char_id))
+    await db.execute(
+        delete(WebPushSubscription).where(WebPushSubscription.character_id == char_id)
+    )
 
     # Usuń postać
     await db.delete(char)
@@ -1980,6 +1984,12 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                 "next_turn_prompt": gemini_result.next_turn_prompt,
                 "suggested_actions": gemini_result.suggested_actions,
             })
+            schedule_web_push(
+                session.id,
+                title="⚔️ Mistrz Gry wydał werdykt",
+                body=f"Tura #{turn.turn_number} została zakończona. Czeka na Ciebie dalszy ciąg przygody.",
+                tag=f"turn-{session.id}-{turn.turn_number}",
+            )
             logger.info(f"Tura #{turn.turn_number} zakończona i zsynchronizowana.")
         except Exception as e:
             logger.error(f"Krytyczny błąd podczas rozstrzygania tury: {e}", exc_info=True)
@@ -2051,6 +2061,7 @@ def chat_message_payload(message: ChatMessage) -> dict:
         created_at = created_at.replace(tzinfo=timezone.utc)
     return {
         "type": "CHAT_MESSAGE",
+        "id": message.id,
         "character_id": message.character_id,
         "author": message.author,
         "character_class": message.character_class,
@@ -2069,6 +2080,29 @@ async def get_recent_chat_messages(session_id: int) -> list[dict]:
         )
         messages = list(reversed(result.scalars().all()))
     return [chat_message_payload(message) for message in messages]
+
+
+async def get_mentioned_character_ids(
+    session_id: int,
+    sender_character_id: int,
+    message_text: str,
+) -> list[int]:
+    async with AsyncSessionLocal() as db:
+        characters = (
+            await db.execute(select(Character).where(Character.session_id == session_id))
+        ).scalars().all()
+
+    normalized_text = unicodedata.normalize("NFC", message_text)
+    candidates = [character for character in characters if character.id != sender_character_id]
+    if re.search(r"(?<![\w@])@all(?!\w)", normalized_text, flags=re.IGNORECASE):
+        return [character.id for character in candidates]
+
+    mentioned_ids: list[int] = []
+    for character in sorted(candidates, key=lambda item: len(item.name), reverse=True):
+        pattern = rf"(?<![\w@])@{re.escape(unicodedata.normalize('NFC', character.name))}(?!\w)"
+        if re.search(pattern, normalized_text, flags=re.IGNORECASE):
+            mentioned_ids.append(character.id)
+    return mentioned_ids
 
 
 async def save_chat_message(
@@ -2125,6 +2159,22 @@ async def websocket_endpoint(websocket: WebSocket, session_id: int, character_id
                             text=text,
                         )
                         await ws_manager.broadcast_to_session(session_id, chat_entry)
+                        mentioned_ids = await get_mentioned_character_ids(
+                            session_id,
+                            character_id,
+                            text,
+                        )
+                        if mentioned_ids:
+                            notification_text = " ".join(text.split())
+                            if len(notification_text) > 180:
+                                notification_text = f"{notification_text[:177]}..."
+                            schedule_web_push(
+                                session_id,
+                                title=f"💬 {chat_entry['author']} wspomina o Tobie",
+                                body=notification_text,
+                                tag=f"chat-{session_id}-{chat_entry['id']}",
+                                character_ids=mentioned_ids,
+                            )
             except Exception as e:
                 logger.error(f"Błąd przetwarzania wiadomości WebSocket: {e}")
     except WebSocketDisconnect:
