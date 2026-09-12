@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, JSON, String, Text
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -35,6 +35,7 @@ class GameSession(Base):
     characters = relationship("Character", back_populates="session", cascade="all, delete-orphan")
     turns = relationship("Turn", back_populates="session", cascade="all, delete-orphan")
     lore_entities = relationship("NamedLoreEntity", back_populates="session", cascade="all, delete-orphan")
+    chat_messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
 
 
 class Character(Base):
@@ -149,3 +150,20 @@ class NamedLoreEntity(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     session = relationship("GameSession", back_populates="lore_entities")
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    __table_args__ = (
+        Index("ix_chat_messages_session_created_at", "session_id", "created_at", "id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    session_id = Column(Integer, ForeignKey("game_sessions.id", ondelete="CASCADE"), nullable=False)
+    character_id = Column(Integer, nullable=False)
+    author = Column(String(100), nullable=False)
+    character_class = Column(String(100), nullable=False)
+    text = Column(Text, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    session = relationship("GameSession", back_populates="chat_messages")

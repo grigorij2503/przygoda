@@ -28,6 +28,10 @@ document.addEventListener('alpine:init', () => {
     expandedStoryTurnIds: [],
     hasUnreadTurn: false,
 
+    // Compact sticky controls on narrow screens
+    mobileHeaderCollapsed: true,
+    mobileActionPanelCollapsed: true,
+
     // Modals
     showCharModal: false,
     showIntroModal: false,
@@ -1076,6 +1080,9 @@ document.addEventListener('alpine:init', () => {
         : messages;
       if (!incoming.length) return;
       this.chatMessages.push(...incoming);
+      if (this.chatMessages.length > 50) {
+        this.chatMessages.splice(0, this.chatMessages.length - 50);
+      }
       if (followLatest && el) {
         const previousTop = el.scrollTop;
         this.$nextTick(() => {
@@ -1341,6 +1348,7 @@ document.addEventListener('alpine:init', () => {
         }
         const data = await res.json();
         this.isEditingSubmittedAction = false;
+        this.mobileActionPanelCollapsed = true;
         if (data.ready_count >= data.total_players && data.total_players > 0) {
           this.addToast(`Wszyscy gracze (${data.ready_count}/${data.total_players}) zatwierdzili akcje! Możesz teraz wygenerować kolejną turę.`, 'success');
         } else {

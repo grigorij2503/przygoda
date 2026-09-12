@@ -33,7 +33,7 @@ from app.combat import (
     status_list,
     status_roll_penalty,
 )
-from app.database import get_db, init_db
+from app.database import AsyncSessionLocal, get_db, init_db
 from app.dice import resolve_dice_roll
 from app.inventory import (
     EQUIPMENT_SLOT_LIMITS,
@@ -47,7 +47,7 @@ from app.gemini_service import (
     generate_scene_image_ai,
     resolve_turn_with_gemini,
 )
-from app.models import Character, GameSession, InventoryItem, NamedLoreEntity, PlayerAction, Turn
+from app.models import ChatMessage, Character, GameSession, InventoryItem, NamedLoreEntity, PlayerAction, Turn
 from app.schemas import (
     CharacterDto,
     CreateSessionRequest,
@@ -76,6 +76,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 MAX_LEVEL = 25
 MAX_BASE_ATTRIBUTE = 12
+CHAT_HISTORY_LIMIT = 50
 XP_LEVEL_THRESHOLDS = {1: 0, 2: 300, 3: 750, 4: 1300, 5: 2000}
 for target_level in range(6, MAX_LEVEL + 1):
     # Po 5. poziomie koszt awansu rośnie łagodnie: od 725 do 1200 XP.
@@ -1675,6 +1676,53 @@ async def generate_turn_image(payload: GenerateImageRequest, db: AsyncSession = 
         raise HTTPException(status_code=500, detail=f"Błąd generowania obrazu: {e}")
 
 # --- WebSocket Endpoint ---
+def chat_message_payload(message: ChatMessage) -> dict:
+    created_at = message.created_at
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    return {
+        "type": "CHAT_MESSAGE",
+        "character_id": message.character_id,
+        "author": message.author,
+        "character_class": message.character_class,
+        "text": message.text,
+        "time": created_at.isoformat(),
+    }
+
+
+async def get_recent_chat_messages(session_id: int) -> list[dict]:
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(ChatMessage)
+            .where(ChatMessage.session_id == session_id)
+            .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
+            .limit(CHAT_HISTORY_LIMIT)
+        )
+        messages = list(reversed(result.scalars().all()))
+    return [chat_message_payload(message) for message in messages]
+
+
+async def save_chat_message(
+    session_id: int,
+    character_id: int,
+    author: str,
+    character_class: str,
+    text: str,
+) -> dict:
+    message = ChatMessage(
+        session_id=session_id,
+        character_id=character_id,
+        author=author,
+        character_class=character_class,
+        text=text,
+        created_at=datetime.now(timezone.utc),
+    )
+    async with AsyncSessionLocal() as db:
+        db.add(message)
+        await db.commit()
+    return chat_message_payload(message)
+
+
 @app.websocket("/ws/{session_id}/{character_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: int, character_id: int):
     await ws_manager.connect(websocket, session_id, character_id)
@@ -1685,7 +1733,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: int, character_id
         "message": f"Gracz połączył się ze stołem gry."
     })
     # Wyślij historię czatu do połączonego gracza
-    history = ws_manager.get_chat_history(session_id)
+    history = await get_recent_chat_messages(session_id)
     if history:
         await websocket.send_text(json.dumps({
             "type": "CHAT_HISTORY",
@@ -1700,15 +1748,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: int, character_id
                 if msg.get("type") == "CHAT_MESSAGE":
                     text = msg.get("text", "").strip()
                     if text:
-                        chat_entry = {
-                            "type": "CHAT_MESSAGE",
-                            "character_id": character_id,
-                            "author": msg.get("author", "Gracz"),
-                            "character_class": msg.get("character_class", "Bohater"),
-                            "text": text,
-                            "time": datetime.now(timezone.utc).isoformat()
-                        }
-                        ws_manager.add_chat_message(session_id, chat_entry)
+                        chat_entry = await save_chat_message(
+                            session_id=session_id,
+                            character_id=character_id,
+                            author=msg.get("author", "Gracz"),
+                            character_class=msg.get("character_class", "Bohater"),
+                            text=text,
+                        )
                         await ws_manager.broadcast_to_session(session_id, chat_entry)
             except Exception as e:
                 logger.error(f"Błąd przetwarzania wiadomości WebSocket: {e}")

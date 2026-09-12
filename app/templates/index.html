@@ -45,12 +45,12 @@
   </script>
 
   <!-- Custom Stylesheet -->
-  <link rel="stylesheet" href="/static/css/style.css?v=13">
+  <link rel="stylesheet" href="/static/css/style.css?v=14">
 
   <!-- Alpine.js CDN -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
   <!-- App Logic -->
-  <script src="/static/js/app.js?v=14"></script>
+  <script src="/static/js/app.js?v=15"></script>
 </head>
 <body x-data="rpgGame" class="min-h-screen text-gray-200 antialiased selection:bg-amber-600 selection:text-white">
 
@@ -387,8 +387,32 @@
   <div x-show="isAuthenticated && session?.status !== 'lobby' && selectedCharacterId" class="min-h-screen flex flex-col">
     
     <!-- HEADER -->
-    <header class="bg-slate-950/90 border-b border-amber-900/40 sticky top-0 z-30 backdrop-blur-md px-4 lg:px-8 py-3">
-      <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+    <header class="mobile-header bg-slate-950/90 border-b border-amber-900/40 sticky top-0 z-30 backdrop-blur-md px-4 lg:px-8 py-3"
+            :class="{ 'mobile-header--collapsed': mobileHeaderCollapsed }">
+      <!-- Jednowierszowy nagłówek widoczny wyłącznie po zwinięciu na telefonie. -->
+      <button type="button" @click="mobileHeaderCollapsed = false"
+              class="mobile-header-summary w-full max-w-7xl mx-auto items-center justify-between gap-3 text-left"
+              :aria-expanded="(!mobileHeaderCollapsed).toString()" aria-label="Rozwiń panel sesji">
+        <span class="flex items-center gap-2 min-w-0">
+          <span class="text-lg shrink-0">🏰</span>
+          <span class="min-w-0">
+            <strong class="block truncate text-sm font-fantasy text-amber-300" x-text="session?.title"></strong>
+            <span class="block text-[10px] text-gray-400">
+              Tura #<b class="text-white" x-text="session?.current_turn_number"></b>
+              <span x-show="session?.active_boss"> • <span class="text-red-300" x-text="session?.active_boss?.name"></span></span>
+            </span>
+          </span>
+        </span>
+        <span class="flex items-center gap-2 shrink-0">
+          <span x-show="session?.active_boss" class="text-[10px] font-mono text-red-300"
+                x-text="'HP ' + session?.active_boss?.hp + '/' + session?.active_boss?.max_hp"></span>
+          <svg class="w-4 h-4 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        </span>
+      </button>
+
+      <div class="mobile-header-content max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center gap-3">
           <span class="text-2xl">🏰</span>
           <div>
@@ -401,6 +425,15 @@
         </div>
 
         <div class="flex items-center gap-3">
+          <button type="button" @click="mobileHeaderCollapsed = true"
+                  class="sm:hidden text-xs font-fantasy bg-slate-900 hover:bg-slate-800 border border-slate-700 text-gray-300 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5"
+                  aria-label="Zwiń panel sesji">
+            <span>Zwiń</span>
+            <svg class="w-3.5 h-3.5 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+          </button>
+
           <!-- Status gotowości w turze -->
           <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs">
             <span class="w-2 h-2 rounded-full" :class="wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'"></span>
@@ -462,7 +495,7 @@
 
       <!-- Pasek aktywnego przeciwnika pozostaje nad przewijaną kroniką. -->
       <div x-show="session?.active_boss" x-cloak
-           class="max-w-7xl mx-auto mt-3 p-3 rounded-xl border bg-gradient-to-r from-red-950/95 via-black to-red-950/95 shadow-2xl overflow-hidden"
+           class="mobile-header-content max-w-7xl mx-auto mt-3 p-3 rounded-xl border bg-gradient-to-r from-red-950/95 via-black to-red-950/95 shadow-2xl overflow-hidden"
            :class="session?.active_boss?.hp <= 0 ? 'border-slate-600/70' : 'border-red-700/60'">
         <div class="flex items-center justify-between gap-3 mb-1.5">
           <div class="flex items-center gap-2 min-w-0">
@@ -839,7 +872,25 @@
         </div>
 
         <!-- DOLNY PANEL AKCJI (ACTION BAR) -->
-        <div class="fantasy-card p-6 rounded-2xl border border-amber-900/50 sticky bottom-4 z-20 shadow-2xl backdrop-blur-lg">
+        <div class="mobile-action-panel fantasy-card p-6 rounded-2xl border border-amber-900/50 sticky bottom-4 z-20 shadow-2xl backdrop-blur-lg"
+             :class="{ 'mobile-action-panel--collapsed': mobileActionPanelCollapsed && hasSubmittedCurrentTurn && !session?.is_turn_resolving }">
+          <!-- Kompaktowy status zastępuje wysoki panel oczekiwania tylko na telefonie. -->
+          <button type="button" @click="mobileActionPanelCollapsed = false"
+                  class="mobile-action-summary items-center justify-between gap-3 w-full text-left"
+                  :aria-expanded="(!mobileActionPanelCollapsed).toString()" aria-label="Rozwiń panel wysłanej akcji">
+            <span class="flex items-center gap-2 min-w-0 text-emerald-300 font-fantasy text-xs font-semibold">
+              <span class="shrink-0">✓</span>
+              <span class="truncate">Akcja złożona na tę turę</span>
+            </span>
+            <span class="flex items-center gap-2 shrink-0 text-[10px] text-gray-400">
+              <span><b class="text-amber-300" x-text="readyCount"></b>/<span x-text="totalAlivePlayers"></span> gotowych</span>
+              <svg class="w-4 h-4 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </span>
+          </button>
+
+          <div class="mobile-action-content">
           
           <!-- Stan przetwarzania tury przez Gemini -->
           <div x-show="session?.is_turn_resolving" class="text-center py-6">
@@ -852,6 +903,14 @@
 
           <!-- Gracz już złożył akcję i czeka -->
           <div x-show="!session?.is_turn_resolving && hasSubmittedCurrentTurn" class="text-center py-4">
+            <button type="button" @click="mobileActionPanelCollapsed = true"
+                    class="sm:hidden ml-auto mb-3 inline-flex items-center gap-1.5 text-[11px] text-gray-400 hover:text-emerald-300 transition"
+                    aria-label="Zwiń panel wysłanej akcji">
+              <span>Zwiń panel</span>
+              <svg class="w-3.5 h-3.5 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </button>
             <div class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-950/60 border border-emerald-600/40 text-emerald-300 font-fantasy text-xs font-semibold">
               <span>✓</span> TWOJA AKCJA ZOSTAŁA ZŁOŻONA NA TĘ TURĘ
             </div>
@@ -928,6 +987,7 @@
                 <span x-show="isSubmittingAction">ZAPISYWANIE...</span>
               </button>
             </div>
+          </div>
           </div>
         </div>
       </section>

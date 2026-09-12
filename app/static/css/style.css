@@ -581,3 +581,31 @@ body {
   }
 }
 
+/* Mobile-only compact variants for sticky gameplay controls. */
+.mobile-header-summary,
+.mobile-action-summary {
+  display: none;
+}
+
+@media (max-width: 639px) {
+  .mobile-header--collapsed {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .mobile-header--collapsed .mobile-header-content,
+  .mobile-action-panel--collapsed .mobile-action-content {
+    display: none;
+  }
+
+  .mobile-header--collapsed .mobile-header-summary,
+  .mobile-action-panel--collapsed .mobile-action-summary {
+    display: flex;
+  }
+
+  .mobile-action-panel--collapsed {
+    padding: 0.75rem 1rem;
+    border-color: rgba(16, 185, 129, 0.38);
+  }
+}
+

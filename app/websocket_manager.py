@@ -9,18 +9,6 @@ class ConnectionManager:
     def __init__(self):
         # session_id -> list of (WebSocket, character_id)
         self.active_rooms: Dict[int, List[Dict[str, any]]] = {}
-        # session_id -> list of recent chat messages (max 50)
-        self.chat_history: Dict[int, List[Dict[str, any]]] = {}
-
-    def add_chat_message(self, session_id: int, message: dict):
-        if session_id not in self.chat_history:
-            self.chat_history[session_id] = []
-        self.chat_history[session_id].append(message)
-        if len(self.chat_history[session_id]) > 50:
-            self.chat_history[session_id] = self.chat_history[session_id][-50:]
-
-    def get_chat_history(self, session_id: int) -> List[dict]:
-        return list(self.chat_history.get(session_id, []))
 
     async def connect(self, websocket: WebSocket, session_id: int, character_id: int):
         await websocket.accept()
