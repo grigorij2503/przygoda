@@ -1,7 +1,10 @@
 import asyncio
+import hashlib
+import hmac
 import html
 import logging
 import re
+import time
 import unicodedata
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -72,6 +75,7 @@ from app.schemas import (
     TriggerNamingRequest,
     TurnDto,
     UpdatePersonalNoteRequest,
+    VerifyGmPinRequest,
     VerifyPasswordRequest,
 )
 from app.websocket_manager import ws_manager
@@ -84,6 +88,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 MAX_LEVEL = 25
 MAX_BASE_ATTRIBUTE = 12
 CHAT_HISTORY_LIMIT = 50
+GM_SESSION_COOKIE = "ttrpg_gm_session"
+GM_SESSION_TTL_SECONDS = 8 * 60 * 60
+GM_UNLOCK_MAX_ATTEMPTS = 5
+GM_UNLOCK_WINDOW_SECONDS = 5 * 60
+gm_unlock_attempts: dict[str, list[float]] = {}
 XP_LEVEL_THRESHOLDS = {1: 0, 2: 300, 3: 750, 4: 1300, 5: 2000}
 for target_level in range(6, MAX_LEVEL + 1):
     # Po 5. poziomie koszt awansu rośnie łagodnie: od 725 do 1200 XP.
@@ -107,6 +116,37 @@ ITEM_CLAIM_VERBS = (
     "strzal", "cios", "celuj", "tnij", "tne", "siek", "pchn", "kluj",
     "rzuc", "uderz", "rani", "zabij", "dobij",
 )
+
+
+def create_gm_session_token(expires_at: int) -> str:
+    payload = f"gm:{expires_at}"
+    signature = hmac.new(
+        settings.SECRET_KEY.encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return f"{expires_at}.{signature}"
+
+
+def is_gm_authenticated(request: Request) -> bool:
+    token = request.cookies.get(GM_SESSION_COOKIE, "")
+    try:
+        expires_raw, supplied_signature = token.split(".", 1)
+        expires_at = int(expires_raw)
+    except (TypeError, ValueError):
+        return False
+    if expires_at <= int(time.time()):
+        return False
+    expected_signature = create_gm_session_token(expires_at).split(".", 1)[1]
+    return secrets.compare_digest(supplied_signature, expected_signature)
+
+
+def require_gm(request: Request) -> None:
+    if not is_gm_authenticated(request):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Wymagane odblokowanie Narzędzi MG",
+        )
 CRAFTING_KEYWORDS = (
     "lacz", "polacz", "wzmacn", "ulepsz", "przekuw", "przerab", "wytwarz",
 )
@@ -278,6 +318,8 @@ async def lifespan(app: FastAPI):
     # Inicjalizacja bazy danych przy starcie
     await init_db()
     logger.info("Baza danych zainicjalizowana.")
+    if not settings.GM_PIN:
+        logger.warning("GM_PIN nie jest ustawiony. Narzędzia Mistrza Gry pozostaną zablokowane.")
     # Upewnij się, że istnieje domyślna sesja
     async for db in get_db():
         stmt = select(GameSession).where(GameSession.room_code == "kampania-1")
@@ -429,6 +471,59 @@ async def verify_password(payload: VerifyPasswordRequest):
     if payload.password == settings.ROOM_PASSWORD:
         return {"success": True, "message": "Autoryzacja pomyślna"}
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Nieprawidłowe hasło do pokoju gry")
+
+
+@app.get("/api/admin/status")
+async def get_admin_status(request: Request):
+    return {"authenticated": is_gm_authenticated(request)}
+
+
+@app.post("/api/admin/unlock")
+async def unlock_admin_tools(payload: VerifyGmPinRequest, response: Response, request: Request):
+    if not settings.GM_PIN:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="PIN Mistrza Gry nie jest skonfigurowany. Ustaw GM_PIN w pliku .env.",
+        )
+
+    client_key = request.client.host if request.client else "unknown"
+    now = time.monotonic()
+    recent_attempts = [
+        attempted_at
+        for attempted_at in gm_unlock_attempts.get(client_key, [])
+        if now - attempted_at < GM_UNLOCK_WINDOW_SECONDS
+    ]
+    gm_unlock_attempts[client_key] = recent_attempts
+    if len(recent_attempts) >= GM_UNLOCK_MAX_ATTEMPTS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Zbyt wiele nieudanych prób. Spróbuj ponownie za kilka minut.",
+            headers={"Retry-After": str(GM_UNLOCK_WINDOW_SECONDS)},
+        )
+    if not secrets.compare_digest(payload.pin, settings.GM_PIN):
+        gm_unlock_attempts[client_key].append(now)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Nieprawidłowy PIN Mistrza Gry",
+        )
+
+    gm_unlock_attempts.pop(client_key, None)
+    expires_at = int(time.time()) + GM_SESSION_TTL_SECONDS
+    response.set_cookie(
+        key=GM_SESSION_COOKIE,
+        value=create_gm_session_token(expires_at),
+        max_age=GM_SESSION_TTL_SECONDS,
+        httponly=True,
+        samesite="strict",
+        path="/",
+    )
+    return {"success": True, "expires_in": GM_SESSION_TTL_SECONDS}
+
+
+@app.post("/api/admin/lock")
+async def lock_admin_tools(response: Response):
+    response.delete_cookie(key=GM_SESSION_COOKIE, path="/", samesite="strict")
+    return {"success": True}
 
 @app.get("/api/session")
 async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = Depends(get_db)):
@@ -655,13 +750,17 @@ async def move_on_campaign_map(payload: MoveMapRequest, db: AsyncSession = Depen
     }
 
 @app.post("/api/generate-intro", response_model=GenerateIntroResponse)
-async def generate_intro(payload: GenerateIntroRequest):
+async def generate_intro(payload: GenerateIntroRequest, request: Request):
+    require_gm(request)
     return await generate_campaign_intro_ai(payload.scenario_type, payload.tone or "Dark Fantasy")
 
 @app.post("/api/session/reset-campaign")
-async def reset_campaign(payload: CreateSessionRequest, db: AsyncSession = Depends(get_db)):
-    if payload.password != settings.ROOM_PASSWORD:
-        raise HTTPException(status_code=401, detail="Nieprawidłowe hasło")
+async def reset_campaign(
+    payload: CreateSessionRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    require_gm(request)
 
     stmt = select(GameSession).where(GameSession.room_code == payload.room_code)
     res = await db.execute(stmt)
@@ -721,7 +820,12 @@ async def reset_campaign(payload: CreateSessionRequest, db: AsyncSession = Depen
     return {"success": False, "message": "Nie znaleziono sesji"}
 
 @app.post("/api/session/setup-scenario")
-async def setup_scenario(payload: SetupScenarioRequest, db: AsyncSession = Depends(get_db)):
+async def setup_scenario(
+    payload: SetupScenarioRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    require_gm(request)
     stmt = (
         select(GameSession)
         .where(GameSession.room_code == payload.room_code)

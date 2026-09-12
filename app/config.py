@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     GEMINI_FALLBACK_MODEL: str = "gemini-3.6-flash"
     IMAGEN_MODEL: str = "imagen-3.0-generate-002"
     ROOM_PASSWORD: str = "dragon2026"
+    GM_PIN: str = ""
     DATABASE_URL: str = f"sqlite+aiosqlite:///{BASE_DIR}/ttrpg_game.db"
     HOST: str = "0.0.0.0"
     PORT: int = 8000

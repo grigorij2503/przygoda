@@ -50,7 +50,7 @@
   <!-- Alpine.js CDN -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
   <!-- App Logic -->
-  <script src="/static/js/app.js?v=18"></script>
+  <script src="/static/js/app.js?v=19"></script>
 </head>
 <body x-data="rpgGame" class="min-h-screen text-gray-200 antialiased selection:bg-amber-600 selection:text-white">
 
@@ -136,8 +136,8 @@
               <span>📲</span> Zainstaluj PWA
             </button>
           </template>
-          <button @click="showIntroModal = true" class="text-xs font-fantasy bg-slate-900 hover:bg-slate-800 border border-indigo-500/40 text-indigo-300 px-3.5 py-2 rounded-lg transition flex items-center gap-1.5 shadow-sm">
-            <span>✨</span> Zmień Scenariusz
+          <button @click="openGmTools()" class="text-xs font-fantasy bg-slate-900 hover:bg-slate-800 border border-slate-700 text-gray-300 px-3.5 py-2 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+            <span>🔒</span> Narzędzia MG
           </button>
           <button @click="logout()" class="text-xs font-fantasy bg-red-950/60 hover:bg-red-900 border border-red-700/40 text-red-300 px-3.5 py-2 rounded-lg transition">
             Wyloguj
@@ -316,8 +316,8 @@
               <span>📲</span> Zainstaluj PWA
             </button>
           </template>
-          <button @click="showIntroModal = true" class="text-xs font-fantasy bg-slate-800 hover:bg-slate-700 border border-amber-500/30 text-amber-300 px-3 py-2 rounded-lg transition flex items-center gap-1.5">
-            <span>✨</span> Generator Scenariusza AI
+          <button @click="openGmTools()" class="text-xs font-fantasy bg-slate-800 hover:bg-slate-700 border border-slate-700 text-gray-300 px-3 py-2 rounded-lg transition flex items-center gap-1.5">
+            <span>🔒</span> Narzędzia MG
           </button>
           <button @click="logout()" class="text-xs font-fantasy bg-red-950/60 hover:bg-red-900 border border-red-700/40 text-red-300 px-3 py-2 rounded-lg transition">
             Wyloguj
@@ -479,11 +479,6 @@
             <span>📓</span> <span class="hidden md:inline">Mój Notes</span>
           </button>
 
-          <!-- Przycisk generatora scenariusza AI -->
-          <button @click="showIntroModal = true" title="Generator Kampanii AI" class="text-xs font-fantasy bg-slate-900 hover:bg-slate-800 border border-indigo-500/40 text-indigo-300 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5">
-            <span>✨</span> <span class="hidden md:inline">Scenariusz AI</span>
-          </button>
-
           <!-- Przycisk instalacji PWA w Headerze -->
           <template x-if="canInstallPWA">
             <button @click="installPWA()" title="Zainstaluj na urządzeniu"
@@ -495,6 +490,12 @@
           <!-- Przełącz postać / wyloguj -->
           <button @click="selectedCharacterId = null" class="text-xs font-fantasy bg-slate-900 hover:bg-slate-800 border border-slate-700 text-gray-300 px-3 py-1.5 rounded-lg transition">
             Zmień Postać
+          </button>
+
+          <!-- Operacje administracyjne są ukryte za sesją MG zabezpieczoną PIN-em. -->
+          <button @click="openGmTools()" title="Narzędzia Mistrza Gry"
+                  class="text-xs font-fantasy bg-slate-950 hover:bg-slate-900 border border-slate-800 text-gray-500 hover:text-gray-300 px-2.5 py-1.5 rounded-lg transition flex items-center gap-1.5">
+            <span>🔒</span> <span class="hidden xl:inline">MG</span>
           </button>
         </div>
       </div>
@@ -1777,16 +1778,46 @@
     </div>
   </div>
 
-  <!-- ==================== MODAL: GENERATOR KAMPANII & PROLOGU (AI) ==================== -->
+  <!-- ==================== MODAL: ODBLOKOWANIE NARZĘDZI MG ==================== -->
+  <div x-show="showGmAuthModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
+    <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-md w-full border border-slate-700 shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-fantasy font-bold text-amber-300 flex items-center gap-2">
+          <span>🔒</span> NARZĘDZIA MISTRZA GRY
+        </h3>
+        <button @click="showGmAuthModal = false; gmPin = ''; gmAuthError = ''" class="text-gray-400 hover:text-white text-lg">✕</button>
+      </div>
+      <p class="text-sm text-gray-400 mb-5">Ta sekcja zawiera operacje administracyjne. Wpisz osobny PIN Mistrza Gry.</p>
+
+      <form @submit.prevent="authenticateGm()" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-amber-400/90 uppercase tracking-widest mb-1">PIN Mistrza Gry</label>
+          <input type="password" inputmode="numeric" autocomplete="off" x-model="gmPin" placeholder="Wpisz PIN..."
+                 class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition">
+        </div>
+        <div x-show="gmAuthError" x-text="gmAuthError" class="text-rose-300 text-sm bg-rose-950/50 border border-rose-800/50 rounded-lg p-3"></div>
+        <button type="submit" :disabled="isAuthenticatingGm || !gmPin"
+                class="w-full py-3 bg-amber-600 hover:bg-amber-500 text-slate-950 font-fantasy font-bold rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed">
+          <span x-show="!isAuthenticatingGm">ODBLOKUJ</span>
+          <span x-show="isAuthenticatingGm">WERYFIKACJA...</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: NARZĘDZIA MG ==================== -->
   <div x-show="showIntroModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
     <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-xl w-full border border-amber-900/50 shadow-2xl">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-2xl font-fantasy font-bold text-amber-300 flex items-center gap-2">
-          <span>✨</span> SCENARIUSZE GEMINI AI
+          <span>⚙️</span> NARZĘDZIA MISTRZA GRY
         </h3>
-        <button @click="showIntroModal = false" class="text-gray-400 hover:text-white text-lg">✕</button>
+        <button @click="showIntroModal = false; resetConfirmation = ''" class="text-gray-400 hover:text-white text-lg">✕</button>
       </div>
-      <p class="text-xs text-gray-400 mb-5">Wybierz motyw przygody. Możesz wygenerować natychmiastowy Prolog dla Zebranej Drużyny lub zresetować stół.</p>
+      <div class="mb-5 p-4 rounded-xl bg-rose-950/40 border border-rose-800/60">
+        <p class="text-sm font-bold text-rose-300 mb-1">⚠️ Restart kampanii</p>
+        <p class="text-xs text-rose-200/80">Wybranie nowego scenariusza usunie wszystkie postacie, tury i bieżący postęp. Tej operacji nie można cofnąć.</p>
+      </div>
 
       <div class="space-y-4">
         <div>
@@ -1801,13 +1832,23 @@
         </div>
 
         <div>
-          <button @click="setupScenarioLobby()" :disabled="isGeneratingIntro"
-                  class="w-full py-3.5 bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-fantasy font-bold rounded-xl text-xs transition shadow-lg flex items-center justify-center gap-2 cursor-pointer">
-            <span>🏰</span>
-            <span x-show="!isGeneratingIntro">OTWÓRZ ZBIÓRKĘ DRUŻYNY DLA TEGO SCENARIUSZA</span>
-            <span x-show="isGeneratingIntro">TWORZENIE POCZEKALNI...</span>
+          <label class="block text-xs font-semibold text-rose-300 uppercase mb-1">Wpisz RESETUJ, aby potwierdzić</label>
+          <input type="text" x-model="resetConfirmation" autocomplete="off" spellcheck="false" placeholder="RESETUJ"
+                 class="w-full bg-slate-950 border border-rose-900/70 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-700 focus:border-rose-500 focus:outline-none">
+        </div>
+
+        <div>
+          <button @click="setupScenarioLobby()" :disabled="isGeneratingIntro || resetConfirmation !== 'RESETUJ'"
+                  class="w-full py-3.5 bg-rose-800 hover:bg-rose-700 text-rose-50 font-fantasy font-bold rounded-xl text-xs transition shadow-lg flex items-center justify-center gap-2 disabled:opacity-35 disabled:cursor-not-allowed">
+            <span>♻️</span>
+            <span x-show="!isGeneratingIntro">RESETUJ KAMPANIĘ I OTWÓRZ NOWĄ ZBIÓRKĘ</span>
+            <span x-show="isGeneratingIntro">RESETOWANIE KAMPANII...</span>
           </button>
         </div>
+
+        <button @click="lockGmTools()" type="button" class="w-full text-xs text-gray-500 hover:text-gray-300 transition">
+          🔒 Zablokuj Narzędzia MG
+        </button>
       </div>
     </div>
   </div>

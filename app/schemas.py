@@ -6,9 +6,12 @@ from pydantic import BaseModel, ConfigDict, Field
 class VerifyPasswordRequest(BaseModel):
     password: str
 
+class VerifyGmPinRequest(BaseModel):
+    pin: str = Field(min_length=1, max_length=128)
+
 class CreateSessionRequest(BaseModel):
     room_code: str
-    password: str
+    password: str = ""
     title: Optional[str] = "Wyprawa do Przeklętej Twierdzy"
     setting_theme: Optional[str] = "Mroczne Podziemia"
     campaign_intro: Optional[str] = ""

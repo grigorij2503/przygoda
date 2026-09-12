@@ -35,6 +35,7 @@ document.addEventListener('alpine:init', () => {
     // Modals
     showCharModal: false,
     showIntroModal: false,
+    showGmAuthModal: false,
     showLightbox: false,
     showNamingModal: false,
     showLoreBookModal: false,
@@ -84,6 +85,11 @@ document.addEventListener('alpine:init', () => {
     isGeneratingIntro: false,
     isApplyingIntro: false,
     isGeneratingPrologue: false,
+    isGmAuthenticated: false,
+    isAuthenticatingGm: false,
+    gmPin: '',
+    gmAuthError: '',
+    resetConfirmation: '',
 
     // Party Chat
     chatMessages: [],
@@ -288,8 +294,15 @@ document.addEventListener('alpine:init', () => {
     },
 
     logout() {
+      fetch('/api/admin/lock', { method: 'POST' }).catch(() => {});
       this.clearNotifications();
       this.isAuthenticated = false;
+      this.isGmAuthenticated = false;
+      this.showGmAuthModal = false;
+      this.showIntroModal = false;
+      this.gmPin = '';
+      this.gmAuthError = '';
+      this.resetConfirmation = '';
       this.selectedCharacterId = null;
       localStorage.removeItem('rpg_room_pw');
       localStorage.removeItem('rpg_selected_char');
@@ -301,6 +314,70 @@ document.addEventListener('alpine:init', () => {
       this.hasUnreadTurn = false;
       this.newInventoryItemIds = [];
       this.inventoryFilter = 'all';
+    },
+
+    // --- Narzędzia Mistrza Gry ---
+    async openGmTools() {
+      this.gmAuthError = '';
+      try {
+        const res = await fetch('/api/admin/status');
+        if (!res.ok) throw new Error('Nie udało się sprawdzić dostępu MG.');
+        const data = await res.json();
+        this.isGmAuthenticated = data.authenticated === true;
+        if (this.isGmAuthenticated) {
+          this.resetConfirmation = '';
+          this.showIntroModal = true;
+        } else {
+          this.gmPin = '';
+          this.showGmAuthModal = true;
+        }
+      } catch (err) {
+        this.addToast(err.message, 'error');
+      }
+    },
+
+    async authenticateGm() {
+      this.gmAuthError = '';
+      this.isAuthenticatingGm = true;
+      try {
+        const res = await fetch('/api/admin/unlock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin: this.gmPin })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || 'Nie udało się odblokować Narzędzi MG.');
+        this.isGmAuthenticated = true;
+        this.showGmAuthModal = false;
+        this.gmPin = '';
+        this.resetConfirmation = '';
+        this.showIntroModal = true;
+      } catch (err) {
+        this.gmAuthError = err.message;
+      } finally {
+        this.isAuthenticatingGm = false;
+      }
+    },
+
+    async lockGmTools() {
+      try {
+        await fetch('/api/admin/lock', { method: 'POST' });
+      } finally {
+        this.isGmAuthenticated = false;
+        this.showIntroModal = false;
+        this.showGmAuthModal = false;
+        this.gmPin = '';
+        this.resetConfirmation = '';
+        this.addToast('Narzędzia MG zostały zablokowane.', 'info');
+      }
+    },
+
+    requireGmUnlock() {
+      this.isGmAuthenticated = false;
+      this.showIntroModal = false;
+      this.gmPin = '';
+      this.gmAuthError = 'Sesja MG wygasła. Wpisz PIN ponownie.';
+      this.showGmAuthModal = true;
     },
 
     // --- Pobieranie Stanu Sesji ---
@@ -1436,6 +1513,10 @@ document.addEventListener('alpine:init', () => {
     },
 
     async setupScenarioLobby() {
+      if (this.resetConfirmation !== 'RESETUJ') {
+        this.addToast('Wpisz RESETUJ, aby potwierdzić restart kampanii.', 'warning');
+        return;
+      }
       this.isGeneratingIntro = true;
       try {
         const res = await fetch('/api/session/setup-scenario', {
@@ -1447,8 +1528,16 @@ document.addEventListener('alpine:init', () => {
             tone: this.scenarioTone
           })
         });
-        if (!res.ok) throw new Error('Błąd inicjowania poczekalni.');
+        if (res.status === 403) {
+          this.requireGmUnlock();
+          return;
+        }
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || 'Błąd inicjowania poczekalni.');
+        }
         this.showIntroModal = false;
+        this.resetConfirmation = '';
         this.addToast('🏰 Otwarto Zbiórkę Drużyny dla nowego scenariusza!', 'success');
         await this.fetchSession();
       } catch (err) {
@@ -1777,6 +1866,10 @@ document.addEventListener('alpine:init', () => {
             tone: this.scenarioTone
           })
         });
+        if (res.status === 403) {
+          this.requireGmUnlock();
+          return;
+        }
         if (!res.ok) throw new Error('Błąd generowania wstępu przez Gemini.');
         const data = await res.json();
         this.generatedIntro = data;
@@ -1800,12 +1893,15 @@ document.addEventListener('alpine:init', () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             room_code: this.roomCode,
-            password: this.roomPassword,
             title: this.generatedIntro.title,
             setting_theme: this.generatedIntro.setting_theme,
             campaign_intro: this.generatedIntro.campaign_intro + '\n\n' + this.generatedIntro.first_challenge
           })
         });
+        if (res.status === 403) {
+          this.requireGmUnlock();
+          return;
+        }
         if (!res.ok) {
           const err = await res.json();
           throw new Error(err.detail || 'Błąd resetowania kampanii.');

@@ -3,6 +3,7 @@ import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy import select
 from app.main import app
+from app.config import settings
 from app.database import get_db
 from app.models import GameSession, Character, Turn
 
@@ -11,9 +12,24 @@ async def setup_app_lifespan():
     async with app.router.lifespan_context(app):
         yield
 
+
 @pytest.mark.asyncio
-async def test_lobby_and_ready_check_flow():
+async def test_scenario_reset_requires_gm_unlock():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        response = await ac.post("/api/session/setup-scenario", json={
+            "room_code": "kampania-1",
+            "scenario_type": "Krypta Pradawnego Króla Lichów",
+        })
+        assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_lobby_and_ready_check_flow(monkeypatch):
+    monkeypatch.setattr(settings, "GM_PIN", "test-gm-pin")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        unlock_res = await ac.post("/api/admin/unlock", json={"pin": "test-gm-pin"})
+        assert unlock_res.status_code == 200
+
         # 1. Inicjalizacja Lobby dla nowego scenariusza
         setup_res = await ac.post("/api/session/setup-scenario", json={
             "room_code": "kampania-1",
