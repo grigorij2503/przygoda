@@ -567,22 +567,22 @@
       <section class="lg:col-span-8 flex flex-col gap-6">
         
         <!-- BANER OCZEKIWANIA NA NAZWĘ (LORE NAMING) -->
-        <div x-show="pendingNaming" class="p-4 rounded-xl border border-amber-500/50 bg-amber-950/30 flex items-center justify-between gap-3 animate-pulse">
-          <div class="flex items-center gap-3">
+        <div x-show="pendingNaming" class="p-4 rounded-xl border border-amber-500/50 bg-amber-950/30 flex flex-wrap items-center justify-between gap-3 animate-pulse">
+          <div class="flex min-w-0 items-center gap-3">
             <span class="text-2xl" x-text="pendingNaming?.category === 'boss' ? '👑' : pendingNaming?.category === 'weapon' ? '🗡️' : pendingNaming?.category === 'location' ? '🏰' : '💥'"></span>
             <div>
               <span class="text-xs uppercase font-fantasy text-amber-400 font-bold block" x-text="'Odkrycie: ' + pendingNaming?.category"></span>
               <p class="text-xs text-gray-200" x-text="pendingNaming?.prompt"></p>
             </div>
           </div>
-          <div>
+          <div class="ml-auto shrink-0">
             <template x-if="pendingNaming?.character_id === selectedCharacterId">
               <button @click="showNamingModal = true" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-slate-950 font-fantasy font-bold rounded-lg text-xs shadow-lg transition">
                 NADAJ NAZWĘ!
               </button>
             </template>
             <template x-if="pendingNaming?.character_id !== selectedCharacterId">
-              <span class="text-[11px] font-mono text-amber-300 bg-amber-950/80 px-2.5 py-1 rounded border border-amber-600/40"
+              <span class="inline-block whitespace-nowrap text-[11px] font-mono text-amber-300 bg-amber-950/80 px-2.5 py-1 rounded border border-amber-600/40"
                     x-text="'Czekamy na: ' + pendingNaming?.character_name"></span>
             </template>
           </div>
