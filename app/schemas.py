@@ -9,6 +9,24 @@ class VerifyPasswordRequest(BaseModel):
 class VerifyGmPinRequest(BaseModel):
     pin: str = Field(min_length=1, max_length=128)
 
+class WebPushKeys(BaseModel):
+    p256dh: str = Field(min_length=1, max_length=512)
+    auth: str = Field(min_length=1, max_length=256)
+
+class BrowserPushSubscription(BaseModel):
+    endpoint: str = Field(min_length=1, max_length=2048)
+    keys: WebPushKeys
+
+class SavePushSubscriptionRequest(BaseModel):
+    room_code: str = Field(min_length=1, max_length=50)
+    password: str
+    character_id: int
+    subscription: BrowserPushSubscription
+
+class DeletePushSubscriptionRequest(BaseModel):
+    password: str
+    endpoint: str = Field(min_length=1, max_length=2048)
+
 class CreateSessionRequest(BaseModel):
     room_code: str
     password: str = ""

@@ -30,6 +30,53 @@ def test_deduce_tested_attribute():
     action_cha = "Krzyczę donośnym głosem, próbując zastraszyć strażników i nakłonić ich do negocjacji."
     assert deduce_tested_attribute(action_cha, char) == "charisma"
 
+
+@pytest.mark.parametrize(
+    ("action_text", "expected_stat"),
+    [
+        ("Używam magii ognia, aby rozświetlić drogę, i schodzę za drużyną.", "intellect"),
+        ("Próbuję wyważyć kamienne drzwi barkiem.", "strength"),
+        ("Otwieram zamek wytrychem, zachowując pełną precyzję.", "agility"),
+        ("Przekonuję strażnika, że jesteśmy posłańcami króla.", "charisma"),
+        ("Atakuję przeciwnika z łuku.", "agility"),
+        ("Rzucam zaklęcie ochronne na drużynę.", "intellect"),
+        ("Precyzyjnie rzucam zaklęcie ognia w ciasne przejście.", "intellect"),
+        ("Rozbijam młotem magiczną barierę.", "strength"),
+        ("Strzelam z łuku do czarodzieja.", "agility"),
+    ],
+)
+def test_deduce_tested_attribute_handles_inflection_and_context(
+    action_text: str,
+    expected_stat: str,
+):
+    char = Character(
+        id=1,
+        player_name="Piotr",
+        name="Thorgal",
+        character_class="Wojownik",
+        strength=5,
+        agility=1,
+        intellect=0,
+        charisma=1,
+    )
+
+    assert deduce_tested_attribute(action_text, char) == expected_stat
+
+
+def test_deduce_tested_attribute_uses_best_character_stat_only_as_fallback():
+    char = Character(
+        id=1,
+        player_name="Piotr",
+        name="Thorgal",
+        character_class="Wojownik",
+        strength=5,
+        agility=1,
+        intellect=0,
+        charisma=1,
+    )
+
+    assert deduce_tested_attribute("Idę za drużyną w dół schodów.", char) == "strength"
+
 def test_calculate_item_modifier():
     char = Character(
         id=1,

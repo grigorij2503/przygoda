@@ -1,51 +1,94 @@
 import re
 import secrets
+import unicodedata
 from typing import Tuple
 from app.inventory import get_effectively_equipped_items
 from app.models import Character
 
-ATTRIBUTE_KEYWORDS = {
-    "strength": [
-        "atak", "uderz", "miecz", "topór", "młot", "rozbij", "wyważ", "pchnij",
-        "zepchnij", "podnieś", "wyłam", "tarcza", "powal", "szarża", "cios",
-        "cięcie", "zniszcz", "rąb", "zgnieć", "krzepa", "siła", "wręcz"
-    ],
-    "agility": [
-        "łuk", "strzał", "kusza", "sztylet", "unik", "uskocz", "przekrad", "skrad",
-        "skocz", "wspin", "zwin", "ukryj", "uciek", "rzuć", "wytrych", "pułapk",
-        "kradzież", "zwód", "wślizg", "dystans", "zręczn"
-    ],
-    "intellect": [
-        "czar", "zaklę", "magia", "ogień", "laska", "księg", "zbadaj", "rozpozn",
-        "analiz", "wiedz", "przypomn", "rozszyfr", "zwoj", "skupien", "medytac",
-        "wykryj", "runa", "alchemi", "rozum", "inteligencj", "wytrop"
-    ],
-    "charisma": [
-        "perswaz", "przekon", "zastrasz", "negocj", "blef", "okłam", "krzycz",
-        "dowodzen", "zainspir", "modlitw", "bóstw", "urok", "dyplomac", "uspokój",
-        "zawoł", "charyzm", "błag", "dyskusj"
-    ]
+_POLISH_CHAR_TRANSLATION = str.maketrans("ąćęłńóśźż", "acelnoszz")
+
+# Reguły korzystają z rdzeni słów, aby obejmować polską odmianę. Waga 4 oznacza
+# jawną deklarację cechy lub magii, 3 jednoznaczny sposób wykonania akcji,
+# 2 mocny kontekst, a 1 jedynie poszlakę.
+ATTRIBUTE_RULES: dict[str, tuple[tuple[str, int], ...]] = {
+    "strength": (
+        (r"\b(?:sila|sily|sile)\b", 4),
+        (r"\b(?:silny\w*|krzep\w*|muskul\w*)\b", 3),
+        (r"\b(?:miecz\w*|topor\w*|mlot\w*|maczug\w*|halabard\w*|wloczni\w*)\b", 3),
+        (r"\b(?:uderz\w*|cios\w*|tn\w*|cieci\w*|rab\w*|rozbij\w*|zgnie\w*)\b", 2),
+        (r"\b(?:wywaz\w*|wylam\w*|pchn\w*|zepchn\w*|podn\w*|dzwig\w*|przesun\w*)\b", 2),
+        (r"\b(?:powal\w*|szarz\w*|siluj\w*|kop\w*|chwyt\w*|zapas\w*|piesc\w*|bark\w*)\b", 2),
+        (r"\b(?:walka\s+wrecz|wrecz|tarcza\w*|blok\w*|paruj\w*)\b", 2),
+    ),
+    "agility": (
+        (r"\bzrecz\w*\b", 4),
+        (r"\b(?:precyz\w*|celn\w*|refleks\w*)\b", 3),
+        (r"\b(?:luk\w*|kusz\w*|proca\w*|strzal\w*|strzel\w*|belt\w*)\b", 3),
+        (r"\b(?:unik\w*|uskocz\w*|odskocz\w*|przekrad\w*|skrad\w*|ukry\w*)\b", 2),
+        (r"\b(?:skocz\w*|wspin\w*|wslizg\w*|czolg\w*|akrobat\w*|balans\w*|uciek\w*)\b", 2),
+        (r"\b(?:wytrych\w*|pulapk\w*|krad\w*|kieszon\w*|zwod\w*)\b", 2),
+        (r"\b(?:sztylet\w*|noz\w*|rapier\w*|dystans\w*|celuj\w*)\b", 2),
+        (r"\b(?:rzuc\w*|szybk\w*|cich\w*|zwinn\w*)\b", 1),
+    ),
+    "intellect": (
+        (r"\b(?:rozum\w*|intelekt\w*|logik\w*)\b", 4),
+        (r"\b(?:magi(?:a|i|e|o)?|czar(?!odziej|ownic)\w*|zakle\w*|wyczar\w*|inkant\w*|rytual\w*)\b", 4),
+        (r"\bmagiczn\w*\b", 2),
+        (r"\b(?:mana\w*|run\w*|zwoj\w*|artefakt\w*|alchemi\w*|eliksir\w*)\b", 3),
+        (r"\b(?:nekrom\w*|telepat\w*|iluzj\w*|przyzyw\w*|zaklin\w*|medyt\w*)\b", 3),
+        (r"\b(?:kula\s+ognia|ognist\w*\s+kula\w*|blyskawic\w*|telekinez\w*|teleport\w*)\b", 3),
+        (r"\b(?:bada\w*|zbada\w*|analiz\w*|rozpozn\w*|rozszyfr\w*|odczyt\w*)\b", 2),
+        (r"\b(?:wiedz\w*|przypomn\w*|histori\w*|legend\w*|zagad\w*|deduk\w*)\b", 2),
+        (r"\b(?:wykry\w*|wytrop\w*|trop\w*|nasluch\w*|obserw\w*|dostrzeg\w*)\b", 2),
+        (r"\b(?:ksieg\w*|bibliotek\w*|map\w*|mechanizm\w*|slad\w*|skup\w*)\b", 1),
+    ),
+    "charisma": (
+        (r"\b(?:charyzm\w*|autorytet\w*|retory\w*)\b", 4),
+        (r"\b(?:perswad\w*|przekon\w*|zastrasz\w*|negocj\w*|dyplomac\w*)\b", 3),
+        (r"\b(?:blef\w*|oklam\w*|oszuk\w*|uwodz\w*|flirt\w*|urok\w*)\b", 3),
+        (r"\b(?:dowodz\w*|rozkaz\w*|zainspir\w*|przemow\w*|motyw\w*)\b", 2),
+        (r"\b(?:uspok\w*|pociesz\w*|blag\w*|dyskut\w*|wypyt\w*|targuj\w*|naklon\w*)\b", 2),
+        (r"\b(?:krzycz\w*|zawol\w*|spiew\w*|wystep\w*|opowiad\w*)\b", 1),
+        (r"\b(?:modlitw\w*|modl\w*|bostw\w*|kaplan\w*)\b", 2),
+    ),
 }
+
+
+def _normalize_action_text(action_text: str) -> str:
+    normalized = unicodedata.normalize("NFKD", action_text.casefold())
+    normalized = normalized.translate(_POLISH_CHAR_TRANSLATION)
+    normalized = "".join(char for char in normalized if not unicodedata.combining(char))
+    return re.sub(r"[^a-z0-9]+", " ", normalized).strip()
+
 
 def deduce_tested_attribute(action_text: str, character: Character) -> str:
     """
     Dedukuje najbardziej adekwatną statystykę do rzutu na podstawie tekstu akcji gracza.
     Jeżeli akcja nie zawiera wyraźnych słów kluczowych, bierze najwyższą pasującą statystykę postaci.
     """
-    cleaned_text = action_text.lower()
+    cleaned_text = _normalize_action_text(action_text)
     scores = {"strength": 0, "agility": 0, "intellect": 0, "charisma": 0}
+    strongest_evidence = {stat: 0 for stat in scores}
 
-    for stat, keywords in ATTRIBUTE_KEYWORDS.items():
-        for kw in keywords:
-            if kw in cleaned_text:
-                scores[stat] += 1
+    for stat, rules in ATTRIBUTE_RULES.items():
+        for pattern, weight in rules:
+            if re.search(pattern, cleaned_text):
+                scores[stat] += weight
+                strongest_evidence[stat] = max(strongest_evidence[stat], weight)
 
-    # Sprawdź statystykę z największą liczbą dopasowań słów kluczowych
-    best_stat = max(scores, key=scores.get)
-    if scores[best_stat] > 0:
-        return best_stat
+    # Najpierw liczy się najbardziej jednoznaczna przesłanka, potem suma kontekstu.
+    # Dzięki temu np. jawne "zaklęcie" nie przegrywa z kilkoma słabszymi
+    # określeniami ruchu. Dopiero pełny remis rozstrzyga mocniejsza cecha postaci.
+    ranks = {
+        stat: (strongest_evidence[stat], scores[stat])
+        for stat in scores
+    }
+    best_rank = max(ranks.values())
+    if best_rank > (0, 0):
+        candidates = [stat for stat, rank in ranks.items() if rank == best_rank]
+        return max(candidates, key=lambda stat: getattr(character, stat, 0))
 
-    # Fallback: zależnie od klasy postaci lub najwyższej statystyki postaci
+    # Fallback dla akcji bez rozpoznawalnego kontekstu: najwyższa statystyka postaci.
     char_stats = {
         "strength": character.strength,
         "agility": character.agility,
@@ -53,6 +96,7 @@ def deduce_tested_attribute(action_text: str, character: Character) -> str:
         "charisma": character.charisma
     }
     return max(char_stats, key=char_stats.get)
+
 
 def calculate_item_modifier(character: Character, tested_stat: str) -> int:
     """
@@ -63,6 +107,7 @@ def calculate_item_modifier(character: Character, tested_stat: str) -> int:
         if item.target_stat == tested_stat or item.target_stat == "all":
             modifier += item.stat_bonus
     return modifier
+
 
 def resolve_dice_roll(
     action_text: str,

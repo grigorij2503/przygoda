@@ -36,6 +36,11 @@ class GameSession(Base):
     turns = relationship("Turn", back_populates="session", cascade="all, delete-orphan")
     lore_entities = relationship("NamedLoreEntity", back_populates="session", cascade="all, delete-orphan")
     chat_messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
+    push_subscriptions = relationship(
+        "WebPushSubscription",
+        back_populates="session",
+        cascade="all, delete-orphan",
+    )
     campaign_map = relationship(
         "CampaignMap",
         back_populates="session",
@@ -70,6 +75,27 @@ class Character(Base):
     session = relationship("GameSession", back_populates="characters")
     inventory = relationship("InventoryItem", back_populates="character", cascade="all, delete-orphan")
     actions = relationship("PlayerAction", back_populates="character", cascade="all, delete-orphan")
+
+
+class WebPushSubscription(Base):
+    __tablename__ = "web_push_subscriptions"
+
+    id = Column(Integer, primary_key=True)
+    session_id = Column(Integer, ForeignKey("game_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    character_id = Column(Integer, ForeignKey("characters.id", ondelete="CASCADE"), nullable=False, index=True)
+    endpoint = Column(String(2048), nullable=False, unique=True)
+    p256dh = Column(String(512), nullable=False)
+    auth = Column(String(256), nullable=False)
+    user_agent = Column(String(500), nullable=False, default="")
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    session = relationship("GameSession", back_populates="push_subscriptions")
 
 
 class InventoryItem(Base):
