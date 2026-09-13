@@ -55,6 +55,8 @@ async def init_db():
             ("characters", "personal_note", "TEXT NOT NULL DEFAULT ''"),
             ("characters", "unspent_stat_points", "INTEGER NOT NULL DEFAULT 0"),
             ("characters", "status_effects", "JSON"),
+            ("characters", "death_state", "VARCHAR(20) NOT NULL DEFAULT 'alive'"),
+            ("characters", "death_failures", "INTEGER NOT NULL DEFAULT 0"),
             ("inventory_items", "hands_required", "INTEGER NOT NULL DEFAULT 1"),
             ("inventory_items", "damage_power", "INTEGER NOT NULL DEFAULT 0"),
             ("turns", "suggested_actions", "TEXT"),

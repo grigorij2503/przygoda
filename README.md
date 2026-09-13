@@ -1,6 +1,6 @@
 # ⚔️ Gemini TTRPG Master (Multiplayer Turn-Based Web Game)
 
-Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**, prowadzonych przez sztuczną inteligencję (**Gemini 3.8 Flash** jako Mistrz Gry). Backend odpowiada za rzuty, zasady walki, rozwój postaci, ekwipunek i stan kampanii, a klienci synchronizują się w czasie rzeczywistym. Aplikacja obsługuje również mapę kampanii, bossów, magię, łup, crafting, czat, Web Push i generowanie ilustracji na żądanie (**Imagen 3**).
+Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**, prowadzonych przez sztuczną inteligencję (**Gemini 3.8 Flash** jako Mistrz Gry). Backend odpowiada za rzuty, zasady walki, rozwój postaci, ekwipunek i stan kampanii, a klienci synchronizują się w czasie rzeczywistym. Aplikacja obsługuje również mapę kampanii, kategoryzowaną Kronikę Świata, bossów, magię, łup, crafting, czat, Web Push i generowanie ilustracji na żądanie (**Imagen 3**).
 
 ---
 
@@ -39,20 +39,24 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
 8. **Mapa Kampanii:**
    - Proceduralna mapa powiązana z sesją, odkrywanie lokacji i przechodzenie wyłącznie pomiędzy sąsiednimi węzłami.
    - Historia odkrytych miejsc jest przechowywana w bazie i synchronizowana między graczami.
+   - Widok automatycznie kadruje odkryty obszar, obsługuje powiększanie, pomniejszanie, przeciąganie oraz szybki powrót do pozycji drużyny.
 9. **Walka z Bossami i Efekty Statusu:**
    - Skalowane HP, pancerz, DC obrony, fazy, cechy specjalne i zapowiadane akcje bossa.
-   - Osobne rozstrzyganie ataku, obrony, wsparcia i efektów czasowych postaci oraz przeciwnika.
+   - Osobne rozstrzyganie ataku, obrony, wsparcia wskazanego sojusznika i efektów czasowych postaci oraz przeciwnika.
+   - Jawne stany `agonia → stabilny / śmierć`: postać w agonii otrzymuje jedną porażkę śmierci na turę, trzecia oznacza zgon; wsparcie może stabilizować lub podnieść bohatera.
 10. **Magia Klasowa:**
     - Księga czarów Czarodzieja oraz modlitwy i cuda Kleryka.
     - Zdolności odblokowywane poziomami, walidowane po stronie backendu i powiązane z właściwą cechą postaci.
+    - Kleryk od 7. poziomu otrzymuje Wskrzeszenie, które jako jedyne zwykłe działanie może przywrócić poległego bohatera (25% PW, a przy krytycznym sukcesie 50% PW).
 11. **Łup, Ekwipunek i Crafting:**
     - Łup z przeszukiwania lokacji i wspólna nagroda po pokonaniu bossa.
     - Typy, rzadkość, obrażenia, zajęte ręce i limity wyposażenia są egzekwowane przez backend.
     - Crafting zużywa trzy zgodne przedmioty i jest dostępny przez jedną turę po pokonaniu bossa.
 12. **Narzędzia Społecznościowe i MG:**
     - Trwały czat drużyny, wzmianki, osobiste notatki oraz wspólne nadawanie nazw elementom świata.
+    - Kronika Świata automatycznie porządkuje nazwane odkrycia w działach: bossowie, miejsca, napotkani NPC, oręż i artefakty oraz ataki drużynowe; Gemini może wskazać napotkanego NPC do nazwania przez gracza.
     - Panel narzędzi administracyjnych jest odblokowywany osobnym `GM_PIN`; zawiera m.in. konfigurację scenariusza, reset kampanii, ponowienie i ręczne rozstrzygnięcie tury.
-    - Interfejs działa jako instalowalna PWA z service workerem i układem dostosowanym do urządzeń mobilnych.
+    - Interfejs działa jako instalowalna PWA z service workerem, kompaktowym mobilnym panelem akcji, czytelniejszą typografią, semantycznymi modalami, obsługą klawiatury i trybem ograniczonego ruchu.
 
 ---
 
@@ -63,10 +67,10 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
 │   ├── __init__.py
 │   ├── config.py              # Konfiguracja Pydantic V2 i zmienne .env
 │   ├── database.py            # Asynchroniczny silnik SQLAlchemy (SQLite / aiosqlite)
-│   ├── models.py              # Modele ORM sesji, postaci, tur, czatu, mapy, push i głosowań
+│   ├── models.py              # Modele ORM sesji, postaci, tur, nazwanych elementów świata, czatu, mapy, push i głosowań
 │   ├── schemas.py             # Schematy Pydantic i Structured Output JSON dla Gemini
 │   ├── dice.py                # Serwerowe rzuty d20 i dedukcja atrybutów
-│   ├── combat.py              # Intencje akcji, obrażenia, bossowie i efekty statusu
+│   ├── combat.py              # Intencje, wsparcie celowane, agonia/śmierć, bossowie i statusy
 │   ├── inventory.py           # Sloty, zajęte ręce i aktywny ekwipunek
 │   ├── loot.py                # Łup, przeszukiwanie i crafting
 │   ├── magic.py               # Zdolności Czarodzieja i Kleryka
@@ -77,8 +81,8 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
 │   ├── websocket_manager.py   # Menedżer WebSockets i broadcast zdarzeń
 │   ├── main.py                # Aplikacja FastAPI, routing REST, cykl tury, WebSockets
 │   ├── static/
-│   │   ├── css/style.css      # Style Dark Fantasy i responsywny interfejs
-│   │   ├── js/app.js          # Alpine.js, WebSockets, interakcje i Lightbox
+│   │   ├── css/style.css      # Style Dark Fantasy, dostępność i responsywny interfejs
+│   │   ├── js/app.js          # Alpine.js, WebSockets, kategoryzowana kronika, mapa i obsługa modali
 │   │   ├── manifest.json      # Manifest instalowalnej PWA
 │   │   ├── sw.js              # Service worker i obsługa Web Push
 │   │   └── icons/             # Ikony aplikacji

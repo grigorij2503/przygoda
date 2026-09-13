@@ -92,6 +92,8 @@ class CharacterDto(BaseModel):
     charisma: int
     unspent_stat_points: int = 0
     is_alive: bool
+    death_state: str = "alive"
+    death_failures: int = 0
     is_ready: bool = False
     status_effects: List[dict] = []
     magic_book: Optional[dict] = None
@@ -191,8 +193,10 @@ class PlayerConsequenceSchema(BaseModel):
     removed_item_names: List[str] = Field(default_factory=list, description="Nazwy zużytych lub utraconych przedmiotów")
 
 class NamingOpportunitySchema(BaseModel):
-    category: Literal["boss", "location", "weapon", "attack"] = Field(description="Kategoria: boss, location (lokacja), weapon (broń/artefakt) lub attack (zespołowy atak)")
-    description: str = Field(description="Opis odkrytego elementu, np. 'Monstrualny demon o płonących rogach' lub 'Ukryta komnata pełna starych ksiąg'")
+    category: Literal["boss", "location", "npc", "weapon", "attack"] = Field(
+        description="Kategoria: boss, location (lokacja), npc (napotkana postać), weapon (broń/artefakt) lub attack (zespołowy atak)"
+    )
+    description: str = Field(description="Opis odkrytego elementu, np. 'Monstrualny demon o płonących rogach', 'Milcząca zielarka z blizną' lub 'Ukryta komnata pełna starych ksiąg'")
     prompt_for_player: str = Field(description="Pytanie zachęcające gracza do nazwania, np. 'Jak nazwiesz tego przerażającego władcę cieni?'")
 
 class MapLocationUpdateSchema(BaseModel):
@@ -216,7 +220,7 @@ class GeminiTurnResolutionSchema(BaseModel):
         default_factory=list,
         description="Dokładnie 3 konkretne, zróżnicowane podpowiedzi taktyczne lub ścieżki działania dla drużyny na kolejną turę (np. natarcie/siła, spryt/flanka, wiedza/magia)"
     )
-    naming_opportunity: Optional[NamingOpportunitySchema] = Field(default=None, description="Opcjonalna okazja do nazwania nowego bossa, niezwykłej lokacji, potężnej broni lub ataku zespołowego przez gracza")
+    naming_opportunity: Optional[NamingOpportunitySchema] = Field(default=None, description="Opcjonalna okazja do nazwania nowego bossa, niezwykłej lokacji, napotkanego NPC, potężnej broni lub ataku zespołowego przez gracza")
     map_update: Optional[MapLocationUpdateSchema] = Field(
         default=None,
         description="Aktualizacja kroniki mapy; nie może tworzyć lokacji ani przejść spoza przekazanej mapy",
@@ -232,7 +236,7 @@ class NameEntityRequest(BaseModel):
 
 class TriggerNamingRequest(BaseModel):
     session_id: int
-    category: str
+    category: Literal["boss", "location", "npc", "weapon", "attack"]
     description: str
     prompt_for_player: Optional[str] = "Jak nazwiesz to odkrycie?"
 

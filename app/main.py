@@ -34,6 +34,7 @@ from app.combat import (
     infer_item_damage_power,
     resolve_boss_turn,
     resolve_status_turn,
+    set_character_downed,
     status_list,
     status_roll_penalty,
 )
@@ -926,6 +927,10 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
     if not game_session:
         raise HTTPException(status_code=404, detail="Sesja nie została znaleziona")
     session_changed = ensure_boss_encounter(game_session, game_session.characters)
+    for character in game_session.characters:
+        if character.current_hp <= 0 and getattr(character, "death_state", "alive") == "alive":
+            set_character_downed(character)
+            session_changed = True
     if game_session.campaign_map is None:
         game_session.campaign_map = await replace_campaign_map(db, game_session)
         session_changed = True
@@ -991,6 +996,8 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
             "charisma": c.charisma,
             "unspent_stat_points": c.unspent_stat_points or 0,
             "is_alive": c.is_alive,
+            "death_state": getattr(c, "death_state", "alive") or "alive",
+            "death_failures": int(getattr(c, "death_failures", 0) or 0),
             "is_ready": bool(getattr(c, "is_ready", False)),
             "status_effects": status_list(c.status_effects),
             "magic_book": get_magic_book(c.character_class, c.level),
@@ -1200,7 +1207,7 @@ async def reset_campaign(
         await db.execute(
             update(Character)
             .where(Character.session_id == session.id)
-            .values(status_effects=[])
+            .values(status_effects=[], death_state="alive", death_failures=0, is_alive=True)
         )
 
         # Usuń dotychczasowe tury
@@ -1657,6 +1664,8 @@ async def create_character(
         intellect=payload.intellect,
         charisma=payload.charisma,
         is_alive=True,
+        death_state="alive",
+        death_failures=0,
         is_ready=False,
     )
     db.add(char)
@@ -1899,6 +1908,8 @@ async def use_consumable_item(char_id: int, item_id: int, db: AsyncSession = Dep
 
     if item.item_type != "consumable":
         raise HTTPException(status_code=400, detail="Ten przedmiot nie jest zdatny do spożycia/użycia")
+    if not char.is_alive:
+        raise HTTPException(status_code=400, detail="Nieprzytomna lub martwa postać nie może używać przedmiotów.")
 
     # Ulecz
     heal_amount = item.stat_bonus or 10
@@ -1912,6 +1923,7 @@ async def use_consumable_item(char_id: int, item_id: int, db: AsyncSession = Dep
 
     await db.commit()
     return {"success": True, "new_hp": char.current_hp, "healed_by": heal_amount}
+
 
 # --- Action Submission & Turn Gating Loop ---
 @app.post("/api/proxy-actions/{target_character_id}/votes")
@@ -2073,6 +2085,8 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
     character = c_res.scalar_one_or_none()
     if not character:
         raise HTTPException(status_code=404, detail="Postać nie istnieje")
+    if not character.is_alive:
+        raise HTTPException(status_code=400, detail="Postać w agonii, stabilna lub martwa nie może składać akcji.")
 
     action_text = payload.action_text.strip()
     magic_ability, magic_action_error = validate_magic_action(
@@ -2084,7 +2098,32 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
     if magic_action_error:
         raise HTTPException(status_code=400, detail=magic_action_error)
     action_intent = magic_ability["intent"] if magic_ability else payload.intent
-    action_target_ref = magic_ability["target_ref"] if magic_ability else payload.target_ref
+    action_target_ref = (
+        payload.target_ref
+        if magic_ability and magic_ability["intent"] == "support"
+        else magic_ability["target_ref"] if magic_ability
+        else payload.target_ref
+    )
+    resolved_intent = infer_action_intent(action_text, action_intent)
+    if resolved_intent == "support":
+        try:
+            support_target_id = int(action_target_ref or "")
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="Wybierz konkretnego sojusznika jako cel wsparcia.")
+        target_stmt = select(Character).where(
+            Character.id == support_target_id,
+            Character.session_id == character.session_id,
+        )
+        support_target = (await db.execute(target_stmt)).scalar_one_or_none()
+        if not support_target or support_target.id == character.id:
+            raise HTTPException(status_code=400, detail="Wsparcie musi wskazywać inną postać z drużyny.")
+        if magic_ability and magic_ability["id"] == "resurrection" and support_target.death_state != "dead":
+            raise HTTPException(status_code=400, detail="Wskrzeszenie wymaga wskazania poległego bohatera.")
+        if support_target.death_state == "dead" and not (
+            magic_ability and magic_ability["id"] == "resurrection"
+        ):
+            raise HTTPException(status_code=400, detail="Poległego bohatera może przywrócić tylko zdolność Wskrzeszenie.")
+        action_target_ref = str(support_target.id)
     ignored_item_claims = (
         {"Tarcza"} if magic_ability and magic_ability["id"] == "spectral_shield" else set()
     )
@@ -2102,7 +2141,7 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
         inventory=character.inventory,
         session=session,
         current_turn_number=session.current_turn_number,
-        inferred_intent=infer_action_intent(action_text, action_intent),
+        inferred_intent=resolved_intent,
         uses_magic=bool(magic_ability),
         campaign_map=session.campaign_map,
     )
@@ -2392,6 +2431,8 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             boss_combat_event_types = {
                 "player_attack", "boss_attack", "boss_defeated", "phase_change",
                 "environment_success", "environment_failure", "defence", "support",
+                "support_failed", "stabilized", "revived", "resurrection",
+                "resurrection_failed", "death_failure", "character_died",
             }
             is_mechanical_combat = any(
                 event.get("type") in boss_combat_event_types
@@ -2413,13 +2454,16 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                 # konsekwencje środowiskowe zwracane przez narratora.
                 if not is_mechanical_combat:
                     previous_hp = char.current_hp
-                    char.current_hp = max(0, min(char.max_hp, char.current_hp + conseq.hp_delta))
+                    narrative_delta = conseq.hp_delta
+                    if getattr(char, "death_state", "alive") != "alive" and narrative_delta > 0:
+                        narrative_delta = 0
+                    char.current_hp = max(0, min(char.max_hp, char.current_hp + narrative_delta))
                     applied_hp_delta = char.current_hp - previous_hp
                     for act in turn.actions:
                         if act.character_id == char.id:
                             act.hp_delta = int(act.hp_delta or 0) + applied_hp_delta
                     if char.current_hp == 0:
-                        char.is_alive = False
+                        set_character_downed(char)
 
                 # XP i Awans (Level Up)
                 char.xp += conseq.xp_gained
@@ -2431,7 +2475,8 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                 ):
                     char.level += 1
                     char.max_hp += 5
-                    char.current_hp += 5
+                    if getattr(char, "death_state", "alive") == "alive":
+                        char.current_hp += 5
                     if char.level % 2 == 0:
                         char.unspent_stat_points += 1
                     levels_gained += 1

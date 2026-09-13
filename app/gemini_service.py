@@ -248,6 +248,8 @@ async def resolve_turn_with_gemini(
             "name": c.name,
             "class": c.character_class,
             "hp": f"{c.current_hp}/{c.max_hp}",
+            "death_state": getattr(c, "death_state", "alive") or "alive",
+            "death_failures": int(getattr(c, "death_failures", 0) or 0),
             "level": c.level,
             "status_effects": getattr(c, "status_effects", None) or [],
             "stats": f"STR:+{c.strength}, AGI:+{c.agility}, INT:+{c.intellect}, CHA:+{c.charisma}",
@@ -361,11 +363,11 @@ async def resolve_turn_with_gemini(
         "7. MAGIA KLASOWA: Pole magic_ability przy akcji jest jedynym źródłem prawdy o użytym czarze, modlitwie lub cudzie. Nie rozszerzaj efektu poza opis tej zdolności. Puste magic_ability oznacza zwykłą, niemagiczną akcję. Pole available_magic zawiera wyłącznie zdolności odblokowane dla danej postaci; nie przyznawaj dostępu do innych mocy.\n\n"
         "ZASADY WYJŚCIA JSON:\n"
         "1. gm_story_narration: Głęboka, barwna i kinowa narracja Mistrza Gry w języku polskim podsumowująca akcje graczy i zmieniającą się sytuację (min. 3-5 soczystych zdań).\n"
-        "2. player_consequences: Dla KAŻDEGO gracza: individual_summary (fabularne podsumowanie jego losu), hp_delta (utracone/odzyskane HP), xp_gained (50-120 XP), new_items=[] oraz removed_item_names. Podczas aktywnej walki z bossem ustaw hp_delta dokładnie na hp_delta_from_combat_engine; nie dodawaj własnych obrażeń.\n"
+        "2. player_consequences: Dla KAŻDEGO gracza: individual_summary (fabularne podsumowanie jego losu), hp_delta (utracone/odzyskane HP), xp_gained (50-120 XP), new_items=[] oraz removed_item_names. Podczas aktywnej walki z bossem nie dodawaj własnych zmian HP; dla wsparcia hp_delta_from_combat_engine opisuje leczenie celu wskazanego w combat_events, a nie osoby wykonującej akcję.\n"
         "3. next_turn_prompt: Nowa sytuacja fabularna i konkretne, bezpośrednie wyzwanie rzucone drużynie na otwarcie kolejnej tury (zawsze kończące się pytaniem 'Co robicie?').\n"
         "4. suggested_actions: Dokładnie 3 zróżnicowane i konkretne ścieżki działania na otwarcie kolejnej tury dopasowane do NOWEJ sytuacji.\n"
         "5. scene_image_prompt: Sugestywny prompt po angielsku dla modelu generującego obraz (Gemini 2.5 Flash Image)...\n"
-        "6. naming_opportunity (opcjonalne): Jeśli w tej turze drużyna odkryła coś wyjątkowego (nowy wróg, sekretne miejsce, oręż, unikalny manewr).\n"
+        "6. naming_opportunity (opcjonalne): Jeśli w tej turze drużyna odkryła coś wyjątkowego (nowy boss, sekretne miejsce, ważny napotkany NPC, oręż lub unikalny manewr), zaproponuj graczowi nadanie temu nazwy. Użyj kategorii boss, location, npc, weapon albo attack. Nie proponuj ponownie elementu obecnego już w active_lore_entities.\n"
         "7. map_update: Uzupełnij kronikę mapy. destination_node_id MUSI być jednym z ID w campaign_map.allowed_destinations. "
         "Pozostaw current_node_id, jeżeli narracja nie przeniosła całej drużyny do innego pomieszczenia. "
         "location_summary ma krótko opisywać wyłącznie to, co naprawdę pojawiło się w narracji tej tury, "
@@ -555,6 +557,24 @@ def _generate_rich_offline_resolution(
                 event_sentences.append(
                     f"Efekt {event.get('effect')} zadaje {event.get('target')} {event.get('damage')} obrażeń."
                 )
+            elif event_type in {"support", "revived"}:
+                event_sentences.append(
+                    f"{event.get('actor')} pomaga {event.get('target')}, przywracając {event.get('healing')} HP."
+                )
+            elif event_type == "stabilized":
+                event_sentences.append(
+                    f"{event.get('actor')} stabilizuje {event.get('target')}, zatrzymując postęp agonii."
+                )
+            elif event_type == "resurrection":
+                event_sentences.append(
+                    f"{event.get('actor')} wskrzesza {event.get('target')} z {event.get('healing')} HP."
+                )
+            elif event_type == "death_failure":
+                event_sentences.append(
+                    f"{event.get('target')} pozostaje w agonii ({event.get('failures')}/3 porażek śmierci)."
+                )
+            elif event_type == "character_died":
+                event_sentences.append(f"{event.get('target')} umiera.")
             elif event_type == "item_found":
                 finder = event.get("found_by")
                 recipient = event.get("actor")

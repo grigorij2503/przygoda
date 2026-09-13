@@ -338,8 +338,147 @@ def _apply_hp_delta(character: Character, delta: int, action: PlayerAction) -> i
     applied = character.current_hp - previous_hp
     action.hp_delta = int(action.hp_delta or 0) + applied
     if character.current_hp == 0:
-        character.is_alive = False
+        set_character_downed(character)
+    elif character.current_hp > 0:
+        character.is_alive = True
+        character.death_state = "alive"
+        character.death_failures = 0
     return applied
+
+
+def set_character_downed(character: Character) -> None:
+    """Przenosi postać do stanu agonii bez nadpisywania ostatecznej śmierci."""
+    character.current_hp = 0
+    character.is_alive = False
+    if getattr(character, "death_state", "alive") not in {"downed", "stable", "dead"}:
+        character.death_state = "downed"
+        character.death_failures = 0
+
+
+def _resolve_support_action(
+    actor: Character,
+    action: PlayerAction,
+    characters: list[Character],
+    events: list[dict],
+) -> None:
+    target = None
+    if action.target_ref:
+        try:
+            target_id = int(action.target_ref)
+        except (TypeError, ValueError):
+            target_id = None
+        target = next((item for item in characters if item.id == target_id), None)
+
+    is_resurrection = action.magic_ability_id == "resurrection"
+    if not target or target.id == actor.id:
+        candidates = [
+            item for item in characters
+            if item.id != actor.id
+            and (
+                getattr(item, "death_state", "alive") == "dead"
+                if is_resurrection
+                else getattr(item, "death_state", "alive") != "dead"
+            )
+        ]
+        target = min(
+            candidates,
+            key=lambda item: (item.current_hp / max(1, item.max_hp), item.current_hp),
+            default=None,
+        )
+        if target:
+            action.target_ref = str(target.id)
+
+    if not target or target.id == actor.id:
+        events.append({"type": "support_failed", "actor": actor.name, "reason": "no_ally"})
+        return
+
+    outcome = action.outcome_tier or "failure"
+    target_state = getattr(target, "death_state", "alive") or "alive"
+
+    if is_resurrection and target_state != "dead":
+        events.append({
+            "type": "resurrection_failed",
+            "actor": actor.name,
+            "target": target.name,
+            "reason": "not_dead",
+        })
+        return
+
+    if target_state == "dead":
+        if not is_resurrection or outcome not in {"success", "critical_success"}:
+            events.append({
+                "type": "resurrection_failed" if is_resurrection else "support_failed",
+                "actor": actor.name,
+                "target": target.name,
+                "reason": "dead",
+            })
+            return
+        previous_hp = target.current_hp
+        restored = max(1, round(target.max_hp * (0.5 if outcome == "critical_success" else 0.25)))
+        target.current_hp = restored
+        target.is_alive = True
+        target.death_state = "alive"
+        target.death_failures = 0
+        action.hp_delta = int(action.hp_delta or 0) + restored - previous_hp
+        events.append({
+            "type": "resurrection",
+            "actor": actor.name,
+            "target": target.name,
+            "healing": restored,
+        })
+        return
+
+    if outcome not in {"partial_success", "success", "critical_success"}:
+        events.append({"type": "support_failed", "actor": actor.name, "target": target.name})
+        return
+
+    if target_state in {"downed", "stable"} and outcome == "partial_success":
+        target.death_state = "stable"
+        target.death_failures = 0
+        target.is_alive = False
+        events.append({"type": "stabilized", "actor": actor.name, "target": target.name})
+        return
+
+    multiplier = 1 if outcome == "partial_success" else 2 if outcome == "success" else 3
+    healing = max(2, (2 + actor.intellect) * multiplier)
+    previous_hp = target.current_hp
+    target.current_hp = min(target.max_hp, max(1, target.current_hp + healing))
+    applied = target.current_hp - previous_hp
+    target.is_alive = True
+    target.death_state = "alive"
+    target.death_failures = 0
+    action.hp_delta = int(action.hp_delta or 0) + applied
+    if outcome == "critical_success":
+        target.status_effects = [
+            effect for effect in status_list(target.status_effects)
+            if effect.get("type") not in {"burning", "poisoned", "frozen"}
+        ]
+    events.append({
+        "type": "revived" if target_state in {"downed", "stable"} else "support",
+        "actor": actor.name,
+        "target": target.name,
+        "healing": applied,
+    })
+
+
+def _advance_death_states(
+    characters: list[Character],
+    downed_at_turn_start: set[int],
+    events: list[dict],
+) -> None:
+    for character in characters:
+        if character.id not in downed_at_turn_start or character.death_state != "downed":
+            continue
+        character.death_failures = min(3, int(character.death_failures or 0) + 1)
+        if character.death_failures >= 3:
+            character.death_state = "dead"
+            events.append({"type": "character_died", "target": character.name})
+        else:
+            events.append({
+                "type": "death_failure",
+                "target": character.name,
+                "failures": character.death_failures,
+            })
 
 
 def _tick_character_effects(character: Character, action: PlayerAction, events: list[dict]) -> None:
@@ -524,6 +663,10 @@ def resolve_boss_turn(
     actions: list[PlayerAction],
 ) -> list[dict]:
     events: list[dict] = []
+    downed_at_turn_start = {
+        character.id for character in characters
+        if getattr(character, "death_state", "alive") == "downed"
+    }
     action_by_character = {action.character_id: action for action in actions}
     _tick_boss_effects(session, events)
     for character in characters:
@@ -596,18 +739,11 @@ def resolve_boss_turn(
                 make_status("guarded", 2, potency, character.name),
             )
             events.append({"type": "defence", "actor": character.name, "potency": potency})
-        elif intent == "support" and action.outcome_tier in {"partial_success", "success", "critical_success"}:
-            multiplier = 1 if action.outcome_tier == "partial_success" else 2 if action.outcome_tier == "success" else 3
-            healing = max(2, (2 + character.intellect) * multiplier)
-            applied = _apply_hp_delta(character, healing, action)
-            if action.outcome_tier == "critical_success":
-                character.status_effects = [
-                    effect for effect in status_list(character.status_effects)
-                    if effect.get("type") not in {"burning", "poisoned", "frozen"}
-                ]
-            events.append({"type": "support", "actor": character.name, "healing": applied})
+        elif intent == "support":
+            _resolve_support_action(character, action, characters, events)
 
     _resolve_boss_response(session, characters, actions, events)
+    _advance_death_states(characters, downed_at_turn_start, events)
     _update_boss_phase(session, events)
     if session.active_boss_hp == 0:
         events.append({"type": "boss_defeated", "boss": session.active_boss_name})
@@ -620,9 +756,18 @@ def resolve_status_turn(
 ) -> list[dict]:
     """Rozlicza pozostałe efekty także po zakończeniu walki z bossem."""
     events: list[dict] = []
+    downed_at_turn_start = {
+        character.id for character in characters
+        if getattr(character, "death_state", "alive") == "downed"
+    }
     action_by_character = {action.character_id: action for action in actions}
     for character in characters:
         action = action_by_character.get(character.id)
         if action and character.is_alive:
             _tick_character_effects(character, action, events)
+    for action in actions:
+        actor = next((item for item in characters if item.id == action.character_id), None)
+        if actor and actor.is_alive and infer_action_intent(action.action_text, action.intent) == "support":
+            _resolve_support_action(actor, action, characters, events)
+    _advance_death_states(characters, downed_at_turn_start, events)
     return events

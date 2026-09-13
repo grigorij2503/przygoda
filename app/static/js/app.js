@@ -63,6 +63,10 @@ document.addEventListener('alpine:init', () => {
 
     // Campaign Map
     selectedMapNodeId: null,
+    mapZoom: 1,
+    mapPanX: 0,
+    mapPanY: 0,
+    mapDrag: null,
 
     // Level Up
     isSpendingStatPoint: false,
@@ -117,6 +121,7 @@ document.addEventListener('alpine:init', () => {
     wsConnected: false,
     wsReconnectTimer: null,
     toasts: [],
+    toastSequence: 0,
     notificationCount: 0,
     baseTitle: document.title,
     notificationSoundEnabled: localStorage.getItem('rpg_notification_sound') !== 'off',
@@ -152,6 +157,7 @@ document.addEventListener('alpine:init', () => {
       window.addEventListener('focus', this.notificationFocusHandler);
       document.addEventListener('pointerup', this.notificationUnlockHandler);
       document.addEventListener('keydown', this.notificationUnlockHandler);
+      this.initDialogAccessibility();
       // Rejestracja Service Workera
       this.registerServiceWorker();
 
@@ -213,6 +219,49 @@ document.addEventListener('alpine:init', () => {
           console.warn('Rejestracja Service Workera nie powiodła się:', err);
         }
       }
+    },
+
+    initDialogAccessibility() {
+      this.$nextTick(() => {
+        const focusOrigins = new WeakMap();
+        document.querySelectorAll('[role="dialog"][aria-modal="true"]').forEach(dialog => {
+          let wasVisible = false;
+          const syncVisibility = () => {
+            const isVisible = getComputedStyle(dialog).display !== 'none';
+            if (isVisible && !wasVisible) {
+              focusOrigins.set(dialog, document.activeElement);
+              requestAnimationFrame(() => {
+                const focusable = dialog.querySelector(
+                  '[autofocus], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+                );
+                focusable?.focus({ preventScroll: true });
+              });
+            } else if (!isVisible && wasVisible) {
+              const origin = focusOrigins.get(dialog);
+              if (origin?.isConnected) origin.focus({ preventScroll: true });
+            }
+            wasVisible = isVisible;
+          };
+          new MutationObserver(syncVisibility).observe(dialog, { attributes: true, attributeFilter: ['style'] });
+          dialog.addEventListener('keydown', event => {
+            if (event.key !== 'Tab') return;
+            const focusable = [...dialog.querySelectorAll(
+              'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            )].filter(element => element.offsetParent !== null);
+            if (!focusable.length) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+              event.preventDefault();
+              last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+              event.preventDefault();
+              first.focus();
+            }
+          });
+          syncVisibility();
+        });
+      });
     },
 
     get pushButtonLabel() {
@@ -431,7 +480,7 @@ document.addEventListener('alpine:init', () => {
     },
 
     addToast(message, type = 'info') {
-      const id = Date.now();
+      const id = `${Date.now()}-${++this.toastSequence}`;
       this.toasts.push({ id, message, type });
       setTimeout(() => {
         this.toasts = this.toasts.filter(t => t.id !== id);
@@ -686,6 +735,14 @@ document.addEventListener('alpine:init', () => {
       return this.magicBook?.abilities?.find(ability => ability.id === this.magicAbilityId) || null;
     },
 
+    get supportTargets() {
+      const resurrection = this.magicAbilityId === 'resurrection';
+      return (this.session?.characters || []).filter(character =>
+        character.id !== this.selectedCharacterId
+          && (resurrection ? character.death_state === 'dead' : character.death_state !== 'dead')
+      );
+    },
+
     get handItems() {
       return (this.currentCharacter?.inventory || [])
         .filter(item => item.is_equipped && ['weapon', 'shield'].includes(item.item_type))
@@ -927,6 +984,25 @@ document.addEventListener('alpine:init', () => {
       return this.session?.campaign_map || null;
     },
 
+    get loreCategories() {
+      return [
+        { id: 'boss', label: 'Bossowie', icon: '👑' },
+        { id: 'location', label: 'Miejsca', icon: '🏰' },
+        { id: 'npc', label: 'Napotkani NPC', icon: '🧙' },
+        { id: 'weapon', label: 'Oręż i artefakty', icon: '🗡️' },
+        { id: 'attack', label: 'Ataki drużynowe', icon: '💥' }
+      ];
+    },
+
+    loreEntitiesByCategory(category) {
+      return (this.session?.lore_entities || []).filter(entity => entity.category === category);
+    },
+
+    loreCategory(category) {
+      return this.loreCategories.find(item => item.id === category)
+        || { id: category, label: 'Pozostałe legendy', icon: '✨' };
+    },
+
     get currentMapNode() {
       return this.campaignMap?.nodes?.find(
         node => node.id === this.campaignMap.current_node_id
@@ -944,10 +1020,80 @@ document.addEventListener('alpine:init', () => {
         || this.currentMapNode;
     },
 
+    get mapBaseBounds() {
+      const nodes = (this.campaignMap?.nodes || []).filter(node => node.visibility !== 'hidden');
+      if (!nodes.length) {
+        return { x: 0, y: 0, width: this.campaignMap?.width || 1100, height: this.campaignMap?.height || 500 };
+      }
+      const padding = 70;
+      const left = Math.min(...nodes.map(node => node.x - node.width / 2)) - padding;
+      const right = Math.max(...nodes.map(node => node.x + node.width / 2)) + padding;
+      const top = Math.min(...nodes.map(node => node.y - node.height / 2)) - padding;
+      const bottom = Math.max(...nodes.map(node => node.y + node.height / 2)) + padding;
+      return { x: left, y: top, width: Math.max(260, right - left), height: Math.max(220, bottom - top) };
+    },
+
+    get mapViewBox() {
+      const bounds = this.mapBaseBounds;
+      const width = bounds.width / this.mapZoom;
+      const height = bounds.height / this.mapZoom;
+      const x = bounds.x + (bounds.width - width) / 2 + this.mapPanX;
+      const y = bounds.y + (bounds.height - height) / 2 + this.mapPanY;
+      return `${x} ${y} ${width} ${height}`;
+    },
+
     openMap() {
       this.selectedMapNodeId = this.campaignMap?.current_node_id || null;
+      this.resetMapView();
       this.showMapModal = true;
       this.scheduleMapRender();
+    },
+
+    resetMapView() {
+      this.mapZoom = 1;
+      this.mapPanX = 0;
+      this.mapPanY = 0;
+    },
+
+    adjustMapZoom(delta) {
+      this.mapZoom = Math.max(0.75, Math.min(3, this.mapZoom + delta));
+    },
+
+    showPartyOnMap() {
+      const node = this.currentMapNode;
+      if (!node) return;
+      this.selectedMapNodeId = node.id;
+      const bounds = this.mapBaseBounds;
+      this.mapZoom = 2;
+      this.mapPanX = node.x - (bounds.x + bounds.width / 2);
+      this.mapPanY = node.y - (bounds.y + bounds.height / 2);
+      this.scheduleMapRender();
+    },
+
+    beginMapPan(event) {
+      if (event.button !== 0) return;
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      this.mapDrag = {
+        x: event.clientX,
+        y: event.clientY,
+        panX: this.mapPanX,
+        panY: this.mapPanY,
+        width: event.currentTarget.clientWidth,
+        height: event.currentTarget.clientHeight
+      };
+    },
+
+    continueMapPan(event) {
+      if (!this.mapDrag) return;
+      const bounds = this.mapBaseBounds;
+      const xUnits = (bounds.width / this.mapZoom) / Math.max(1, this.mapDrag.width);
+      const yUnits = (bounds.height / this.mapZoom) / Math.max(1, this.mapDrag.height);
+      this.mapPanX = this.mapDrag.panX - (event.clientX - this.mapDrag.x) * xUnits;
+      this.mapPanY = this.mapDrag.panY - (event.clientY - this.mapDrag.y) * yUnits;
+    },
+
+    endMapPan() {
+      this.mapDrag = null;
     },
 
     selectMapNode(nodeId) {
@@ -1969,6 +2115,10 @@ document.addEventListener('alpine:init', () => {
         this.actionError = 'Musisz najpierw wybrać swoją postać.';
         return;
       }
+      if (this.actionIntent === 'support' && !this.actionTargetRef) {
+        this.actionError = 'Wybierz sojusznika, którego wspierasz.';
+        return;
+      }
 
       this.actionError = '';
       this.isSubmittingAction = true;
@@ -2038,6 +2188,7 @@ document.addEventListener('alpine:init', () => {
         }
       }
       this.isEditingSubmittedAction = true;
+      this.mobileActionPanelCollapsed = false;
       this.$nextTick(() => {
         const textarea = document.querySelector('textarea[x-model="actionText"]');
         if (textarea) {
@@ -2052,6 +2203,7 @@ document.addEventListener('alpine:init', () => {
       this.magicAbilityId = null;
       this.actionIntent = intent;
       this.actionTargetRef = targetRef;
+      this.mobileActionPanelCollapsed = false;
       this.$nextTick(() => {
         const textarea = document.querySelector('textarea[x-model="actionText"]');
         if (textarea) {
@@ -2068,6 +2220,7 @@ document.addEventListener('alpine:init', () => {
       this.magicAbilityId = ability.id;
       this.actionIntent = ability.intent || null;
       this.actionTargetRef = ability.target_ref || null;
+      this.mobileActionPanelCollapsed = false;
       this.actionError = '';
       this.$nextTick(() => {
         const textarea = document.querySelector('textarea[x-model="actionText"]');
@@ -2118,8 +2271,28 @@ document.addEventListener('alpine:init', () => {
     targetLabel(targetRef) {
       if (!targetRef) return '';
       if (targetRef === 'boss') return this.session?.active_boss?.name || 'boss';
+      const character = (this.session?.characters || []).find(item => String(item.id) === String(targetRef));
+      if (character) return character.name;
       const feature = (this.session?.active_boss?.features || []).find(item => item.id === targetRef);
       return feature?.name || targetRef;
+    },
+
+    deathStateLabel(character) {
+      return {
+        alive: 'ŻYWY',
+        downed: `AGONIA ${character?.death_failures || 0}/3`,
+        stable: 'STABILNY',
+        dead: 'POLEGŁY'
+      }[character?.death_state || 'alive'];
+    },
+
+    deathStateClass(character) {
+      return {
+        alive: 'bg-emerald-950 border border-emerald-600/40 text-emerald-300',
+        downed: 'bg-rose-950 border border-rose-500/70 text-rose-200',
+        stable: 'bg-cyan-950 border border-cyan-600/50 text-cyan-200',
+        dead: 'bg-slate-950 border border-slate-600 text-slate-300'
+      }[character?.death_state || 'alive'];
     },
 
     // --- Ekwipunek ---

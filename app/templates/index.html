@@ -45,12 +45,12 @@
   </script>
 
   <!-- Custom Stylesheet -->
-  <link rel="stylesheet" href="/static/css/style.css?v=16">
+  <link rel="stylesheet" href="/static/css/style.css?v=17">
 
   <!-- Alpine.js CDN -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
   <!-- App Logic -->
-  <script src="/static/js/app.js?v=21"></script>
+  <script src="/static/js/app.js?v=22"></script>
 </head>
 <body x-data="rpgGame" class="min-h-screen text-gray-200 antialiased selection:bg-amber-600 selection:text-white">
 
@@ -61,7 +61,7 @@
   </div>
 
   <!-- ==================== TOAST NOTIFICATIONS ==================== -->
-  <div class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
+  <div class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-sm pointer-events-none" role="status" aria-live="polite" aria-atomic="false">
     <template x-for="t in toasts" :key="t.id">
       <div class="pointer-events-auto p-4 rounded-lg shadow-xl text-sm font-medium border flex items-center gap-3 transition-all duration-300 transform translate-y-0"
            :class="{
@@ -89,8 +89,8 @@
 
       <form @submit.prevent="login()" class="space-y-4">
         <div>
-          <label class="block text-xs font-semibold text-amber-400/80 uppercase tracking-widest text-left mb-1">Hasło do Pokoju</label>
-          <input type="password" x-model="roomPassword" placeholder="Wpisz hasło sesji..."
+          <label for="room-password" class="block text-xs font-semibold text-amber-400/80 uppercase tracking-widest text-left mb-1">Hasło do Pokoju</label>
+          <input id="room-password" type="password" x-model="roomPassword" placeholder="Wpisz hasło sesji..."
                  class="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition">
         </div>
 
@@ -576,7 +576,7 @@
         <!-- BANER OCZEKIWANIA NA NAZWĘ (LORE NAMING) -->
         <div x-show="pendingNaming" class="p-4 rounded-xl border border-amber-500/50 bg-amber-950/30 flex flex-wrap items-center justify-between gap-3 animate-pulse">
           <div class="flex min-w-0 items-center gap-3">
-            <span class="text-2xl" x-text="pendingNaming?.category === 'boss' ? '👑' : pendingNaming?.category === 'weapon' ? '🗡️' : pendingNaming?.category === 'location' ? '🏰' : '💥'"></span>
+            <span class="text-2xl" x-text="loreCategory(pendingNaming?.category).icon"></span>
             <div>
               <span class="text-xs uppercase font-fantasy text-amber-400 font-bold block" x-text="'Odkrycie: ' + pendingNaming?.category"></span>
               <p class="text-xs text-gray-200" x-text="pendingNaming?.prompt"></p>
@@ -762,9 +762,12 @@
                           <span x-show="act.hp_delta < 0"
                                 class="px-2 py-1 rounded-md border border-rose-700/60 bg-rose-950/50 text-rose-300"
                                 x-text="'❤️ Otrzymano ' + Math.abs(act.hp_delta) + ' obrażeń'"></span>
-                          <span x-show="act.hp_delta > 0"
+                          <span x-show="act.hp_delta > 0 && act.intent !== 'support'"
                                 class="px-2 py-1 rounded-md border border-emerald-700/60 bg-emerald-950/50 text-emerald-300"
                                 x-text="'💚 Odzyskano ' + act.hp_delta + ' HP'"></span>
+                          <span x-show="act.hp_delta > 0 && act.intent === 'support'"
+                                class="px-2 py-1 rounded-md border border-emerald-700/60 bg-emerald-950/50 text-emerald-300"
+                                x-text="'💚 Przywrócono ' + act.hp_delta + ' HP: ' + targetLabel(act.target_ref)"></span>
                           <span x-show="act.xp_gained > 0"
                                 class="px-2 py-1 rounded-md border border-amber-700/60 bg-amber-950/50 text-amber-300"
                                 x-text="'⭐ +' + act.xp_gained + ' XP'"></span>
@@ -889,14 +892,16 @@
 
         <!-- DOLNY PANEL AKCJI (ACTION BAR) -->
         <div class="mobile-action-panel fantasy-card p-6 rounded-2xl border border-amber-900/50 sticky bottom-4 z-20 shadow-2xl backdrop-blur-lg"
-             :class="{ 'mobile-action-panel--collapsed': mobileActionPanelCollapsed && hasSubmittedCurrentTurn && !session?.is_turn_resolving }">
+             :class="{ 'mobile-action-panel--collapsed': mobileActionPanelCollapsed && !session?.is_turn_resolving, 'mobile-action-panel--pending': !hasSubmittedCurrentTurn }">
           <!-- Kompaktowy status zastępuje wysoki panel oczekiwania tylko na telefonie. -->
           <button type="button" @click="mobileActionPanelCollapsed = false"
                   class="mobile-action-summary items-center justify-between gap-3 w-full text-left"
-                  :aria-expanded="(!mobileActionPanelCollapsed).toString()" aria-label="Rozwiń panel wysłanej akcji">
-            <span class="flex items-center gap-2 min-w-0 text-emerald-300 font-fantasy text-xs font-semibold">
-              <span class="shrink-0">✓</span>
-              <span class="truncate">Akcja złożona na tę turę</span>
+                  :aria-expanded="(!mobileActionPanelCollapsed).toString()"
+                  :aria-label="hasSubmittedCurrentTurn ? 'Rozwiń panel wysłanej akcji' : 'Rozwiń formularz akcji bohatera'">
+            <span class="flex items-center gap-2 min-w-0 font-fantasy text-xs font-semibold"
+                  :class="hasSubmittedCurrentTurn ? 'text-emerald-300' : 'text-amber-300'">
+              <span class="shrink-0" x-text="hasSubmittedCurrentTurn ? '✓' : '⚔️'"></span>
+              <span class="truncate" x-text="hasSubmittedCurrentTurn ? 'Akcja złożona na tę turę' : 'Zaplanuj akcję bohatera'"></span>
             </span>
             <span class="flex items-center gap-2 shrink-0 text-[10px] text-gray-400">
               <span><b class="text-amber-300" x-text="readyCount"></b>/<span x-text="totalAlivePlayers"></span> gotowych</span>
@@ -964,7 +969,17 @@
           </div>
 
           <!-- Formularz złożenia akcji -->
-          <div x-show="!session?.is_turn_resolving && !hasSubmittedCurrentTurn">
+          <div x-show="!session?.is_turn_resolving && !hasSubmittedCurrentTurn && !currentCharacter?.is_alive"
+               class="rounded-xl border border-rose-700/50 bg-rose-950/35 p-4 text-sm text-rose-100">
+            <strong class="font-fantasy" x-text="deathStateLabel(currentCharacter)"></strong>
+            <p class="mt-1 text-gray-300" x-show="currentCharacter?.death_state === 'downed'">
+              Na końcu każdej kolejnej tury otrzymujesz porażkę śmierci. Trzecia oznacza zgon. Sojusznik może Cię ustabilizować lub podnieść akcją wsparcia.
+            </p>
+            <p class="mt-1 text-gray-300" x-show="currentCharacter?.death_state === 'stable'">Nie wykonujesz akcji i nie zbierasz porażek śmierci. Udane wsparcie przywróci Ci co najmniej 1 PW.</p>
+            <p class="mt-1 text-gray-300" x-show="currentCharacter?.death_state === 'dead'">Zwykłe leczenie nie działa. Kleryk od 7. poziomu może użyć Wskrzeszenia.</p>
+          </div>
+
+          <div x-show="!session?.is_turn_resolving && !hasSubmittedCurrentTurn && currentCharacter?.is_alive">
             <div class="flex items-center justify-between mb-3">
               <span class="text-xs font-fantasy font-bold text-amber-300 tracking-wider flex items-center gap-1.5">
                 <span>⚔️</span> DEKLARACJA AKCJI BOHATERA (TURA #<span x-text="session?.current_turn_number"></span>)
@@ -987,6 +1002,9 @@
               </button>
               <button @click="setQuickAction('Ostrożnie badam otoczenie w poszukiwaniu ukrytych mechanizmów lub słabych punktów komnaty.', 'other')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
                 🔍 Zwiad / Rozpoznanie
+              </button>
+              <button @click="setQuickAction('Pomagam rannemu sojusznikowi, opatrując jego obrażenia i przywracając go do walki.', 'support')" class="text-[11px] bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-800 text-emerald-200 px-2.5 py-1 rounded-md transition">
+                🤝 Wsparcie sojusznika
               </button>
               <button x-show="!(session?.active_boss?.hp > 0) && !session?.inventory_rules?.current_location_searched" x-cloak
                       @click="setQuickAction('Dokładnie przeszukuję tę lokację w poszukiwaniu wartościowego łupu.', 'interact')"
@@ -1014,8 +1032,21 @@
                   Odłącz
                 </button>
               </div>
-              <textarea x-model="actionText" rows="2" placeholder="Opisz dokładnie co zamierza zrobić Twoja postać... Silnik dedukuje atrybut i rzuci d20."
+              <label for="action-description" class="sr-only">Opis akcji bohatera</label>
+              <textarea id="action-description" x-model="actionText" rows="2" placeholder="Opisz dokładnie co zamierza zrobić Twoja postać... Silnik dedukuje atrybut i rzuci d20."
                         class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 transition resize-none"></textarea>
+
+              <div x-show="actionIntent === 'support'" x-cloak>
+                <label for="support-target" class="block text-xs font-semibold text-emerald-300 mb-1">Sojusznik objęty wsparciem</label>
+                <select id="support-target" x-model="actionTargetRef"
+                        class="w-full bg-slate-950 border border-emerald-800/70 rounded-lg px-3 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none">
+                  <option value="">Wybierz postać…</option>
+                  <template x-for="character in supportTargets" :key="character.id">
+                    <option :value="String(character.id)" x-text="character.name + ' • ' + deathStateLabel(character) + ' • ' + character.current_hp + '/' + character.max_hp + ' PW'"></option>
+                  </template>
+                </select>
+                <p x-show="magicAbilityId === 'resurrection'" class="mt-1 text-xs text-violet-300">Wskrzeszenie może wskazać poległego bohatera.</p>
+              </div>
 
               <div x-show="actionIntent" class="text-[10px] font-mono text-indigo-300">
                 Cel mechaniczny: <span x-text="intentLabel(actionIntent)"></span><span x-show="actionTargetRef" x-text="' • ' + targetLabel(actionTargetRef)"></span>
@@ -1049,8 +1080,8 @@
               </p>
             </div>
             <span class="px-2.5 py-1 rounded-full text-xs font-mono"
-                  :class="currentCharacter?.is_alive ? 'bg-emerald-950 border border-emerald-600/40 text-emerald-300' : 'bg-rose-950 border border-rose-600 text-rose-300'"
-                  x-text="currentCharacter?.is_alive ? 'ŻYWY' : 'POLEGŁY'">
+                  :class="deathStateClass(currentCharacter)"
+                  x-text="deathStateLabel(currentCharacter)">
             </span>
           </div>
 
@@ -1256,7 +1287,7 @@
                   </button>
                 </template>
                 <template x-if="!mainHandItem">
-                  <button type="button" @click="showItemsForSlot('main_hand')" class="paperdoll-slot__empty">
+                  <button type="button" @click="showItemsForSlot('main_hand')" class="paperdoll-slot__empty" aria-label="Wybierz broń do głównej dłoni z plecaka">
                     <span>＋</span><small>Wybierz broń</small>
                   </button>
                 </template>
@@ -1319,7 +1350,7 @@
                     </button>
                   </template>
                   <template x-if="!equippedArmor">
-                    <button type="button" @click="showItemsForSlot('armor')" title="Pokaż pancerze w plecaku">
+                    <button type="button" @click="showItemsForSlot('armor')" title="Pokaż pancerze w plecaku" aria-label="Wybierz pancerz z plecaka">
                       <span>＋</span><strong>Pancerz</strong><small>Pusty slot</small>
                     </button>
                   </template>
@@ -1342,7 +1373,7 @@
                   </div>
                 </template>
                 <template x-if="!offHandItem && !offHandBlockedByTwoHandedWeapon">
-                  <button type="button" @click="showItemsForSlot('off_hand')" class="paperdoll-slot__empty">
+                  <button type="button" @click="showItemsForSlot('off_hand')" class="paperdoll-slot__empty" aria-label="Wybierz broń lub tarczę do drugiej dłoni z plecaka">
                     <span>＋</span><small>Broń lub tarcza</small>
                   </button>
                 </template>
@@ -1364,7 +1395,7 @@
                     </button>
                   </template>
                   <template x-if="!item">
-                    <button type="button" @click="showItemsForSlot('active')" title="Pokaż aktywne przedmioty w plecaku">
+                    <button type="button" @click="showItemsForSlot('active')" title="Pokaż aktywne przedmioty w plecaku" :aria-label="'Wybierz aktywny przedmiot do slotu ' + (slotIndex + 1)">
                       <span>＋</span><small x-text="slotIndex + 1"></small>
                     </button>
                   </template>
@@ -1522,6 +1553,7 @@
                   <div class="text-[10px] text-gray-400">
                     <span x-text="p.character_class"></span> • Lvl <span x-text="p.level"></span> • ❤️ <span x-text="p.current_hp + '/' + p.max_hp"></span>
                   </div>
+                  <span class="inline-flex mt-1 px-2 py-0.5 rounded text-[10px] font-mono" :class="deathStateClass(p)" x-text="deathStateLabel(p)"></span>
                   <div x-show="(p.status_effects || []).length > 0" class="flex flex-wrap gap-1 mt-1">
                     <template x-for="effect in p.status_effects || []" :key="effect.type">
                       <span class="px-1.5 py-0.5 rounded border text-[9px] cursor-help"
@@ -1556,6 +1588,7 @@
   <!-- ==================== MODAL: AKCJA ZASTĘPCZA DRUŻYNY ==================== -->
   <div x-show="showProxyActionModal" x-cloak
        @keydown.escape.window="closeProxyActionVote()"
+       role="dialog" aria-modal="true" aria-labelledby="proxy-dialog-title"
        class="fixed inset-0 z-[70] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
     <div class="fantasy-card p-5 md:p-7 rounded-2xl max-w-xl w-full border border-indigo-500/50 shadow-2xl relative">
       <button type="button" @click="closeProxyActionVote()" :disabled="isSubmittingProxyVote"
@@ -1563,7 +1596,7 @@
 
       <div class="pr-8">
         <p class="text-[10px] uppercase tracking-[0.2em] text-indigo-300 mb-1">Akcja zastępcza drużyny</p>
-        <h3 class="text-xl font-fantasy font-bold text-amber-300">
+        <h3 id="proxy-dialog-title" class="text-xl font-fantasy font-bold text-amber-300">
           Wybierz ruch dla <span x-text="proxyTargetCharacter?.name"></span>
         </h3>
         <p class="text-xs text-gray-400 mt-2">
@@ -1605,13 +1638,13 @@
   </div>
 
   <!-- ==================== MODAL: NAZWIJ ODKRYCIE (LORE NAMING) ==================== -->
-  <div x-show="showNamingModal && pendingNaming?.character_id === selectedCharacterId" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4" x-cloak>
+  <div x-show="showNamingModal && pendingNaming?.character_id === selectedCharacterId" role="dialog" aria-modal="true" aria-labelledby="naming-dialog-title" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4" x-cloak>
     <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-lg w-full border border-amber-500/60 shadow-2xl relative">
       <div class="w-14 h-14 mx-auto mb-3 rounded-full bg-amber-500/20 border-2 border-amber-400 flex items-center justify-center text-3xl animate-bounce">
-        <span x-text="pendingNaming?.category === 'boss' ? '👑' : pendingNaming?.category === 'weapon' ? '🗡️' : pendingNaming?.category === 'location' ? '🏰' : '💥'"></span>
+        <span x-text="loreCategory(pendingNaming?.category).icon"></span>
       </div>
 
-      <h3 class="text-2xl font-fantasy font-bold text-amber-300 text-center mb-1">LOS WYBRAŁ CIEBIE!</h3>
+      <h3 id="naming-dialog-title" class="text-2xl font-fantasy font-bold text-amber-300 text-center mb-1">LOS WYBRAŁ CIEBIE!</h3>
       <p class="text-xs text-center uppercase tracking-widest text-amber-400/80 mb-4" x-text="'Tworzenie Świata: ' + pendingNaming?.category"></p>
 
       <div class="p-4 bg-slate-950/90 rounded-xl border border-slate-800 text-xs text-gray-300 mb-5 text-center italic">
@@ -1620,8 +1653,8 @@
 
       <form @submit.prevent="submitEntityName()" class="space-y-4">
         <div>
-          <label class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Wpisz trwałą nazwę</label>
-          <input type="text" x-model="namingInput" placeholder="np. Andrzej, Czarna Przełęcz, Pożeracz Dusz..." autofocus
+          <label for="lore-name" class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Wpisz trwałą nazwę</label>
+          <input id="lore-name" type="text" x-model="namingInput" placeholder="np. Andrzej, Czarna Przełęcz, Pożeracz Dusz..." autofocus
                  class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-white text-base font-fantasy placeholder-gray-500 focus:border-amber-500 focus:outline-none">
           <span class="text-[10px] text-gray-400 mt-1 block">Ta nazwa zostanie zapamiętana przez Mistrza Gry i drużynę do końca przygody.</span>
         </div>
@@ -1637,11 +1670,12 @@
 
   <!-- ==================== MODAL: MAPA KAMPANII ==================== -->
   <div x-show="showMapModal" @keydown.escape.window="showMapModal = false" @click.self="showMapModal = false"
+       role="dialog" aria-modal="true" aria-labelledby="map-dialog-title"
        class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-2 md:p-5" x-cloak>
     <div class="campaign-map-modal fantasy-card rounded-2xl w-full max-w-7xl border border-cyan-900/70 shadow-2xl flex flex-col" @click.stop>
       <div class="flex flex-wrap items-center justify-between gap-3 p-4 md:px-6 border-b border-slate-800">
         <div>
-          <h3 class="text-xl md:text-2xl font-fantasy font-bold text-cyan-200 flex items-center gap-2">
+          <h3 id="map-dialog-title" class="text-xl md:text-2xl font-fantasy font-bold text-cyan-200 flex items-center gap-2">
             <span>🗺️</span> MAPA WYPRAWY
           </h3>
           <p class="text-[10px] md:text-xs text-gray-400 mt-1">
@@ -1649,12 +1683,23 @@
             / <b class="text-gray-300" x-text="campaignMap?.total_nodes || 0"></b> lokacji
           </p>
         </div>
-        <button @click="showMapModal = false" class="text-gray-400 hover:text-white text-xl" aria-label="Zamknij mapę">✕</button>
+        <div class="flex items-center gap-1.5" aria-label="Sterowanie mapą">
+          <button type="button" @click="adjustMapZoom(-0.25)" class="map-control" aria-label="Pomniejsz mapę">−</button>
+          <span class="map-zoom-label" x-text="Math.round(mapZoom * 100) + '%'"></span>
+          <button type="button" @click="adjustMapZoom(0.25)" class="map-control" aria-label="Powiększ mapę">＋</button>
+          <button type="button" @click="resetMapView()" class="map-control map-control--text">Dopasuj</button>
+          <button type="button" @click="showPartyOnMap()" class="map-control map-control--party">● Drużyna</button>
+          <button @click="showMapModal = false" class="map-control" aria-label="Zamknij mapę">✕</button>
+        </div>
       </div>
 
       <div x-show="campaignMap" class="campaign-map-viewport">
-        <svg class="campaign-map-svg" role="img" aria-label="Schemat odkrytych pomieszczeń i korytarzy"
-             :viewBox="`0 0 ${campaignMap?.width || 1100} ${campaignMap?.height || 500}`"
+        <svg class="campaign-map-svg" role="img" aria-label="Schemat odkrytych pomieszczeń i korytarzy. Przeciągnij, aby przesunąć mapę."
+             :class="mapDrag ? 'campaign-map-svg--dragging' : ''"
+             :viewBox="mapViewBox"
+             @wheel.prevent="adjustMapZoom($event.deltaY < 0 ? 0.2 : -0.2)"
+             @pointerdown="beginMapPan($event)" @pointermove="continueMapPan($event)"
+             @pointerup="endMapPan()" @pointercancel="endMapPan()" @pointerleave="endMapPan()"
              preserveAspectRatio="xMidYMid meet">
           <defs>
             <pattern id="map-grid" width="16" height="16" patternUnits="userSpaceOnUse">
@@ -1728,11 +1773,12 @@
 
   <!-- ==================== MODAL: OSOBISTY NOTES GRACZA ==================== -->
   <div x-show="showPersonalNoteModal" @keydown.escape.window="showPersonalNoteModal && closePersonalNote()"
+       role="dialog" aria-modal="true" aria-labelledby="note-dialog-title"
        class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
     <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-2xl w-full border border-emerald-900/60 shadow-2xl flex flex-col" @click.stop>
       <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
         <div>
-          <h3 class="text-2xl font-fantasy font-bold text-emerald-300 flex items-center gap-2">
+          <h3 id="note-dialog-title" class="text-2xl font-fantasy font-bold text-emerald-300 flex items-center gap-2">
             <span>📓</span> MÓJ NOTES
           </h3>
           <p class="text-xs text-gray-400 mt-1" x-text="currentCharacter ? currentCharacter.player_name + ' • ' + currentCharacter.name : ''"></p>
@@ -1745,7 +1791,8 @@
       </div>
 
       <div x-show="!isLoadingPersonalNote" class="space-y-3">
-        <textarea x-model="personalNote" x-ref="personalNoteTextarea" maxlength="20000" rows="13"
+        <label for="personal-note" class="sr-only">Treść osobistego notesu</label>
+        <textarea id="personal-note" x-model="personalNote" x-ref="personalNoteTextarea" maxlength="20000" rows="13"
                   @keydown.ctrl.s.prevent="savePersonalNote()" @keydown.meta.s.prevent="savePersonalNote()"
                   placeholder="Zapisz tropy, plany, sekrety, ważne imiona i wszystko, co przyda się Twojej postaci..."
                   class="w-full bg-slate-950 border border-slate-700 rounded-xl p-4 text-sm leading-relaxed text-gray-100 placeholder-gray-600 focus:outline-none focus:border-emerald-500 transition resize-y min-h-64"></textarea>
@@ -1777,11 +1824,12 @@
   <!-- ==================== MODAL: WYBÓR ATRYBUTU PO AWANSIE ==================== -->
   <div x-show="showLevelUpModal && currentCharacter" x-cloak
        @keydown.escape.window="showLevelUpModal = false"
+       role="dialog" aria-modal="true" aria-labelledby="level-dialog-title"
        class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-lg w-full border border-amber-500/50 shadow-2xl">
       <div class="text-center mb-6">
         <div class="text-4xl mb-3">⭐</div>
-        <h3 class="text-2xl font-fantasy font-bold text-amber-300">AWANS BOHATERA</h3>
+        <h3 id="level-dialog-title" class="text-2xl font-fantasy font-bold text-amber-300">AWANS BOHATERA</h3>
         <p class="text-sm text-gray-300 mt-2">
           <span x-text="currentCharacter?.name"></span> ma
           <b class="text-amber-300" x-text="currentCharacter?.unspent_stat_points"></b>
@@ -1825,34 +1873,46 @@
   </div>
 
   <!-- ==================== MODAL: KRONIKA ŚWIATA (LORE BOOK) ==================== -->
-  <div x-show="showLoreBookModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
+  <div x-show="showLoreBookModal" role="dialog" aria-modal="true" aria-labelledby="lore-dialog-title" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
     <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-2xl w-full border border-amber-900/50 shadow-2xl max-h-[85vh] flex flex-col">
       <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
-        <h3 class="text-2xl font-fantasy font-bold text-amber-300 flex items-center gap-2">
+        <h3 id="lore-dialog-title" class="text-2xl font-fantasy font-bold text-amber-300 flex items-center gap-2">
           <span>📜</span> KRONIKA ŚWIATA I NAZWANE LEGENDY
         </h3>
-        <button @click="showLoreBookModal = false" class="text-gray-400 hover:text-white text-lg">✕</button>
+        <button @click="showLoreBookModal = false" class="text-gray-400 hover:text-white text-lg" aria-label="Zamknij kronikę świata">✕</button>
       </div>
 
-      <p class="text-xs text-gray-400 mb-4">Wszystkie elementy świata, potwory, lokacje i oręż, którym drużyna nadała własne miano:</p>
+      <p class="text-xs text-gray-400 mb-4">Nazwane spotkania i odkrycia drużyny są automatycznie porządkowane według rodzaju:</p>
 
-      <div class="flex-1 overflow-y-auto space-y-3 pr-2">
-        <template x-for="ent in session?.lore_entities || []" :key="ent.id">
-          <div class="p-3.5 bg-slate-950/80 rounded-xl border border-slate-800 flex items-start gap-3">
-            <span class="text-2xl" x-text="ent.category === 'boss' ? '👑' : ent.category === 'weapon' ? '🗡️' : ent.category === 'location' ? '🏰' : '💥'"></span>
-            <div class="flex-1 text-xs">
-              <div class="flex items-center justify-between mb-1">
-                <h4 class="font-fantasy font-bold text-amber-300 text-sm" x-text="ent.custom_name"></h4>
-                <span class="text-[10px] uppercase font-mono text-gray-500" x-text="ent.category"></span>
+      <div class="flex-1 overflow-y-auto pr-2">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <template x-for="category in loreCategories" :key="category.id">
+            <section class="lore-category">
+              <h4 class="lore-category__title">
+                <span aria-hidden="true" x-text="category.icon"></span>
+                <span x-text="category.label"></span>
+                <span class="lore-category__count" x-text="loreEntitiesByCategory(category.id).length"></span>
+              </h4>
+
+              <div class="space-y-2">
+                <template x-for="ent in loreEntitiesByCategory(category.id)" :key="ent.id">
+                  <article class="lore-entry">
+                    <h5 class="font-fantasy font-bold text-amber-300 text-sm" x-text="ent.custom_name"></h5>
+                    <p class="text-gray-300 text-xs mt-1" x-text="ent.original_description"></p>
+                    <p class="text-amber-500/80 text-xs font-mono mt-2" x-text="'Nazwał: ' + (ent.named_by_character_name || 'Bohater')"></p>
+                  </article>
+                </template>
+
+                <p x-show="loreEntitiesByCategory(category.id).length === 0" class="lore-empty">
+                  Jeszcze nic tu nie zapisano.
+                </p>
               </div>
-              <p class="text-gray-400 mb-1" x-text="ent.original_description"></p>
-              <span class="text-[10px] text-amber-500/80 font-mono" x-text="'Nazwał: ' + (ent.named_by_character_name || 'Bohater')"></span>
-            </div>
-          </div>
-        </template>
+            </section>
+          </template>
+        </div>
 
-        <div x-show="!session?.lore_entities || session?.lore_entities?.length === 0" class="text-center py-10 text-gray-500 text-xs italic">
-          Brak jeszcze nazwanych legend. Pojawią się w trakcie walk z bossami i odkrywania skarbów!
+        <div x-show="!session?.lore_entities || session?.lore_entities?.length === 0" class="text-center pt-5 text-gray-400 text-xs italic">
+          Kronika zapełni się podczas spotkań, odkrywania miejsc i najważniejszych wydarzeń kampanii.
         </div>
       </div>
 
@@ -1860,28 +1920,28 @@
   </div>
 
   <!-- ==================== MODAL: TWORZENIE POSTACI ==================== -->
-  <div x-show="showCharModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
+  <div x-show="showCharModal" role="dialog" aria-modal="true" aria-labelledby="character-dialog-title" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
     <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-lg w-full border border-amber-900/50 shadow-2xl relative">
-      <h3 class="text-2xl font-fantasy font-bold text-amber-300 mb-1">STWÓRZ BOHATERA</h3>
+      <h3 id="character-dialog-title" class="text-2xl font-fantasy font-bold text-amber-300 mb-1">STWÓRZ BOHATERA</h3>
       <p class="text-xs text-gray-400 mb-6">Wybierz klasę i rozdysponuj atrybuty (punkty modyfikatorów d20).</p>
 
       <form @submit.prevent="createCharacter()" class="space-y-4">
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Twoje Imię (Gracz)</label>
-            <input type="text" x-model="newChar.player_name" placeholder="np. Tomek"
+            <label for="player-name" class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Twoje Imię (Gracz)</label>
+            <input id="player-name" type="text" x-model="newChar.player_name" placeholder="np. Tomek"
                    class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none">
           </div>
           <div>
-            <label class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Imię Postaci</label>
-            <input type="text" x-model="newChar.name" placeholder="np. Thorin Kamiennoręki"
+            <label for="character-name" class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Imię Postaci</label>
+            <input id="character-name" type="text" x-model="newChar.name" placeholder="np. Thorin Kamiennoręki"
                    class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none">
           </div>
         </div>
 
         <div>
-          <label class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Archetyp / Klasa</label>
-          <select x-model="newChar.character_class" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none">
+          <label for="character-class" class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Archetyp / Klasa</label>
+          <select id="character-class" x-model="newChar.character_class" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none">
             <option value="Wojownik">Wojownik (Start: Krasnoludzki Miecz + Zbroja)</option>
             <option value="Łotrzyk">Łotrzyk (Start: Zatruty Sztylet + Wytrychy)</option>
             <option value="Czarodziej">Czarodziej (Start: Runiczny Kostur + Amulet Ognia)</option>
@@ -1892,7 +1952,7 @@
         <!-- Rozdział Atrybutów -->
         <div>
           <div class="flex justify-between items-center mb-2">
-            <label class="text-xs font-semibold text-amber-400/90 uppercase">Modyfikatory Atrybutów (0 do +4)</label>
+            <span class="text-xs font-semibold text-amber-400/90 uppercase">Modyfikatory Atrybutów (0 do +4)</span>
             <span class="text-xs font-bold" :class="statPointsRemaining >= 0 ? 'text-amber-400' : 'text-red-400'">
               Pozostało punktów: <span x-text="statPointsRemaining"></span>
             </span>
@@ -1901,19 +1961,19 @@
           <div class="grid grid-cols-2 gap-3">
             <div class="bg-slate-950/90 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
               <span class="text-xs text-gray-300">Siła (STR)</span>
-              <input type="number" min="0" max="4" x-model.number="newChar.strength" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
+              <input type="number" min="0" max="4" x-model.number="newChar.strength" aria-label="Siła postaci" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
             </div>
             <div class="bg-slate-950/90 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
               <span class="text-xs text-gray-300">Zręczność (AGI)</span>
-              <input type="number" min="0" max="4" x-model.number="newChar.agility" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
+              <input type="number" min="0" max="4" x-model.number="newChar.agility" aria-label="Zręczność postaci" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
             </div>
             <div class="bg-slate-950/90 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
               <span class="text-xs text-gray-300">Rozum (INT)</span>
-              <input type="number" min="0" max="4" x-model.number="newChar.intellect" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
+              <input type="number" min="0" max="4" x-model.number="newChar.intellect" aria-label="Rozum postaci" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
             </div>
             <div class="bg-slate-950/90 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
               <span class="text-xs text-gray-300">Charyzma (CHA)</span>
-              <input type="number" min="0" max="4" x-model.number="newChar.charisma" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
+              <input type="number" min="0" max="4" x-model.number="newChar.charisma" aria-label="Charyzma postaci" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
             </div>
           </div>
         </div>
@@ -1935,20 +1995,20 @@
   </div>
 
   <!-- ==================== MODAL: ODBLOKOWANIE NARZĘDZI MG ==================== -->
-  <div x-show="showGmAuthModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
+  <div x-show="showGmAuthModal" role="dialog" aria-modal="true" aria-labelledby="gm-auth-dialog-title" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
     <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-md w-full border border-slate-700 shadow-2xl">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-xl font-fantasy font-bold text-amber-300 flex items-center gap-2">
+        <h3 id="gm-auth-dialog-title" class="text-xl font-fantasy font-bold text-amber-300 flex items-center gap-2">
           <span>🔒</span> NARZĘDZIA MISTRZA GRY
         </h3>
-        <button @click="showGmAuthModal = false; gmPin = ''; gmAuthError = ''" class="text-gray-400 hover:text-white text-lg">✕</button>
+        <button @click="showGmAuthModal = false; gmPin = ''; gmAuthError = ''" class="text-gray-400 hover:text-white text-lg" aria-label="Zamknij logowanie Mistrza Gry">✕</button>
       </div>
       <p class="text-sm text-gray-400 mb-5">Ta sekcja zawiera operacje administracyjne. Wpisz osobny PIN Mistrza Gry.</p>
 
       <form @submit.prevent="authenticateGm()" class="space-y-4">
         <div>
-          <label class="block text-xs font-semibold text-amber-400/90 uppercase tracking-widest mb-1">PIN Mistrza Gry</label>
-          <input type="password" inputmode="numeric" autocomplete="off" x-model="gmPin" placeholder="Wpisz PIN..."
+          <label for="gm-pin" class="block text-xs font-semibold text-amber-400/90 uppercase tracking-widest mb-1">PIN Mistrza Gry</label>
+          <input id="gm-pin" type="password" inputmode="numeric" autocomplete="off" x-model="gmPin" placeholder="Wpisz PIN..."
                  class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition">
         </div>
         <div x-show="gmAuthError" x-text="gmAuthError" class="text-rose-300 text-sm bg-rose-950/50 border border-rose-800/50 rounded-lg p-3"></div>
@@ -1962,13 +2022,13 @@
   </div>
 
   <!-- ==================== MODAL: NARZĘDZIA MG ==================== -->
-  <div x-show="showIntroModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
+  <div x-show="showIntroModal" role="dialog" aria-modal="true" aria-labelledby="gm-tools-dialog-title" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
     <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-xl w-full border border-amber-900/50 shadow-2xl max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-2xl font-fantasy font-bold text-amber-300 flex items-center gap-2">
+        <h3 id="gm-tools-dialog-title" class="text-2xl font-fantasy font-bold text-amber-300 flex items-center gap-2">
           <span>⚙️</span> NARZĘDZIA MISTRZA GRY
         </h3>
-        <button @click="showIntroModal = false; resetConfirmation = ''" class="text-gray-400 hover:text-white text-lg">✕</button>
+        <button @click="showIntroModal = false; resetConfirmation = ''" class="text-gray-400 hover:text-white text-lg" aria-label="Zamknij narzędzia Mistrza Gry">✕</button>
       </div>
       <div class="mb-5 p-4 rounded-xl bg-rose-950/40 border border-rose-800/60">
         <p class="text-sm font-bold text-rose-300 mb-1">⚠️ Restart kampanii</p>
@@ -1977,8 +2037,8 @@
 
       <div class="space-y-4">
         <div>
-          <label class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Wybierz motyw / scenerię</label>
-          <select x-model="scenarioChoice" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none">
+          <label for="scenario-choice" class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Wybierz motyw / scenerię</label>
+          <select id="scenario-choice" x-model="scenarioChoice" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none">
             <option value="Krasnoludzka Twierdza opanowana przez demony ognia">Krasnoludzka Twierdza opanowana przez demony ognia</option>
             <option value="Krypta Pradawnego Króla Lichów">Krypta Pradawnego Króla Lichów</option>
             <option value="Nawiedzony Przeklęty Las Cieni">Nawiedzony Przeklęty Las Cieni</option>
@@ -1988,8 +2048,8 @@
         </div>
 
         <div>
-          <label class="block text-xs font-semibold text-rose-300 uppercase mb-1">Wpisz RESETUJ, aby potwierdzić</label>
-          <input type="text" x-model="resetConfirmation" autocomplete="off" spellcheck="false" placeholder="RESETUJ"
+          <label for="reset-confirmation" class="block text-xs font-semibold text-rose-300 uppercase mb-1">Wpisz RESETUJ, aby potwierdzić</label>
+          <input id="reset-confirmation" type="text" x-model="resetConfirmation" autocomplete="off" spellcheck="false" placeholder="RESETUJ"
                  class="w-full bg-slate-950 border border-rose-900/70 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-700 focus:border-rose-500 focus:outline-none">
         </div>
 
@@ -2025,7 +2085,7 @@
   </div>
 
   <!-- ==================== MODAL: LIGHTBOX DLA ILUSTRACJI ==================== -->
-  <div x-show="showLightbox" class="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 cursor-pointer" @click="showLightbox = false" x-cloak>
+  <div x-show="showLightbox" role="dialog" aria-modal="true" aria-label="Powiększona ilustracja" class="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 cursor-pointer" @click="showLightbox = false" x-cloak>
     <div class="relative max-w-5xl w-full" @click.stop>
       <button @click="showLightbox = false" class="absolute -top-10 right-0 text-white hover:text-amber-400 text-2xl font-bold">✕ Zamknij</button>
       <img :src="lightboxImageUrl" alt="Powiększona ilustracja" class="w-full max-h-[85vh] object-contain rounded-xl shadow-2xl border border-amber-500/30">

@@ -72,6 +72,8 @@ class Character(Base):
     personal_note = Column(Text, nullable=False, default="")
     status_effects = Column(JSON, default=list)
     is_alive = Column(Boolean, default=True)
+    death_state = Column(String(20), nullable=False, default="alive")  # alive, downed, stable, dead
+    death_failures = Column(Integer, nullable=False, default=0)
     is_ready = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -225,7 +227,7 @@ class NamedLoreEntity(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(Integer, ForeignKey("game_sessions.id", ondelete="CASCADE"), nullable=False)
-    category = Column(String(50), nullable=False)  # boss, location, weapon, attack
+    category = Column(String(50), nullable=False)  # boss, location, npc, weapon, attack
     original_description = Column(Text, nullable=False)
     custom_name = Column(String(150), nullable=False)
     named_by_character_id = Column(Integer, nullable=True)

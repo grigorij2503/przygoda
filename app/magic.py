@@ -180,6 +180,17 @@ MAGIC_ABILITIES = {
             "target_ref": "boss",
         },
         {
+            "id": "resurrection",
+            "name": "Wskrzeszenie",
+            "category": "Rytuał życia",
+            "required_level": 7,
+            "icon": "🕊️",
+            "description": "Przywraca poległego sojusznika do życia; zwykły sukces odnawia 25% HP, krytyczny 50% HP.",
+            "action_text": "Odprawiam Wskrzeszenie nad poległym sojusznikiem i wzywam jego duszę z powrotem do ciała.",
+            "intent": "support",
+            "target_ref": None,
+        },
+        {
             "id": "divine_intervention",
             "name": "Boska interwencja",
             "category": "Cud mistrzowski",
@@ -264,6 +275,10 @@ MAGIC_ABILITY_ALIASES = {
     "radiant_burst": (
         r"\bwybuch\w*\s+swiatlosc\w*\b",
         r"\bfal\w*\s+swiet\w*\s+swiatl\w*\b",
+    ),
+    "resurrection": (
+        r"\bwskrzes\w*\b",
+        r"\bprzywrac\w*.{0,30}\bzyc\w*\b",
     ),
     "divine_intervention": (
         r"\bbosk\w*\s+interwenc\w*\b",
