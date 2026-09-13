@@ -287,24 +287,55 @@ async def resolve_turn_with_gemini(
             "hp_delta_from_combat_engine": a.get("hp_delta", 0),
         })
 
-    # Kontekst nazwanych przez graczy elementów świata (Lore)
+    combat_events = getattr(turn, "combat_events", None) or []
+    boss_defeated_this_turn = any(
+        isinstance(event, dict) and event.get("type") == "boss_defeated"
+        for event in combat_events
+    )
+    boss_is_alive = bool(
+        session.active_boss_name and (session.active_boss_hp or 0) > 0
+    )
+
+    # Kontekst nazwanych przez graczy elementów świata (Lore). Historyczne wpisy
+    # bossów nie mogą wyglądać dla narratora jak aktywne zagrożenia.
     lore_context = []
     if lore_entities:
         for ent in lore_entities:
-            if getattr(ent, 'is_active', True):
-                lore_context.append(f"[{getattr(ent, 'category', 'lore').upper()}]: '{getattr(ent, 'custom_name', '')}' (opis: {getattr(ent, 'original_description', '')}, nazwany przez: {getattr(ent, 'named_by_character_name', 'Bohater')})")
+            if not getattr(ent, "is_active", True):
+                continue
+            category = getattr(ent, "category", "lore")
+            if category == "boss" and not (boss_is_alive or boss_defeated_this_turn):
+                continue
+            if (
+                category == "boss"
+                and session.active_boss_name
+                and getattr(ent, "custom_name", "") != session.active_boss_name
+            ):
+                continue
+            lore_context.append(
+                f"[{category.upper()}]: '{getattr(ent, 'custom_name', '')}' "
+                f"(opis: {getattr(ent, 'original_description', '')}, nazwany przez: "
+                f"{getattr(ent, 'named_by_character_name', 'Bohater')})"
+            )
 
     boss_info = ""
-    if session.active_boss_name:
-        boss_state = (
-            "BOSS ZOSTAŁ POKONANY W TEJ TURZE. Opisz jego upadek i nie przywracaj mu HP."
-            if session.active_boss_hp == 0
-            else "Boss nadal walczy."
+    if boss_defeated_this_turn:
+        boss_state = "BOSS ZOSTAŁ POKONANY W TEJ TURZE. Opisz jego upadek i nie przywracaj mu HP."
+        boss_info = (
+            f"\nGŁÓWNY WRÓG / BOSS: {session.active_boss_title} "
+            f"o imieniu '{session.active_boss_name}' (HP po rozliczeniu ataków: "
+            f"{session.active_boss_hp}/{session.active_boss_max_hp}). {boss_state} "
+            f"Faza: {getattr(session, 'active_boss_phase', 1)}, pancerz: "
+            f"{getattr(session, 'active_boss_armor', 0)}, efekty: "
+            f"{getattr(session, 'active_boss_effects', None) or []}. "
+            "Pola boss_damage, hp_delta_from_combat_engine oraz combat_events są "
+            "mechanicznym wynikiem silnika i muszą być dokładnie zgodne z narracją."
         )
+    elif boss_is_alive:
         boss_info = (
             f"\nAKTYWNY GŁÓWNY WRÓG / BOSS: {session.active_boss_title} "
             f"o imieniu '{session.active_boss_name}' (HP po rozliczeniu ataków: "
-            f"{session.active_boss_hp}/{session.active_boss_max_hp}). {boss_state} "
+            f"{session.active_boss_hp}/{session.active_boss_max_hp}). Boss nadal walczy. "
             f"Faza: {getattr(session, 'active_boss_phase', 1)}, pancerz: "
             f"{getattr(session, 'active_boss_armor', 0)}, efekty: "
             f"{getattr(session, 'active_boss_effects', None) or []}. "
@@ -324,6 +355,7 @@ async def resolve_turn_with_gemini(
         "2. WYNIKI RZUTÓW: Bezwzględnie podporządkuj powodzenie zamiarów rzutom kości (critical_success, success, partial_success, failure, critical_failure).\n"
         "3. STAN ZDROWIA I ZAGROŻENIA: W narracji wspominaj o stanie fizycznym bohaterów – ranach, krwawieniu, zmęczeniu, utracie tchu lub determinacji.\n"
         "4. CIĄGŁOŚĆ OPOWIEŚCI: Nie twórz suchych raportów punktowych! Każda tura to żywy, emocjonujący fragment wciągającej powieści dark fantasy.\n\n"
+        "Nie streszczaj ponownie zamkniętych wydarzeń z wcześniejszych tur. Pokonanego wcześniej bossa, jego śmierć ani szczątki wspominaj tylko wtedy, gdy combat_events zawiera boss_defeated albo bieżąca akcja gracza bezpośrednio dotyczy jego pozostałości. Rozpocznij od bieżącej sytuacji i działań graczy.\n\n"
         "5. PRAWDZIWY EKWIPUNEK: Pole inventory przy postaci jest jedynym źródłem prawdy o posiadanych przedmiotach. Nie pozwalaj użyć ani uzyskać korzyści z przedmiotu, którego tam nie ma. Broń, tarcza i zbroja dają korzyść tylko, gdy mają equipped=true. Jeśli deklaracja mimo zabezpieczeń odwołuje się do nieposiadanego przedmiotu, opisz brak przedmiotu i improwizację zgodną z wynikiem rzutu, zamiast materializować wyposażenie.\n"
         "6. ŁUP I CRAFTING: Ekwipunek rozlicza wyłącznie backend. Zdarzenia item_found, item_crafted i loot_search_empty w combat_events są ostateczne — opisz je dokładnie i nie dodawaj żadnych innych znalezisk. W każdym player_consequences ustaw new_items=[]; przedmioty utracone z innych przyczyn nadal wpisuj do removed_item_names.\n\n"
         "7. MAGIA KLASOWA: Pole magic_ability przy akcji jest jedynym źródłem prawdy o użytym czarze, modlitwie lub cudzie. Nie rozszerzaj efektu poza opis tej zdolności. Puste magic_ability oznacza zwykłą, niemagiczną akcję. Pole available_magic zawiera wyłącznie zdolności odblokowane dla danej postaci; nie przyznawaj dostępu do innych mocy.\n\n"
@@ -346,12 +378,21 @@ async def resolve_turn_with_gemini(
         "campaign_setting": session.setting_theme,
         "campaign_intro": session.campaign_intro,
         "turn_number": turn.turn_number,
+        "opening_situation": turn.next_turn_prompt,
         "active_lore_entities": lore_context,
         "party_status": party_context,
         "player_actions_and_dice_rolls": actions_context,
-        "combat_events": getattr(turn, "combat_events", None) or [],
-        "boss_environment_features": getattr(session, "active_boss_features", None) or [],
-        "boss_next_telegraphed_attack": getattr(session, "active_boss_telegraph", None),
+        "combat_events": combat_events,
+        "boss_environment_features": (
+            getattr(session, "active_boss_features", None) or []
+            if boss_is_alive or boss_defeated_this_turn
+            else []
+        ),
+        "boss_next_telegraphed_attack": (
+            getattr(session, "active_boss_telegraph", None)
+            if boss_is_alive
+            else None
+        ),
         "campaign_map": map_context or {},
     }
 

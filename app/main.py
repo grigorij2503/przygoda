@@ -442,8 +442,16 @@ def build_map_narrator_context(campaign_map: CampaignMap) -> dict:
         str(node.get("id")): node
         for node in layout.get("nodes", [])
     }
+    current_node = nodes_by_id.get(str(current_node_id), {})
     return {
         "current_node_id": current_node_id,
+        "current_location": {
+            "id": current_node_id,
+            "name": current_node.get("custom_name") or current_node.get("name", "Lokacja"),
+            "type": current_node.get("type", "unknown"),
+            "description": current_node.get("exploration_summary") or current_node.get("description", ""),
+            "notable_elements": current_node.get("notable_elements") or current_node.get("contents", []),
+        },
         "allowed_destinations": [
             {
                 "id": node_id,
@@ -1414,6 +1422,17 @@ async def name_entity(payload: NameEntityRequest, db: AsyncSession = Depends(get
     if not custom_name:
         raise HTTPException(status_code=400, detail="Nazwa nie może być pusta")
 
+    if category == "boss":
+        await db.execute(
+            update(NamedLoreEntity)
+            .where(
+                NamedLoreEntity.session_id == session.id,
+                NamedLoreEntity.category == "boss",
+                NamedLoreEntity.is_active.is_(True),
+            )
+            .values(is_active=False)
+        )
+
     lore_ent = NamedLoreEntity(
         session_id=session.id,
         category=category,
@@ -2336,6 +2355,37 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                 lore_entities=lore_entities,
                 map_context=map_context,
             )
+
+            boss_defeated_this_turn = any(
+                isinstance(event, dict) and event.get("type") == "boss_defeated"
+                for event in (turn.combat_events or [])
+            )
+            stale_defeated_boss = bool(
+                session.active_boss_name
+                and session.active_boss_hp is not None
+                and session.active_boss_hp <= 0
+                and not boss_defeated_this_turn
+            )
+            if boss_defeated_this_turn or stale_defeated_boss:
+                await db.execute(
+                    update(NamedLoreEntity)
+                    .where(
+                        NamedLoreEntity.session_id == session.id,
+                        NamedLoreEntity.category == "boss",
+                        NamedLoreEntity.is_active.is_(True),
+                    )
+                    .values(is_active=False)
+                )
+                session.active_boss_name = None
+                session.active_boss_title = None
+                session.active_boss_hp = None
+                session.active_boss_max_hp = None
+                session.active_boss_armor = 0
+                session.active_boss_defense_dc = 12
+                session.active_boss_phase = 1
+                session.active_boss_effects = []
+                session.active_boss_features = []
+                session.active_boss_telegraph = None
 
             # 3. Zastosowanie konsekwencji dla postaci
             level_ups = []
