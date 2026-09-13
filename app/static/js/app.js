@@ -103,6 +103,16 @@ document.addEventListener('alpine:init', () => {
     gmPin: '',
     gmAuthError: '',
     resetConfirmation: '',
+    gmStatCharacterId: null,
+    gmStatForm: {
+      strength: 0,
+      agility: 0,
+      intellect: 0,
+      charisma: 0
+    },
+    gmOriginalStats: null,
+    gmStatError: '',
+    isSavingGmStats: false,
 
     // Party Chat
     chatMessages: [],
@@ -627,6 +637,7 @@ document.addEventListener('alpine:init', () => {
         this.isGmAuthenticated = data.authenticated === true;
         if (this.isGmAuthenticated) {
           this.resetConfirmation = '';
+          this.prepareGmStatEditor();
           this.showIntroModal = true;
         } else {
           this.gmPin = '';
@@ -652,6 +663,7 @@ document.addEventListener('alpine:init', () => {
         this.showGmAuthModal = false;
         this.gmPin = '';
         this.resetConfirmation = '';
+        this.prepareGmStatEditor();
         this.showIntroModal = true;
       } catch (err) {
         this.gmAuthError = err.message;
@@ -669,6 +681,9 @@ document.addEventListener('alpine:init', () => {
         this.showGmAuthModal = false;
         this.gmPin = '';
         this.resetConfirmation = '';
+        this.gmStatCharacterId = null;
+        this.gmOriginalStats = null;
+        this.gmStatError = '';
         this.addToast('Narzędzia MG zostały zablokowane.', 'info');
       }
     },
@@ -679,6 +694,120 @@ document.addEventListener('alpine:init', () => {
       this.gmPin = '';
       this.gmAuthError = 'Sesja MG wygasła. Wpisz PIN ponownie.';
       this.showGmAuthModal = true;
+    },
+
+    get gmStatCharacter() {
+      return this.session?.characters?.find(
+        character => character.id === Number(this.gmStatCharacterId)
+      ) || null;
+    },
+
+    get gmStatTotal() {
+      return ['strength', 'agility', 'intellect', 'charisma'].reduce(
+        (total, stat) => total + Number(this.gmStatForm[stat] || 0),
+        0
+      );
+    },
+
+    get gmOriginalStatTotal() {
+      if (!this.gmOriginalStats) return 0;
+      return ['strength', 'agility', 'intellect', 'charisma'].reduce(
+        (total, stat) => total + Number(this.gmOriginalStats[stat] || 0),
+        0
+      );
+    },
+
+    get gmStatDelta() {
+      return this.gmStatTotal - this.gmOriginalStatTotal;
+    },
+
+    get gmStatsValid() {
+      return ['strength', 'agility', 'intellect', 'charisma'].every(stat => {
+        const value = Number(this.gmStatForm[stat]);
+        return Number.isInteger(value) && value >= 0 && value <= this.maxBaseStat;
+      });
+    },
+
+    get gmStatsChanged() {
+      return Boolean(this.gmOriginalStats) && ['strength', 'agility', 'intellect', 'charisma'].some(
+        stat => Number(this.gmStatForm[stat]) !== Number(this.gmOriginalStats[stat])
+      );
+    },
+
+    prepareGmStatEditor() {
+      const characters = this.session?.characters || [];
+      if (!characters.some(character => character.id === Number(this.gmStatCharacterId))) {
+        this.gmStatCharacterId = characters[0]?.id || null;
+      }
+      this.loadGmCharacterStats();
+    },
+
+    loadGmCharacterStats() {
+      const character = this.gmStatCharacter;
+      this.gmStatError = '';
+      if (!character) {
+        this.gmOriginalStats = null;
+        return;
+      }
+      const stats = {
+        strength: Number(character.strength || 0),
+        agility: Number(character.agility || 0),
+        intellect: Number(character.intellect || 0),
+        charisma: Number(character.charisma || 0)
+      };
+      this.gmStatForm = { ...stats };
+      this.gmOriginalStats = { ...stats };
+    },
+
+    async saveGmCharacterStats() {
+      const character = this.gmStatCharacter;
+      this.gmStatError = '';
+      if (!character) {
+        this.gmStatError = 'Wybierz postać do korekty.';
+        return;
+      }
+      if (!this.gmStatsValid) {
+        this.gmStatError = `Każdy atrybut musi być liczbą całkowitą od 0 do ${this.maxBaseStat}.`;
+        return;
+      }
+      if (!this.gmStatsChanged) return;
+
+      const deltaLabel = this.gmStatDelta === 0
+        ? 'Łączna pula pozostanie bez zmian.'
+        : `Łączna pula zmieni się o ${this.gmStatDelta > 0 ? '+' : ''}${this.gmStatDelta}.`;
+      if (!confirm(
+        `Awaryjnie zmienić bazowe atrybuty postaci „${character.name}”? ${deltaLabel} ` +
+        'Zmiana wpłynie na kolejne rzuty, ale nie przeliczy już złożonych akcji.'
+      )) return;
+
+      this.isSavingGmStats = true;
+      try {
+        const res = await fetch(`/api/admin/characters/${character.id}/stats`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            room_code: this.roomCode,
+            strength: Number(this.gmStatForm.strength),
+            agility: Number(this.gmStatForm.agility),
+            intellect: Number(this.gmStatForm.intellect),
+            charisma: Number(this.gmStatForm.charisma)
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 403) {
+          this.requireGmUnlock();
+          return;
+        }
+        if (!res.ok) throw new Error(data.detail || 'Nie udało się zmienić atrybutów postaci.');
+
+        await this.fetchSession();
+        this.loadGmCharacterStats();
+        this.addToast(`Zmieniono bazowe atrybuty postaci ${data.character_name}.`, 'success');
+      } catch (err) {
+        this.gmStatError = err.message;
+      } finally {
+        this.isSavingGmStats = false;
+      }
     },
 
     // --- Pobieranie Stanu Sesji ---
@@ -1808,6 +1937,18 @@ document.addEventListener('alpine:init', () => {
           }
           if (msg.character_id === this.selectedCharacterId && msg.unspent_stat_points === 0) {
             this.showLevelUpModal = false;
+          }
+          break;
+        }
+
+        case 'CHARACTER_STATS_UPDATED': {
+          const character = this.session?.characters?.find(c => c.id === msg.character_id);
+          if (character) Object.assign(character, msg.stats || {});
+          if (!this.isSavingGmStats && msg.character_id === this.selectedCharacterId) {
+            this.addToast('MG skorygował bazowe atrybuty Twojej postaci.', 'info');
+          }
+          if (!this.isSavingGmStats && Number(this.gmStatCharacterId) === msg.character_id) {
+            this.loadGmCharacterStats();
           }
           break;
         }

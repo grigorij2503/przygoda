@@ -83,6 +83,7 @@ from app.models import (
 )
 from app.push_service import is_web_push_configured, schedule_web_push
 from app.schemas import (
+    AdminUpdateCharacterStatsRequest,
     DeletePushSubscriptionRequest,
     SavePushSubscriptionRequest,
     CharacterDto,
@@ -908,6 +909,64 @@ async def unlock_admin_tools(payload: VerifyGmPinRequest, response: Response, re
 async def lock_admin_tools(response: Response):
     response.delete_cookie(key=GM_SESSION_COOKIE, path="/", samesite="strict")
     return {"success": True}
+
+
+@app.put("/api/admin/characters/{character_id}/stats")
+async def update_character_base_stats(
+    character_id: int,
+    payload: AdminUpdateCharacterStatsRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    require_gm(request)
+    stmt = (
+        select(Character)
+        .join(GameSession)
+        .where(
+            Character.id == character_id,
+            GameSession.room_code == payload.room_code,
+        )
+    )
+    character = (await db.execute(stmt)).scalar_one_or_none()
+    if not character:
+        raise HTTPException(status_code=404, detail="Postać nie istnieje w tym pokoju")
+
+    previous_stats = {
+        "strength": character.strength,
+        "agility": character.agility,
+        "intellect": character.intellect,
+        "charisma": character.charisma,
+    }
+    updated_stats = {
+        "strength": payload.strength,
+        "agility": payload.agility,
+        "intellect": payload.intellect,
+        "charisma": payload.charisma,
+    }
+    for stat_name, stat_value in updated_stats.items():
+        setattr(character, stat_name, stat_value)
+
+    await db.commit()
+    logger.warning(
+        "MG zmienił bazowe atrybuty postaci %s (ID %s): %s -> %s",
+        character.name,
+        character.id,
+        previous_stats,
+        updated_stats,
+    )
+    await ws_manager.broadcast_to_session(character.session_id, {
+        "type": "CHARACTER_STATS_UPDATED",
+        "character_id": character.id,
+        "character_name": character.name,
+        "stats": updated_stats,
+    })
+    return {
+        "success": True,
+        "character_id": character.id,
+        "character_name": character.name,
+        "stats": updated_stats,
+        "unspent_stat_points": character.unspent_stat_points or 0,
+    }
 
 @app.get("/api/session")
 async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = Depends(get_db)):

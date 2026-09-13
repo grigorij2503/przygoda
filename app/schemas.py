@@ -63,6 +63,13 @@ class UpdatePersonalNoteRequest(BaseModel):
 class SpendStatPointRequest(BaseModel):
     stat: Literal["strength", "agility", "intellect", "charisma"]
 
+class AdminUpdateCharacterStatsRequest(BaseModel):
+    room_code: str = Field(min_length=1, max_length=50)
+    strength: int = Field(ge=0, le=12)
+    agility: int = Field(ge=0, le=12)
+    intellect: int = Field(ge=0, le=12)
+    charisma: int = Field(ge=0, le=12)
+
 class InventoryItemDto(BaseModel):
     id: int
     name: str
