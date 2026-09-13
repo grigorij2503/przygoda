@@ -1781,8 +1781,13 @@ document.addEventListener('alpine:init', () => {
             description: description
           })
         });
-        if (!res.ok) throw new Error('Błąd wywołania eventu.');
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 403) {
+          this.requireGmUnlock();
+          return;
+        }
+        if (!res.ok) throw new Error(data.detail || 'Błąd wywołania eventu.');
+        this.showIntroModal = false;
         this.addToast(`Wylosowano gracza: ${data.chosen_character}!`, 'info');
       } catch (err) {
         this.addToast(err.message, 'error');

@@ -1493,7 +1493,13 @@ async def name_entity(payload: NameEntityRequest, db: AsyncSession = Depends(get
     }
 
 @app.post("/api/session/trigger-naming")
-async def trigger_naming(payload: TriggerNamingRequest, db: AsyncSession = Depends(get_db)):
+async def trigger_naming(
+    payload: TriggerNamingRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    require_gm(request)
+
     s_stmt = select(GameSession).where(GameSession.id == payload.session_id).options(selectinload(GameSession.characters))
     session = (await db.execute(s_stmt)).scalar_one_or_none()
     if not session:

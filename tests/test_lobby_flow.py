@@ -24,6 +24,17 @@ async def test_scenario_reset_requires_gm_unlock():
 
 
 @pytest.mark.asyncio
+async def test_manual_naming_requires_gm_unlock():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        response = await ac.post("/api/session/trigger-naming", json={
+            "session_id": 1,
+            "category": "boss",
+            "description": "Testowy przeciwnik",
+        })
+        assert response.status_code == 403
+
+
+@pytest.mark.asyncio
 async def test_lobby_and_ready_check_flow(monkeypatch):
     monkeypatch.setattr(settings, "GM_PIN", "test-gm-pin")
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
