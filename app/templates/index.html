@@ -45,14 +45,25 @@
   </script>
 
   <!-- Custom Stylesheet -->
-  <link rel="stylesheet" href="/static/css/style.css?v=17">
+  <link rel="stylesheet" href="/static/css/style.css?v=18">
 
   <!-- Alpine.js CDN -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
   <!-- App Logic -->
-  <script src="/static/js/app.js?v=22"></script>
+  <script src="/static/js/app.js?v=23"></script>
 </head>
 <body x-data="rpgGame" class="min-h-screen text-gray-200 antialiased selection:bg-amber-600 selection:text-white">
+
+  <!-- ==================== POWRÓT DO GRY ==================== -->
+  <div x-show="welcomeBackVisible" x-cloak
+       class="welcome-back-overlay"
+       role="status" aria-live="polite" aria-atomic="true">
+    <div class="welcome-back-card">
+      <span class="welcome-back-rune" aria-hidden="true">⚔️</span>
+      <p class="welcome-back-title">Witaj ponownie, <span x-text="welcomeBackName"></span></p>
+      <p class="welcome-back-subtitle">Stan przygody został zsynchronizowany</p>
+    </div>
+  </div>
 
   <!-- ==================== OFFLINE BANNER ==================== -->
   <div x-show="isOffline" x-cloak class="fixed top-0 left-0 right-0 z-50 bg-amber-950/95 border-b border-amber-500/50 text-amber-200 px-4 py-2 text-xs font-fantasy text-center shadow-lg flex items-center justify-center gap-2">

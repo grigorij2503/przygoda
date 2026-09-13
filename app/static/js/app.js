@@ -129,6 +129,17 @@ document.addEventListener('alpine:init', () => {
     notificationLastSound: 0,
     notificationFocusHandler: null,
     notificationUnlockHandler: null,
+    appPauseHandler: null,
+    pageShowHandler: null,
+    networkOnlineHandler: null,
+    networkOfflineHandler: null,
+    appInactiveSince: null,
+    resumeSyncInProgress: false,
+    lastResumeSyncAt: 0,
+    welcomeBackVisible: false,
+    welcomeBackName: '',
+    welcomeBackTimer: null,
+    resumeAbsenceThresholdMs: 120000,
     pushSupported: false,
     pushConfigured: false,
     pushEnabled: false,
@@ -150,11 +161,23 @@ document.addEventListener('alpine:init', () => {
 
     init() {
       this.notificationFocusHandler = () => {
-        if (!document.hidden && document.hasFocus()) this.clearNotifications();
+        if (document.hidden) {
+          this.markAppInactive();
+          return;
+        }
+        this.clearNotifications();
+        this.handleAppResume();
+      };
+      this.appPauseHandler = () => this.markAppInactive();
+      this.pageShowHandler = () => {
+        if (!document.hidden) this.handleAppResume();
       };
       this.notificationUnlockHandler = () => this.unlockNotificationAudio();
       document.addEventListener('visibilitychange', this.notificationFocusHandler);
       window.addEventListener('focus', this.notificationFocusHandler);
+      window.addEventListener('blur', this.appPauseHandler);
+      window.addEventListener('pagehide', this.appPauseHandler);
+      window.addEventListener('pageshow', this.pageShowHandler);
       document.addEventListener('pointerup', this.notificationUnlockHandler);
       document.addEventListener('keydown', this.notificationUnlockHandler);
       this.initDialogAccessibility();
@@ -162,15 +185,17 @@ document.addEventListener('alpine:init', () => {
       this.registerServiceWorker();
 
       // Nasłuchiwanie zdarzeń sieciowych (Online/Offline)
-      window.addEventListener('online', () => {
+      this.networkOnlineHandler = () => {
         this.isOffline = false;
         this.addToast('Połączenie z siecią zostało przywrócone!', 'success');
-        if (this.isAuthenticated) this.fetchSession();
-      });
-      window.addEventListener('offline', () => {
+        if (this.isAuthenticated) this.synchronizeClientState();
+      };
+      this.networkOfflineHandler = () => {
         this.isOffline = true;
         this.addToast('Utracono połączenie z siecią. Jesteś w trybie offline.', 'warning');
-      });
+      };
+      window.addEventListener('online', this.networkOnlineHandler);
+      window.addEventListener('offline', this.networkOfflineHandler);
 
       this.proxyClockTimer = setInterval(() => {
         this.proxyNow = Date.now() + this.proxyClockOffset;
@@ -487,6 +512,59 @@ document.addEventListener('alpine:init', () => {
       }, 5000);
     },
 
+    markAppInactive() {
+      if (!this.appInactiveSince) this.appInactiveSince = Date.now();
+    },
+
+    async handleAppResume() {
+      const inactiveSince = this.appInactiveSince;
+      this.appInactiveSince = null;
+      if (!this.isAuthenticated || document.hidden) return;
+
+      const wasAwayLongEnough = Boolean(
+        inactiveSince && Date.now() - inactiveSince >= this.resumeAbsenceThresholdMs
+      );
+      const synchronized = await this.synchronizeClientState();
+      if (synchronized && wasAwayLongEnough && this.currentCharacter?.name) {
+        this.showWelcomeBack(this.currentCharacter.name);
+      }
+    },
+
+    async synchronizeClientState() {
+      const now = Date.now();
+      if (!this.isAuthenticated || this.resumeSyncInProgress || now - this.lastResumeSyncAt < 1000) {
+        return false;
+      }
+
+      this.resumeSyncInProgress = true;
+      this.lastResumeSyncAt = now;
+      try {
+        // Systemy mobilne potrafią zostawić zamrożony WebSocket w stanie OPEN.
+        // Nowe połączenie jest zestawiane przed pobraniem snapshotu, aby nie zgubić
+        // zdarzeń emitowanych w trakcie synchronizacji.
+        this.closeWebSocket();
+        this.initWebSocket();
+        const synchronized = await this.fetchSession();
+        this.initWebSocket();
+        return synchronized;
+      } finally {
+        this.resumeSyncInProgress = false;
+      }
+    },
+
+    showWelcomeBack(characterName) {
+      clearTimeout(this.welcomeBackTimer);
+      this.welcomeBackVisible = false;
+      this.welcomeBackName = characterName;
+      this.$nextTick(() => {
+        this.welcomeBackVisible = true;
+        this.welcomeBackTimer = setTimeout(() => {
+          this.welcomeBackVisible = false;
+          this.welcomeBackTimer = null;
+        }, 2800);
+      });
+    },
+
     // --- Logowanie do Pokoju ---
     async login(isAuto = false) {
       this.authError = '';
@@ -605,6 +683,7 @@ document.addEventListener('alpine:init', () => {
 
     // --- Pobieranie Stanu Sesji ---
     async fetchSession() {
+      const previousTurnNumber = this.session?.current_turn_number;
       const previousUnspentStatPoints = this.currentCharacter?.unspent_stat_points;
       const previousCharacterId = this.currentCharacter?.id;
       const previousInventoryItemIds = previousCharacterId
@@ -612,10 +691,19 @@ document.addEventListener('alpine:init', () => {
         : null;
       this.isLoadingSession = true;
       try {
-        const res = await fetch(`/api/session?room_code=${this.roomCode}`);
+        const res = await fetch(`/api/session?room_code=${this.roomCode}`, { cache: 'no-store' });
         if (!res.ok) throw new Error('Błąd ładowania sesji.');
         const data = await res.json();
         this.session = data;
+        this.isResolvingTurn = Boolean(data.is_turn_resolving);
+        if (previousTurnNumber !== undefined && previousTurnNumber !== data.current_turn_number) {
+          this.actionText = '';
+          this.actionIntent = null;
+          this.actionTargetRef = null;
+          this.magicAbilityId = null;
+          this.isEditingSubmittedAction = false;
+          this.turnError = '';
+        }
         const serverNow = Date.parse(data.server_time);
         this.proxyClockOffset = Number.isFinite(serverNow) ? serverNow - Date.now() : 0;
         this.proxyNow = Date.now() + this.proxyClockOffset;
@@ -679,8 +767,10 @@ document.addEventListener('alpine:init', () => {
         if (this.session.characters.length === 0 && this.isAuthenticated) {
           this.showCharModal = true;
         }
+        return true;
       } catch (err) {
         this.addToast(err.message, 'error');
+        return false;
       } finally {
         this.isLoadingSession = false;
       }
@@ -1509,14 +1599,21 @@ document.addEventListener('alpine:init', () => {
       this.clearNotifications();
       document.removeEventListener('visibilitychange', this.notificationFocusHandler);
       window.removeEventListener('focus', this.notificationFocusHandler);
+      window.removeEventListener('blur', this.appPauseHandler);
+      window.removeEventListener('pagehide', this.appPauseHandler);
+      window.removeEventListener('pageshow', this.pageShowHandler);
+      window.removeEventListener('online', this.networkOnlineHandler);
+      window.removeEventListener('offline', this.networkOfflineHandler);
       document.removeEventListener('pointerup', this.notificationUnlockHandler);
       document.removeEventListener('keydown', this.notificationUnlockHandler);
       clearInterval(this.proxyClockTimer);
       this.proxyClockTimer = null;
+      clearTimeout(this.welcomeBackTimer);
+      this.welcomeBackTimer = null;
       if (this.notificationAudio) this.notificationAudio.close().catch(() => {});
     },
 
-    initWebSocket() {
+    initWebSocket(syncOnOpen = false) {
       if (!this.session || !this.isAuthenticated) return;
       const charId = this.selectedCharacterId || 0;
 
@@ -1537,6 +1634,7 @@ document.addEventListener('alpine:init', () => {
         if (this.ws !== socket) return;
         this.wsConnected = true;
         logger('Połączono z WebSockets gry');
+        if (syncOnOpen) this.fetchSession();
       };
 
       socket.onmessage = (event) => {
@@ -1557,7 +1655,7 @@ document.addEventListener('alpine:init', () => {
         this.wsReconnectTimer = setTimeout(() => {
           this.wsReconnectTimer = null;
           if (this.isAuthenticated) {
-            this.initWebSocket();
+            this.initWebSocket(true);
           }
         }, 3000);
       };

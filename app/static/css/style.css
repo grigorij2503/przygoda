@@ -14,6 +14,10 @@
   --border-glow: rgba(230, 195, 92, 0.4);
 }
 
+[x-cloak] {
+  display: none !important;
+}
+
 body {
   font-family: 'Inter', sans-serif;
   background-color: var(--bg-primary);
@@ -825,6 +829,58 @@ span.font-fantasy {
   background: linear-gradient(90deg, #161c2c 25%, #242e47 50%, #161c2c 75%);
   background-size: 200% 100%;
   animation: shimmer 1.8s infinite;
+}
+
+/* Potwierdzenie synchronizacji po powrocie z uśpionej karty lub urządzenia. */
+.welcome-back-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  pointer-events: none;
+  background: radial-gradient(circle at center, rgba(10, 12, 16, 0.36), transparent 58%);
+}
+
+.welcome-back-card {
+  min-width: min(24rem, calc(100vw - 2rem));
+  padding: 1.25rem 1.5rem;
+  border: 1px solid rgba(230, 195, 92, 0.58);
+  border-radius: 1rem;
+  background: linear-gradient(145deg, rgba(27, 24, 18, 0.97), rgba(10, 12, 16, 0.98));
+  box-shadow: 0 0 36px rgba(230, 195, 92, 0.2), 0 18px 60px rgba(0, 0, 0, 0.72);
+  text-align: center;
+  animation: welcome-back-arrival 2.8s ease both;
+}
+
+.welcome-back-rune {
+  display: block;
+  margin-bottom: 0.45rem;
+  color: #f6d365;
+  font-size: 1.6rem;
+  filter: drop-shadow(0 0 10px rgba(230, 195, 92, 0.58));
+}
+
+.welcome-back-title {
+  color: #fde68a;
+  font-family: 'Cinzel', serif;
+  font-size: clamp(1rem, 4vw, 1.35rem);
+  font-weight: 700;
+  letter-spacing: 0.035em;
+}
+
+.welcome-back-subtitle {
+  margin-top: 0.3rem;
+  color: #cbd5e1;
+  font-size: 0.75rem;
+}
+
+@keyframes welcome-back-arrival {
+  0% { opacity: 0; transform: translateY(0.75rem) scale(0.96); }
+  18%, 72% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-0.35rem) scale(1.01); }
 }
 
 /* ==================== PWA & Mobile Standalone Enhancements ==================== */
