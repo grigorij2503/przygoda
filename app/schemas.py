@@ -225,7 +225,7 @@ class GeminiTurnResolutionSchema(BaseModel):
     next_turn_prompt: str = Field(description="Sytuacja wyjściowa i wyzwanie na otwarcie kolejnej tury")
     suggested_actions: List[str] = Field(
         default_factory=list,
-        description="Dokładnie 3 konkretne, zróżnicowane podpowiedzi taktyczne lub ścieżki działania dla drużyny na kolejną turę (np. natarcie/siła, spryt/flanka, wiedza/magia)"
+        description="Dokładnie 3 konkretne, zróżnicowane, niemagiczne ścieżki działania dostępne dla każdej klasy (np. natarcie, spryt/flanka, analiza otoczenia)"
     )
     naming_opportunity: Optional[NamingOpportunitySchema] = Field(default=None, description="Opcjonalna okazja do nazwania nowego bossa, niezwykłej lokacji, napotkanego NPC, potężnej broni lub ataku zespołowego przez gracza")
     map_update: Optional[MapLocationUpdateSchema] = Field(
@@ -271,5 +271,5 @@ class PrologueResponse(BaseModel):
     title: str
     setting_theme: str
     prologue_story: str
-    suggested_actions: List[str] = Field(description="Trzy konkretne ścieżki działania dla drużyny na start")
+    suggested_actions: List[str] = Field(description="Trzy konkretne, niemagiczne ścieżki działania dostępne dla każdej klasy na start")
     first_challenge: str

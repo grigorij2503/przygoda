@@ -659,7 +659,7 @@ async def lifespan(app: FastAPI):
                 suggested_actions=[
                     "⚔️ Ścieżka Siły: Bezpośredni atak na szkielety z wykorzystaniem przewagi zaskoczenia.",
                     "🏹 Ścieżka Sprytu: Przyjęcie pozycji obronnej i próba zwabienia strażników w wąskie przejście.",
-                    "🔮 Ścieżka Magii/Wiedzy: Zbadanie aury relikwiarza i próba rozproszenia magii ożywiającej kości."
+                    "🔍 Ścieżka Wiedzy: Zbadanie run relikwiarza i mechanizmu ożywiającego kości."
                 ],
                 image_prompt="Dark fantasy oil painting of four fantasy adventurers entering a Gothic crypt with glowing blue-eyed skeletal guardians, atmospheric torchlight and mist, cinematic composition",
             )
@@ -1284,7 +1284,7 @@ async def reset_campaign(
             suggested_actions=[
                 "⚔️ Ścieżka Siły: Bezpośrednie natarcie i zabezpieczenie terenu.",
                 "🏹 Ścieżka Zręczności: Ciche podejście i rekonesans pozycji wroga.",
-                "🔮 Ścieżka Magii/Wiedzy: Zbadanie otoczenia w poszukiwaniu śladów lub pułapek."
+                "🔍 Ścieżka Wiedzy: Zbadanie otoczenia w poszukiwaniu śladów lub pułapek."
             ],
             image_prompt=f"Dark fantasy oil painting of adventurers in {payload.setting_theme}",
         )

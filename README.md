@@ -47,6 +47,8 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
 10. **Magia Klasowa:**
     - Księga czarów Czarodzieja oraz modlitwy i cuda Kleryka.
     - Zdolności odblokowywane poziomami, walidowane po stronie backendu i powiązane z właściwą cechą postaci.
+    - Szybkie akcje są dopasowane do klasy wybranego bohatera; Wojownik i Łotrzyk nie otrzymują propozycji czarów, a Czarodziej i Kleryk widzą wśród skrótów wyłącznie odblokowane zdolności ze swojej księgi lub modlitw.
+    - Drużynowe podpowiedzi Gemini pozostają niemagiczne i dostępne dla każdej klasy; magia jest deklarowana wyłącznie przez wybór konkretnej zdolności klasowej.
     - Kleryk od 7. poziomu otrzymuje Wskrzeszenie, które jako jedyne zwykłe działanie może przywrócić poległego bohatera (25% PW, a przy krytycznym sukcesie 50% PW).
 11. **Łup, Ekwipunek i Crafting:**
     - Łup z przeszukiwania lokacji i wspólna nagroda po pokonaniu bossa.

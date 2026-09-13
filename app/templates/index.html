@@ -50,7 +50,7 @@
   <!-- Alpine.js CDN -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
   <!-- App Logic -->
-  <script src="/static/js/app.js?v=24"></script>
+  <script src="/static/js/app.js?v=25"></script>
 </head>
 <body x-data="rpgGame" class="min-h-screen text-gray-200 antialiased selection:bg-amber-600 selection:text-white">
 
@@ -848,14 +848,14 @@
               </div>
 
               <!-- Podpowiedzi do aktywnej tury, bez powielania jej wyzwania w poprzedniej turze. -->
-              <div x-show="t.status !== 'completed' && t.suggested_actions?.length > 0" x-data="{ showHints: false }" class="mt-4 pt-3 border-t border-slate-800/80 text-xs">
+              <div x-show="t.status !== 'completed' && availableSuggestedActions(t.suggested_actions).length > 0" x-data="{ showHints: false }" class="mt-4 pt-3 border-t border-slate-800/80 text-xs">
                 <div class="flex items-start gap-2 text-amber-300/90 font-medium">
                   <span class="text-base shrink-0 mt-0.5">💡</span>
                   <div class="flex-1 min-w-0">
                     <span class="font-fantasy font-bold uppercase text-[11px] block text-amber-400 mb-1">Sugerowane ścieżki działania:</span>
 
                     <!-- Zwijane podpowiedzi / sugerowane ścieżki -->
-                    <template x-if="t.suggested_actions && t.suggested_actions.length > 0">
+                    <template x-if="availableSuggestedActions(t.suggested_actions).length > 0">
                       <div class="mt-3 pt-2.5 border-t border-slate-800/50">
                         <button @click="showHints = !showHints"
                                 type="button"
@@ -864,7 +864,7 @@
                                   ? 'bg-amber-950/70 border-amber-500/60 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.15)]' 
                                   : 'bg-slate-900/90 hover:bg-slate-800 border-slate-700/70 hover:border-amber-500/50 text-gray-400 hover:text-amber-300'">
                           <span class="text-amber-400 text-sm">💡</span>
-                          <span x-text="showHints ? 'Ukryj podpowiedzi taktyczne' : 'Brak pomysłu? Zobacz sugerowane ścieżki (' + t.suggested_actions.length + ')'"></span>
+                          <span x-text="showHints ? 'Ukryj podpowiedzi taktyczne' : 'Brak pomysłu? Zobacz sugerowane ścieżki (' + availableSuggestedActions(t.suggested_actions).length + ')'"></span>
                           <svg class="w-3.5 h-3.5 transition-transform duration-200" :class="{ 'rotate-180': showHints }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                           </svg>
@@ -876,7 +876,7 @@
                             Kliknij wybraną ścieżkę, aby przenieść ją do formularza deklaracji akcji:
                           </p>
                           <div class="grid grid-cols-1 gap-2">
-                            <template x-for="(action, idx) in t.suggested_actions" :key="idx">
+                            <template x-for="(action, idx) in availableSuggestedActions(t.suggested_actions)" :key="idx">
                               <button @click="setQuickAction(action)"
                                       type="button"
                                       class="group w-full text-left p-3 rounded-xl bg-slate-950/80 hover:bg-amber-950/30 border border-slate-800/80 hover:border-amber-500/50 transition-all duration-200 flex items-start justify-between gap-3 shadow-sm hover:shadow-[0_0_15px_rgba(245,158,11,0.1)]">
@@ -1000,28 +1000,29 @@
               </span>
             </div>
 
-            <!-- Sugestie szybkich akcji -->
-            <div class="flex flex-wrap gap-1.5 mb-3">
-              <button @click="setQuickAction('Atakuję wręcz z całą furią, celując w słaby punkt pancerza wroga.', 'attack', 'boss')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
-                ⚔️ Atak wręcz
-              </button>
-              <button @click="setQuickAction('Cofam się za osłonę i oddaję precyzyjny strzał z dystansu.', 'attack', 'boss')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
-                🏹 Strzał z dystansu
-              </button>
-              <button @click="setQuickAction('Wyciągam tarczę i zasłaniam sojusznika przed nadciągającym ciosem.', 'defend')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
-                🛡️ Obrona sojusznika
-              </button>
-              <button @click="setQuickAction('Ostrożnie badam otoczenie w poszukiwaniu ukrytych mechanizmów lub słabych punktów komnaty.', 'other')" class="text-[11px] bg-slate-900 hover:bg-slate-800 border border-slate-800 text-gray-300 px-2.5 py-1 rounded-md transition">
-                🔍 Zwiad / Rozpoznanie
-              </button>
-              <button @click="setQuickAction('Pomagam rannemu sojusznikowi, opatrując jego obrażenia i przywracając go do walki.', 'support')" class="text-[11px] bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-800 text-emerald-200 px-2.5 py-1 rounded-md transition">
-                🤝 Wsparcie sojusznika
-              </button>
-              <button x-show="!(session?.active_boss?.hp > 0) && !session?.inventory_rules?.current_location_searched" x-cloak
-                      @click="setQuickAction('Dokładnie przeszukuję tę lokację w poszukiwaniu wartościowego łupu.', 'interact')"
-                      class="text-[11px] bg-amber-950/60 hover:bg-amber-900/60 border border-amber-700/60 text-amber-200 px-2.5 py-1 rounded-md transition">
-                🎒 Szukaj łupu
-              </button>
+            <!-- Szybkie akcje dopasowane do klasy aktualnej postaci. -->
+            <div class="mb-3">
+              <p class="mb-1.5 text-[10px] uppercase tracking-wide text-gray-500">
+                Szybkie akcje: <span class="text-amber-400" x-text="currentCharacter?.character_class"></span>
+              </p>
+              <div class="flex flex-wrap gap-1.5">
+                <template x-for="action in quickActions" :key="action.id">
+                  <button type="button" @click="selectQuickAction(action)"
+                          class="text-[11px] px-2.5 py-1 rounded-md border transition"
+                          :class="action.magicAbilityId
+                            ? 'bg-violet-950/60 hover:bg-violet-900/60 border-violet-800 text-violet-200'
+                            : action.intent === 'support'
+                              ? 'bg-emerald-950/60 hover:bg-emerald-900/60 border-emerald-800 text-emerald-200'
+                              : 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-gray-300'">
+                    <span x-text="action.icon + ' ' + action.label"></span>
+                  </button>
+                </template>
+                <button x-show="!(session?.active_boss?.hp > 0) && !session?.inventory_rules?.current_location_searched" x-cloak
+                        @click="setQuickAction('Dokładnie przeszukuję tę lokację w poszukiwaniu wartościowego łupu.', 'interact')"
+                        class="text-[11px] bg-amber-950/60 hover:bg-amber-900/60 border border-amber-700/60 text-amber-200 px-2.5 py-1 rounded-md transition">
+                  🎒 Szukaj łupu
+                </button>
+              </div>
             </div>
 
             <div x-show="session?.inventory_rules?.crafting_available" x-cloak

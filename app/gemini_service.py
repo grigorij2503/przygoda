@@ -116,7 +116,7 @@ async def generate_party_prologue_ai(
         f"1. Scena początkowa (np. w zadymionej karczmie, przy gasnącym ognisku na szlaku lub w zrujnowanej kaplicy), w której każdy z obecnych bohaterów zostaje wspomniany z imienia i klasy w charakterystyczny sposób.\n"
         f"2. Zdarzenie inicjujące (wpadający ranny posłaniec, krzyk z zewnątrz, płonące niebo lub odnalezienie starej mapy), które kieruje ich do: {scenario_type}.\n"
         f"3. Opis podróży przez mroczne pustkowia i dotarcie przed same wrota / wejście do scenerii.\n"
-        f"4. Dokładnie 3 konkretne, sugerowane ścieżki działania (suggested_actions), np. Ścieżka Siły (wyważenie wrót), Ścieżka Sprytu (poszukiwanie wyłomu), Ścieżka Magii/Wiedzy (zbadanie run).\n"
+        f"4. Dokładnie 3 konkretne, sugerowane ścieżki działania (suggested_actions), np. natarcie, skradanie lub analiza otoczenia. Muszą być niemagiczne, możliwe dla każdej klasy i nie mogą zakładać posiadania konkretnego przedmiotu; klasowe czary i cuda wybiera się osobno z panelu postaci.\n"
         f"5. first_challenge: Bezpośrednie wyzwanie kończące prolog i wzywające graczy do podjęcia akcji w Turze 1."
     )
 
@@ -137,9 +137,9 @@ async def generate_party_prologue_ai(
             setting_theme=tone,
             prologue_story=story,
             suggested_actions=[
-                "⚔️ Ścieżka Siły: Forsowanie głównej bramy i przygotowanie tarczy na przyjęcie wroga.",
+                "⚔️ Ścieżka Siły: Forsowanie głównej bramy i przygotowanie pozycji na przyjęcie wroga.",
                 "🏹 Ścieżka Zręczności: Wspinaczka po zrujnowanych przyporach ku wyłomowi na wyższej kondygnacji.",
-                "🔮 Ścieżka Rozumu/Magii: Zbadanie pulsujących run ochronnych w poszukiwaniu sekretnego hasła lub mechanizmu."
+                "🔍 Ścieżka Wiedzy: Zbadanie pulsujących run ochronnych w poszukiwaniu sekretnego hasła lub mechanizmu."
             ],
             first_challenge="Wrota przed wami drżą od wewnątrz, a z głębi korytarzy dochodzi nieludzki ryk. Co robicie?"
         )
@@ -171,7 +171,7 @@ async def generate_party_prologue_ai(
             suggested_actions=[
                 "⚔️ Natarcie bezpośrednie i zabezpieczenie wejścia",
                 "🏹 Ciche podejście i zwiad pozycji wroga",
-                "🔮 Rzucenie zaklęć ochronnych i analiza aury magicznej"
+                "🔍 Analiza znaków, śladów i konstrukcji wejścia"
             ],
             first_challenge="Co decyduje się zrobić każdy z członków drużyny?"
         )
@@ -365,7 +365,7 @@ async def resolve_turn_with_gemini(
         "1. gm_story_narration: Głęboka, barwna i kinowa narracja Mistrza Gry w języku polskim podsumowująca akcje graczy i zmieniającą się sytuację (min. 3-5 soczystych zdań).\n"
         "2. player_consequences: Dla KAŻDEGO gracza: individual_summary (fabularne podsumowanie jego losu), hp_delta (utracone/odzyskane HP), xp_gained (50-120 XP), new_items=[] oraz removed_item_names. Podczas aktywnej walki z bossem nie dodawaj własnych zmian HP; dla wsparcia hp_delta_from_combat_engine opisuje leczenie celu wskazanego w combat_events, a nie osoby wykonującej akcję.\n"
         "3. next_turn_prompt: Nowa sytuacja fabularna i konkretne, bezpośrednie wyzwanie rzucone drużynie na otwarcie kolejnej tury (zawsze kończące się pytaniem 'Co robicie?').\n"
-        "4. suggested_actions: Dokładnie 3 zróżnicowane i konkretne ścieżki działania na otwarcie kolejnej tury dopasowane do NOWEJ sytuacji.\n"
+        "4. suggested_actions: Dokładnie 3 zróżnicowane i konkretne ścieżki działania na otwarcie kolejnej tury dopasowane do NOWEJ sytuacji. Każda ma być niemagiczna, dostępna dla każdej klasy i nie może zakładać posiadania konkretnego przedmiotu. Nie proponuj tu rzucania czarów, modlitw ani cudów — klasowe zdolności magiczne gracz wybiera osobno z panelu postaci.\n"
         "5. scene_image_prompt: Sugestywny prompt po angielsku dla modelu generującego obraz (Gemini 2.5 Flash Image)...\n"
         "6. naming_opportunity (opcjonalne): Jeśli w tej turze drużyna odkryła coś wyjątkowego (nowy boss, sekretne miejsce, ważny napotkany NPC, oręż lub unikalny manewr), zaproponuj graczowi nadanie temu nazwy. Użyj kategorii boss, location, npc, weapon albo attack. Nie proponuj ponownie elementu obecnego już w active_lore_entities.\n"
         "7. map_update: Uzupełnij kronikę mapy. destination_node_id MUSI być jednym z ID w campaign_map.allowed_destinations. "

@@ -907,7 +907,11 @@ document.addEventListener('alpine:init', () => {
 
     selectCharacter(charId) {
       this.selectedCharacterId = charId;
+      this.actionText = '';
+      this.actionIntent = null;
+      this.actionTargetRef = null;
       this.magicAbilityId = null;
+      this.actionError = '';
       this.newInventoryItemIds = [];
       this.inventoryFilter = 'all';
       localStorage.setItem('rpg_selected_char', charId);
@@ -952,6 +956,55 @@ document.addEventListener('alpine:init', () => {
 
     get selectedMagicAbility() {
       return this.magicBook?.abilities?.find(ability => ability.id === this.magicAbilityId) || null;
+    },
+
+    get quickActions() {
+      const className = (this.currentCharacter?.character_class || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+      const presets = {
+        wojownik: [
+          { id: 'warrior-strike', icon: '⚔️', label: 'Potężne uderzenie', text: 'Nacieram z pełną siłą i uderzam przeciwnika w najsłabiej chronione miejsce.', intent: 'attack', targetRef: 'boss' },
+          { id: 'warrior-guard', icon: '🛡️', label: 'Twarda obrona', text: 'Przyjmuję twardą postawę obronną i skupiam na sobie uwagę przeciwnika.', intent: 'defend' },
+          { id: 'warrior-help', icon: '🤝', label: 'Osłoń sojusznika', text: 'Wkraczam między przeciwnika a sojusznika, dając rannemu czas na odzyskanie sił.', intent: 'support' },
+          { id: 'warrior-tactics', icon: '👁️', label: 'Oceń pole walki', text: 'Oceniam ustawienie wrogów i szukam słabego punktu ich szyku.', intent: 'other' }
+        ],
+        lotrzyk: [
+          { id: 'rogue-strike', icon: '🗡️', label: 'Precyzyjny atak', text: 'Wykorzystuję lukę w obronie przeciwnika i uderzam w odsłonięty słaby punkt.', intent: 'attack', targetRef: 'boss' },
+          { id: 'rogue-flank', icon: '🥷', label: 'Skradanie i flanka', text: 'Znikam w cieniu, obchodzę zagrożenie i zajmuję dogodną pozycję na flance.', intent: 'other' },
+          { id: 'rogue-traps', icon: '🪤', label: 'Pułapki i mechanizmy', text: 'Uważnie sprawdzam otoczenie pod kątem pułapek, zamków i ukrytych mechanizmów.', intent: 'interact' },
+          { id: 'rogue-distract', icon: '🤝', label: 'Odwróć uwagę', text: 'Odwracam uwagę przeciwnika, aby sojusznik mógł bezpiecznie odzyskać siły.', intent: 'support' }
+        ],
+        czarodziej: [
+          { id: 'wizard-knowledge', icon: '🔍', label: 'Wiedza tajemna', text: 'Analizuję znaki, runy i ślady, aby odkryć naturę zagrożenia.', intent: 'interact' },
+          { id: 'wizard-retreat', icon: '🛡️', label: 'Taktyczny odwrót', text: 'Cofam się na bezpieczniejszą pozycję i obserwuję zamiary przeciwnika.', intent: 'defend' },
+          { id: 'wizard-guidance', icon: '🤝', label: 'Wskaż rozwiązanie', text: 'Dzielę się swoją wiedzą z sojusznikiem i pomagam mu wykorzystać słabość zagrożenia.', intent: 'support' }
+        ],
+        kleryk: [
+          { id: 'cleric-strike', icon: '🔨', label: 'Stanowczy atak', text: 'Staję naprzeciw zagrożenia i wyprowadzam zdecydowany cios.', intent: 'attack', targetRef: 'boss' },
+          { id: 'cleric-guard', icon: '🛡️', label: 'Obrona drużyny', text: 'Zajmuję pozycję między zagrożeniem a drużyną i przygotowuję się do obrony.', intent: 'defend' },
+          { id: 'cleric-aid', icon: '🤝', label: 'Pomoc rannemu', text: 'Pomagam rannemu sojusznikowi, opatrując jego obrażenia i przywracając go do walki.', intent: 'support' }
+        ]
+      };
+      const classPresets = presets[className] || [
+        { id: 'generic-attack', icon: '⚔️', label: 'Atak', text: 'Atakuję przeciwnika, wykorzystując jego chwilę nieuwagi.', intent: 'attack', targetRef: 'boss' },
+        { id: 'generic-defend', icon: '🛡️', label: 'Obrona', text: 'Przyjmuję pozycję obronną i obserwuję ruchy przeciwnika.', intent: 'defend' },
+        { id: 'generic-scout', icon: '🔍', label: 'Rozpoznanie', text: 'Ostrożnie badam otoczenie w poszukiwaniu zagrożeń i możliwych dróg działania.', intent: 'other' }
+      ];
+      const magicPresets = (this.magicBook?.abilities || [])
+        .filter(ability => ability.unlocked)
+        .slice(0, 3)
+        .map(ability => ({
+          id: `magic-${ability.id}`,
+          icon: ability.icon,
+          label: ability.name,
+          text: ability.action_text,
+          intent: ability.intent,
+          targetRef: ability.target_ref,
+          magicAbilityId: ability.id
+        }));
+      return [...classPresets, ...magicPresets];
     },
 
     get supportTargets() {
@@ -2442,6 +2495,7 @@ document.addEventListener('alpine:init', () => {
       this.magicAbilityId = null;
       this.actionIntent = intent;
       this.actionTargetRef = targetRef;
+      this.actionError = '';
       this.mobileActionPanelCollapsed = false;
       this.$nextTick(() => {
         const textarea = document.querySelector('textarea[x-model="actionText"]');
@@ -2451,6 +2505,27 @@ document.addEventListener('alpine:init', () => {
         }
       });
       this.addToast('⚡ Wybrano ścieżkę działania – możesz ją dostosować przed zatwierdzeniem!', 'info');
+    },
+
+    selectQuickAction(action) {
+      if (action?.magicAbilityId) {
+        const ability = this.magicBook?.abilities?.find(item => item.id === action.magicAbilityId);
+        if (ability) this.selectMagicAbility(ability);
+        return;
+      }
+      this.setQuickAction(action.text, action.intent, action.targetRef);
+    },
+
+    availableSuggestedActions(actions) {
+      if (!Array.isArray(actions)) return [];
+      return actions.filter(action => {
+        const normalized = String(action || '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase();
+        return !/\b(czar|czaruj|wyczar|zakle|zaklin|magi|inkant|teleport|przyzyw|modl|cud|zamraz|wskrzes|lewit|niewidzial|uzdraw|bosk|swiet|blyskawic)\w*/.test(normalized)
+          && !/\b(kula ognia|ognista kula|widmowa tarcza)\b/.test(normalized);
+      });
     },
 
     selectMagicAbility(ability) {
