@@ -2,10 +2,10 @@ import asyncio
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from app.main import app, resolve_turn_background
 from app.database import get_db
-from app.models import GameSession, Character, Turn
+from app.models import GameSession, Character, PlayerAction, Turn
 
 @pytest_asyncio.fixture(autouse=True)
 async def setup_resolution_app():
@@ -43,6 +43,14 @@ async def test_full_turn_resolution_and_level_up():
             current_turn = (await db.execute(t_stmt)).scalar_one_or_none()
             if not current_turn:
                 pytest.skip("Brak aktywnej tury – uruchom testy w izolacji lub zresetuj DB")
+
+            session.is_turn_resolving = False
+            current_turn.status = "waiting_for_actions"
+            current_turn.resolved_at = None
+            current_turn.mechanics_resolved_at = None
+            current_turn.combat_events = []
+            await db.execute(delete(PlayerAction).where(PlayerAction.turn_id == current_turn.id))
+            await db.commit()
 
             # Złóż akcję
             action_res = await ac.post("/api/actions", json={

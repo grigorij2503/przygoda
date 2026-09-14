@@ -11,6 +11,7 @@ from app.api.routers import (
     sessions,
     turns,
     ui,
+    worlds,
 )
 
 __all__ = [
@@ -24,4 +25,5 @@ __all__ = [
     "sessions",
     "turns",
     "ui",
+    "worlds",
 ]

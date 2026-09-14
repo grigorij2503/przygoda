@@ -11,6 +11,7 @@ from app.schemas import (
     UpdatePersonalNoteRequest,
 )
 from app.services.runtime import MAX_BASE_ATTRIBUTE
+from app.worlds.registry import WORLD_PACK_REGISTRY, get_default_world_pack
 from app.websocket_manager import ws_manager
 
 
@@ -71,24 +72,20 @@ async def create_character(
     await db.commit()
     await db.refresh(char)
 
-    # Przyznaj startowy ekwipunek na podstawie klasy
-    starter_items = []
-    cls_lower = payload.character_class.lower()
-    if "woj" in cls_lower or "rycerz" in cls_lower:
-        starter_items.append(InventoryItem(character_id=char.id, name="Krasnoludzki Miecz", description="Pewnie leży w dłoni i dodaje siły każdemu cięciu", item_type="weapon", target_stat="strength", stat_bonus=1, is_equipped=True))
-        starter_items.append(InventoryItem(character_id=char.id, name="Skórzana Zbroja", description="Chroni przed tym, co miało tylko drasnąć", item_type="armor", target_stat="strength", stat_bonus=1, is_equipped=True))
-    elif "łot" in cls_lower or "zabójc" in cls_lower or "złodziej" in cls_lower:
-        starter_items.append(InventoryItem(character_id=char.id, name="Zatruty Sztylet", description="Ciche ostrze do szybkich i precyzyjnych ataków", item_type="weapon", target_stat="agility", stat_bonus=1, is_equipped=True))
-        starter_items.append(InventoryItem(character_id=char.id, name="Wytrychy Mistrza", description="Otwierają zamki, które miały pozostać zamknięte", item_type="accessory", target_stat="agility", stat_bonus=1, is_equipped=True))
-    elif "mag" in cls_lower or "czaro" in cls_lower:
-        starter_items.append(InventoryItem(character_id=char.id, name="Runiczny Kostur", description="Skupia magię i pomaga odczytać najciemniejsze runy", item_type="weapon", target_stat="intellect", stat_bonus=1, hands_required=2, is_equipped=True))
-        starter_items.append(InventoryItem(character_id=char.id, name="Amulet Ognia", description="Podsyca zaklęcia i odwagę właściciela", item_type="accessory", target_stat="intellect", stat_bonus=1, is_equipped=True))
-    else:  # Kleryk / klasa zgodna z tym archetypem
-        starter_items.append(InventoryItem(character_id=char.id, name="Srebrzysta Buława", description="Dodaje powagi modlitwom i ciężaru uderzeniom", item_type="weapon", target_stat="strength", stat_bonus=1, is_equipped=True))
-        starter_items.append(InventoryItem(character_id=char.id, name="Sygnet Wiary", description="Wzmacnia głos kleryka podczas modlitw i świętych obrzędów", item_type="accessory", target_stat="charisma", stat_bonus=1, is_equipped=True))
-
-    # Każdy dostaje miksturę leczenia
-    starter_items.append(InventoryItem(character_id=char.id, name="Mikstura Lecznicza", description="Odnawia 10 punktów życia", item_type="consumable", target_stat="none", stat_bonus=10, is_equipped=False))
+    # Do czasu przypięcia wersji świata do kampanii (etap 5) istniejąca gra
+    # korzysta z jedynego kontrolowanego fallbacku dark_fantasy@1.
+    world_pack = get_default_world_pack()
+    class_definition = WORLD_PACK_REGISTRY.resolve_class(
+        world_pack,
+        payload.character_class,
+    )
+    starter_items = [
+        InventoryItem(
+            character_id=char.id,
+            **item_definition.model_dump(),
+        )
+        for item_definition in class_definition.starter_items
+    ]
 
     for it in starter_items:
         db.add(it)
@@ -316,4 +313,3 @@ async def use_consumable_item(char_id: int, item_id: int, db: AsyncSession = Dep
 
     await db.commit()
     return {"success": True, "new_hp": char.current_hp, "healed_by": heal_amount}
-

@@ -108,6 +108,7 @@
     "/api/session/setup-scenario": ["POST"],
     "/api/session/start-prologue": ["POST"],
     "/api/session/trigger-naming": ["POST"],
+    "/api/worlds": ["GET"],
     "/api/verify-password": ["POST"]
   },
   "public_websocket_routes": [

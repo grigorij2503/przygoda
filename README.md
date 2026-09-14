@@ -67,6 +67,11 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
     - MG może awaryjnie skorygować bazowe atrybuty dowolnej postaci w zakresie `0–12`; panel pokazuje zmianę łącznej puli, wymaga potwierdzenia i synchronizuje korektę z graczami. Bonusy ekwipunku, niewydane punkty awansu i już złożone akcje nie są przeliczane.
     - Interfejs działa jako instalowalna PWA z service workerem, zwijanym nagłówkiem sesji i panelem akcji na telefonach oraz ekranach komputerowych do 1799 px, czytelniejszą typografią, semantycznymi modalami, obsługą klawiatury i trybem ograniczonego ruchu.
     - Po powrocie z uśpionej karty, zminimalizowanej przeglądarki lub zablokowanego urządzenia klient odtwarza WebSocket i pobiera aktualny stan tury; po co najmniej dwóch minutach nieobecności pokazuje krótkie powitanie wybranej postaci.
+13. **Jądro Wersjonowanych Światów:**
+    - Deklaratywne, niemutowalne modele Pydantic walidują identyfikatory, wersje, klasy, zdolności, startery, mapę, motyw, terminologię i odwołania pakietu przy imporcie aplikacji.
+    - Rejestr zawiera obecnie wyłącznie `dark_fantasy@1` dla rulesetu `d20_v1`; katalog `GET /api/worlds` udostępnia jego bezpieczne podsumowanie, ale nie pozwala jeszcze zmieniać świata kampanii.
+    - Pakiet deklaruje pięć kanonicznych cech, w tym Percepcję. Bieżące modele postaci i API nadal używają czterech cech do czasu addytywnej migracji w etapie 5.
+    - Startery nowych postaci i treść początkowej kampanii są pobierane z rejestru. Nieznana jawna wersja pakietu kończy się błędem; jedyny kontrolowany fallback bez przypisania kampanii prowadzi do `dark_fantasy@1`.
 
 ---
 
@@ -91,14 +96,19 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
 │   ├── websocket_manager.py   # Menedżer WebSockets i broadcast zdarzeń
 │   ├── main.py                # Składanie FastAPI, middleware, mounty i rejestracja routerów
 │   ├── api/
-│   │   └── routers/           # Routery UI, auth, push, admin, sesji, postaci, tur, akcji, ilustracji i czatu
+│   │   └── routers/           # Routery UI, auth, push, admin, sesji, postaci, tur, akcji, ilustracji, czatu i katalogu światów
 │   ├── services/
 │   │   ├── runtime.py         # Wspólne reguły pomocnicze, inicjalizacja i lifespan
 │   │   ├── session_service.py # Odczyt, konfiguracja, reset i prolog kampanii
 │   │   ├── character_service.py # Postacie, gotowość, rozwój, notatki i ekwipunek
 │   │   ├── turn_service.py    # Interpretacja akcji i rozstrzyganie tur
 │   │   ├── chat_service.py    # Trwały czat i obsługa WebSocket
-│   │   └── image_service.py   # Generowanie ilustracji oraz limit kampanii
+│   │   ├── image_service.py   # Generowanie ilustracji oraz limit kampanii
+│   │   └── world_service.py   # Publiczne podsumowania rejestru światów
+│   ├── worlds/
+│   │   ├── models.py          # Niemutowalny kontrakt WorldPack i typy składowe
+│   │   ├── registry.py        # Walidowany rejestr oraz kontrolowany fallback
+│   │   └── packs/             # Deklaratywne, wersjonowane pakiety JSON
 │   ├── static/
 │   │   ├── css/style.css      # Punkt wejścia kaskady CSS
 │   │   ├── css/modules/       # Tokeny, baza, komponenty, ekwipunek, mapa, kronika, komunikaty i responsywność
@@ -119,7 +129,8 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
 │   ├── test_lobby_flow.py     # Testy lobby, gotowości i uprawnień MG
 │   ├── test_loot.py           # Testy łupu oraz craftingu
 │   ├── test_turn_flow.py      # Testy API, autoryzacji i akcji
-│   └── test_websocket_chat.py # Test komunikacji czatu przez WebSocket
+│   ├── test_websocket_chat.py # Test komunikacji czatu przez WebSocket
+│   └── test_world_registry.py # Walidacja pakietów, odwołań, fallbacku i katalogu światów
 ├── docs/
 │   ├── WORLD_PACK_ROADMAP.md  # Etapowy plan przejścia do silnika wielu światów
 │   ├── WORLD_DEPENDENCY_INVENTORY.md # Inwentarz hardkodów i granica silnik/pakiet
@@ -332,7 +343,10 @@ Zakres testów:
   - Składanie akcji tury i sprawdzanie stanu gotowości drużyny.
   - Izolowanie ponownego użycia tury 1 przez wyczyszczenie znaczników wcześniejszego rozstrzygnięcia.
 - `tests/test_websocket_chat.py`:
-  - Wymiana wiadomości czatu przez WebSocket.
+  - Wymiana wiadomości czatu przez WebSocket z obsługą opcjonalnego początkowego snapshotu `CHAT_HISTORY` z wcześniej zapisanej bazy.
+- `tests/test_world_registry.py`:
+  - Ładowanie wyłącznie `dark_fantasy@1`, pięć kanonicznych cech rulesetu i zachowanie obecnych klas, starterów, ksiąg, mapy oraz narracji.
+  - Odrzucanie nieznanej jawnej wersji i błędnych referencji oraz kontrakt odpowiedzi `GET /api/worlds`.
 
 ---
 
@@ -340,12 +354,12 @@ Zakres testów:
 
 Rozwój w kierunku kampanii cyberpunkowych, pirackich, pustynnych, historyczno-okultystycznych, słowiańskich, wikińskich, westernowych, space-grimdark, infernalnych i pastoralnych jest podzielony na niezależnie odbierane etapy. Pełny plan znajduje się w [`docs/WORLD_PACK_ROADMAP.md`](docs/WORLD_PACK_ROADMAP.md), decyzja architektoniczna w [`docs/adr/0001-versioned-world-packs.md`](docs/adr/0001-versioned-world-packs.md), a aktualne sprzężenia fantasy w [`docs/WORLD_DEPENDENCY_INVENTORY.md`](docs/WORLD_DEPENDENCY_INVENTORY.md).
 
-Etapy 1-3 są zakończone. Kontrakt `dark_fantasy_v1` utrwala obecną rozgrywkę,
-backend jest rozdzielony na routery i serwisy domenowe, a frontend na partiale
-Jinja oraz funkcjonalne moduły Alpine i CSS. Publiczne zachowanie, jeden główny
-komponent `rpgGame` i wygląd Dark Fantasy pozostają bez zmian. Następny etap,
-uruchamiany dopiero po ręcznym odbiorze, wprowadzi jądro wersjonowanych pakietów
-świata bez udostępniania ich wyboru graczom.
+Etapy 1-4 są zakończone. Kontrakt `dark_fantasy_v1` utrwala obecną rozgrywkę,
+backend i frontend są podzielone na moduły, a walidowany rejestr ładuje pierwszy
+pakiet `dark_fantasy@1`. Endpoint `GET /api/worlds` zwraca publiczny katalog;
+wybór świata nie jest jeszcze dostępny, a istniejące kampanie korzystają z
+kontrolowanego domyślnego pakietu. Następny etap przypnie ID i wersję świata do
+kampanii, wdroży migracje oraz doda Percepcję do trwałego modelu i UI.
 
 Docelowy ruleset będzie używać pięciu kanonicznych atrybutów: Siły, Zręczności, Intelektu, Charyzmy i Percepcji. Percepcja zostanie dodana addytywnie w etapie 5; istniejące postacie otrzymają wartość `0` bez zmiany pozostałych cech, HP, XP i poziomu. Roadmapa zawiera przy każdym etapie osobną checklistę ręcznego odbioru po lokalnym zbudowaniu aplikacji oraz instrukcję użycia izolowanej bazy `manual_review.db`.
 

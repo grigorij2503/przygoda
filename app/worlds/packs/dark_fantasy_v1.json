@@ -1,0 +1,191 @@
+{
+  "id": "dark_fantasy",
+  "version": 1,
+  "display_name": "Dark Fantasy",
+  "ruleset_id": "d20_v1",
+  "terminology": {
+    "campaign": "kampania",
+    "hero": "bohater",
+    "party": "drużyna",
+    "ability_book": "księga zdolności",
+    "enemy": "przeciwnik",
+    "location": "lokacja"
+  },
+  "attributes": [
+    {"id": "strength", "label": "Siła", "abbreviation": "STR", "description": "Siła fizyczna, wytrzymałość i walka wręcz."},
+    {"id": "agility", "label": "Zręczność", "abbreviation": "AGI", "description": "Refleks, skradanie, precyzja i uniki."},
+    {"id": "intellect", "label": "Intelekt", "abbreviation": "INT", "description": "Wiedza, analiza, technika i rozumowanie."},
+    {"id": "charisma", "label": "Charyzma", "abbreviation": "CHA", "description": "Wpływ na innych, wola, wiara i przywództwo."},
+    {"id": "perception", "label": "Percepcja", "abbreviation": "PER", "description": "Czujność, zmysły, tropienie i wykrywanie ukrytych zagrożeń."}
+  ],
+  "theme_id": "dark_fantasy",
+  "theme": {
+    "id": "dark_fantasy",
+    "color_scheme": "dark",
+    "tokens": [
+      {"id": "background", "value": "#080b12"},
+      {"id": "surface", "value": "#161b26"},
+      {"id": "primary", "value": "#c8a96b"},
+      {"id": "danger", "value": "#b64040"},
+      {"id": "text", "value": "#e8e1d2"}
+    ]
+  },
+  "classes": [
+    {
+      "id": "warrior",
+      "name": "Wojownik",
+      "aliases": ["woj", "rycerz"],
+      "icon": "⚔️",
+      "primary_stat": "strength",
+      "starter_items": [
+        {"name": "Krasnoludzki Miecz", "description": "Pewnie leży w dłoni i dodaje siły każdemu cięciu", "item_type": "weapon", "target_stat": "strength", "stat_bonus": 1, "is_equipped": true},
+        {"name": "Skórzana Zbroja", "description": "Chroni przed tym, co miało tylko drasnąć", "item_type": "armor", "target_stat": "strength", "stat_bonus": 1, "is_equipped": true},
+        {"name": "Mikstura Lecznicza", "description": "Odnawia 10 punktów życia", "item_type": "consumable", "target_stat": "none", "stat_bonus": 10, "is_equipped": false}
+      ],
+      "quick_actions": [
+        {"id": "warrior-strike", "label": "Potężne uderzenie", "icon": "⚔️", "action_text": "Nacieram z pełną siłą i uderzam przeciwnika w najsłabiej chronione miejsce.", "intent": "attack", "tested_stat": "strength", "target_ref": "boss"},
+        {"id": "warrior-guard", "label": "Twarda obrona", "icon": "🛡️", "action_text": "Przyjmuję twardą postawę obronną i skupiam na sobie uwagę przeciwnika.", "intent": "defend", "tested_stat": "strength"},
+        {"id": "warrior-help", "label": "Osłoń sojusznika", "icon": "🤝", "action_text": "Wkraczam między przeciwnika a sojusznika, dając rannemu czas na odzyskanie sił.", "intent": "support", "tested_stat": "strength"},
+        {"id": "warrior-tactics", "label": "Oceń pole walki", "icon": "👁️", "action_text": "Oceniam ustawienie wrogów i szukam słabego punktu ich szyku.", "intent": "other", "tested_stat": "perception"}
+      ]
+    },
+    {
+      "id": "rogue",
+      "name": "Łotrzyk",
+      "aliases": ["łot", "lot", "zabójc", "zabojc", "złodziej", "zlodziej"],
+      "icon": "🗡️",
+      "primary_stat": "agility",
+      "starter_items": [
+        {"name": "Zatruty Sztylet", "description": "Ciche ostrze do szybkich i precyzyjnych ataków", "item_type": "weapon", "target_stat": "agility", "stat_bonus": 1, "is_equipped": true},
+        {"name": "Wytrychy Mistrza", "description": "Otwierają zamki, które miały pozostać zamknięte", "item_type": "accessory", "target_stat": "agility", "stat_bonus": 1, "is_equipped": true},
+        {"name": "Mikstura Lecznicza", "description": "Odnawia 10 punktów życia", "item_type": "consumable", "target_stat": "none", "stat_bonus": 10, "is_equipped": false}
+      ],
+      "quick_actions": [
+        {"id": "rogue-strike", "label": "Precyzyjny atak", "icon": "🗡️", "action_text": "Wykorzystuję lukę w obronie przeciwnika i uderzam w odsłonięty słaby punkt.", "intent": "attack", "tested_stat": "agility", "target_ref": "boss"},
+        {"id": "rogue-flank", "label": "Skradanie i flanka", "icon": "🥷", "action_text": "Znikam w cieniu, obchodzę zagrożenie i zajmuję dogodną pozycję na flance.", "intent": "other", "tested_stat": "agility"},
+        {"id": "rogue-traps", "label": "Pułapki i mechanizmy", "icon": "🪤", "action_text": "Uważnie sprawdzam otoczenie pod kątem pułapek, zamków i ukrytych mechanizmów.", "intent": "interact", "tested_stat": "perception"},
+        {"id": "rogue-distract", "label": "Odwróć uwagę", "icon": "🤝", "action_text": "Odwracam uwagę przeciwnika, aby sojusznik mógł bezpiecznie odzyskać siły.", "intent": "support", "tested_stat": "charisma"}
+      ]
+    },
+    {
+      "id": "wizard",
+      "name": "Czarodziej",
+      "aliases": ["mag", "czaro"],
+      "icon": "🧙",
+      "primary_stat": "intellect",
+      "starter_items": [
+        {"name": "Runiczny Kostur", "description": "Skupia magię i pomaga odczytać najciemniejsze runy", "item_type": "weapon", "target_stat": "intellect", "stat_bonus": 1, "hands_required": 2, "is_equipped": true},
+        {"name": "Amulet Ognia", "description": "Podsyca zaklęcia i odwagę właściciela", "item_type": "accessory", "target_stat": "intellect", "stat_bonus": 1, "is_equipped": true},
+        {"name": "Mikstura Lecznicza", "description": "Odnawia 10 punktów życia", "item_type": "consumable", "target_stat": "none", "stat_bonus": 10, "is_equipped": false}
+      ],
+      "quick_actions": [
+        {"id": "wizard-knowledge", "label": "Wiedza tajemna", "icon": "🔍", "action_text": "Analizuję znaki, runy i ślady, aby odkryć naturę zagrożenia.", "intent": "interact", "tested_stat": "intellect"},
+        {"id": "wizard-retreat", "label": "Taktyczny odwrót", "icon": "🛡️", "action_text": "Cofam się na bezpieczniejszą pozycję i obserwuję zamiary przeciwnika.", "intent": "defend", "tested_stat": "agility"},
+        {"id": "wizard-guidance", "label": "Wskaż rozwiązanie", "icon": "🤝", "action_text": "Dzielę się swoją wiedzą z sojusznikiem i pomagam mu wykorzystać słabość zagrożenia.", "intent": "support", "tested_stat": "intellect"}
+      ],
+      "ability_book": {"kind": "spellbook", "title": "Księga czarów", "icon": "📖", "resource_label": "Zaklęcia", "casting_stat": "intellect", "ability_ids": ["arcane_bolt", "spectral_shield", "detect_magic", "burning_hands", "mirror_image", "lightning_bolt", "phase_step", "meteor"]}
+    },
+    {
+      "id": "cleric",
+      "name": "Kleryk",
+      "aliases": ["kleryk", "kapłan", "kaplan"],
+      "icon": "☀️",
+      "primary_stat": "charisma",
+      "starter_items": [
+        {"name": "Srebrzysta Buława", "description": "Dodaje powagi modlitwom i ciężaru uderzeniom", "item_type": "weapon", "target_stat": "strength", "stat_bonus": 1, "is_equipped": true},
+        {"name": "Sygnet Wiary", "description": "Wzmacnia głos kleryka podczas modlitw i świętych obrzędów", "item_type": "accessory", "target_stat": "charisma", "stat_bonus": 1, "is_equipped": true},
+        {"name": "Mikstura Lecznicza", "description": "Odnawia 10 punktów życia", "item_type": "consumable", "target_stat": "none", "stat_bonus": 10, "is_equipped": false}
+      ],
+      "quick_actions": [
+        {"id": "cleric-strike", "label": "Stanowczy atak", "icon": "🔨", "action_text": "Staję naprzeciw zagrożenia i wyprowadzam zdecydowany cios.", "intent": "attack", "tested_stat": "strength", "target_ref": "boss"},
+        {"id": "cleric-guard", "label": "Obrona drużyny", "icon": "🛡️", "action_text": "Zajmuję pozycję między zagrożeniem a drużyną i przygotowuję się do obrony.", "intent": "defend", "tested_stat": "strength"},
+        {"id": "cleric-aid", "label": "Pomoc rannemu", "icon": "🤝", "action_text": "Pomagam rannemu sojusznikowi, opatrując jego obrażenia i przywracając go do walki.", "intent": "support", "tested_stat": "charisma"}
+      ],
+      "ability_book": {"kind": "prayers_and_miracles", "title": "Modlitwy i cuda", "icon": "☀️", "resource_label": "Święte moce", "casting_stat": "charisma", "ability_ids": ["sacred_flame", "healing_prayer", "blessing", "guardian_ward", "purification", "radiant_burst", "resurrection", "divine_intervention", "divine_judgment"]}
+    }
+  ],
+  "fallback_class_id": "cleric",
+  "abilities": [
+    {"id": "arcane_bolt", "name": "Pocisk arkanów", "category": "Czar ofensywny", "required_level": 1, "icon": "✨", "description": "Skupiony pocisk energii uderza jeden widoczny cel.", "action_text": "Rzucam Pocisk arkanów i kieruję skupioną energię w przeciwnika.", "intent": "attack", "tested_stat": "intellect", "target_ref": "boss", "mechanic_key": "damage"},
+    {"id": "spectral_shield", "name": "Widmowa tarcza", "category": "Czar ochronny", "required_level": 1, "icon": "🔷", "description": "Magiczna osłona pomaga odeprzeć nadchodzący atak.", "action_text": "Rzucam Widmową tarczę, tworząc magiczną osłonę przed nadchodzącym atakiem.", "intent": "defend", "tested_stat": "intellect", "mechanic_key": "protect"},
+    {"id": "detect_magic", "name": "Wykrycie magii", "category": "Czar poznania", "required_level": 1, "icon": "👁️", "description": "Ujawnia obecność aktywnej magii, klątw i zaklętych przedmiotów.", "action_text": "Rzucam Wykrycie magii i badam otoczenie pod kątem aur, klątw oraz zaklętych przedmiotów.", "intent": "interact", "tested_stat": "intellect", "mechanic_key": "scan"},
+    {"id": "burning_hands", "name": "Płonące dłonie", "category": "Czar ofensywny", "required_level": 2, "icon": "🔥", "description": "Stożek płomieni razi przeciwników stojących blisko czarodzieja.", "action_text": "Rzucam Płonące dłonie, posyłając przed siebie gwałtowny stożek ognia.", "intent": "attack", "tested_stat": "intellect", "target_ref": "boss", "mechanic_key": "damage"},
+    {"id": "mirror_image", "name": "Lustrzane odbicia", "category": "Czar ochronny", "required_level": 3, "icon": "🪞", "description": "Zwodnicze kopie utrudniają przeciwnikowi trafienie czarodzieja.", "action_text": "Rzucam Lustrzane odbicia, otaczając się zwodniczymi kopiami własnej postaci.", "intent": "defend", "tested_stat": "intellect", "mechanic_key": "protect"},
+    {"id": "lightning_bolt", "name": "Błyskawica", "category": "Czar ofensywny", "required_level": 5, "icon": "⚡", "description": "Potężne wyładowanie przeszywa cel i wszystko na swojej drodze.", "action_text": "Rzucam Błyskawicę, posyłając niszczycielskie wyładowanie w stronę przeciwnika.", "intent": "attack", "tested_stat": "intellect", "target_ref": "boss", "mechanic_key": "damage"},
+    {"id": "phase_step", "name": "Krok przez eter", "category": "Czar przemiany", "required_level": 7, "icon": "🌀", "description": "Pozwala natychmiast przemieścić się na niewielką odległość w widoczne miejsce.", "action_text": "Rzucam Krok przez eter i przenoszę się w widoczne, bezpieczniejsze miejsce.", "intent": "other", "tested_stat": "intellect", "mechanic_key": "move"},
+    {"id": "meteor", "name": "Gwiezdny meteor", "category": "Czar mistrzowski", "required_level": 10, "icon": "☄️", "description": "Przyzywa niszczycielski odłamek niebios na pole walki.", "action_text": "Rzucam Gwiezdny meteor, sprowadzając na przeciwnika płonący odłamek niebios.", "intent": "attack", "tested_stat": "intellect", "target_ref": "boss", "mechanic_key": "damage"},
+    {"id": "sacred_flame", "name": "Święty płomień", "category": "Cud ofensywny", "required_level": 1, "icon": "🔥", "description": "Promień świętego ognia spada na jeden widoczny cel.", "action_text": "Wzywam Święty płomień, aby boski ogień dosięgnął przeciwnika.", "intent": "attack", "tested_stat": "charisma", "target_ref": "boss", "mechanic_key": "damage"},
+    {"id": "healing_prayer", "name": "Modlitwa uzdrowienia", "category": "Modlitwa", "required_level": 1, "icon": "💚", "description": "Prośba o łaskę wspiera rannego członka drużyny.", "action_text": "Odmawiam Modlitwę uzdrowienia nad najbardziej rannym członkiem drużyny.", "intent": "support", "tested_stat": "charisma", "mechanic_key": "heal"},
+    {"id": "blessing", "name": "Błogosławieństwo", "category": "Modlitwa", "required_level": 1, "icon": "🙏", "description": "Dodaje odwagi i wspiera sojuszników w wykonywaniu ich zamiarów.", "action_text": "Odmawiam Błogosławieństwo, prosząc o odwagę i siłę dla moich towarzyszy.", "intent": "support", "tested_stat": "charisma", "mechanic_key": "support"},
+    {"id": "guardian_ward", "name": "Opiekuńcza pieczęć", "category": "Cud ochronny", "required_level": 2, "icon": "🛡️", "description": "Święty znak osłania kleryka lub zagrożonego sojusznika.", "action_text": "Przywołuję Opiekuńczą pieczęć, aby osłonić najbardziej zagrożonego członka drużyny.", "intent": "defend", "tested_stat": "charisma", "mechanic_key": "protect"},
+    {"id": "purification", "name": "Rytuał oczyszczenia", "category": "Modlitwa", "required_level": 3, "icon": "💧", "description": "Pomaga przełamać klątwę, truciznę albo nieczysty wpływ.", "action_text": "Odprawiam Rytuał oczyszczenia, prosząc o usunięcie klątwy, trucizny lub nieczystego wpływu.", "intent": "support", "tested_stat": "charisma", "mechanic_key": "cleanse"},
+    {"id": "radiant_burst", "name": "Wybuch światłości", "category": "Cud ofensywny", "required_level": 5, "icon": "☀️", "description": "Fala blasku razi wrogów i rozprasza otaczający mrok.", "action_text": "Wzywam Wybuch światłości, zalewając przeciwników falą świętego blasku.", "intent": "attack", "tested_stat": "charisma", "target_ref": "boss", "mechanic_key": "damage"},
+    {"id": "resurrection", "name": "Wskrzeszenie", "category": "Rytuał życia", "required_level": 7, "icon": "🕊️", "description": "Przywraca poległego sojusznika do życia; zwykły sukces odnawia 25% HP, krytyczny 50% HP.", "action_text": "Odprawiam Wskrzeszenie nad poległym sojusznikiem i wzywam jego duszę z powrotem do ciała.", "intent": "support", "tested_stat": "charisma", "mechanic_key": "revive"},
+    {"id": "divine_intervention", "name": "Boska interwencja", "category": "Cud mistrzowski", "required_level": 8, "icon": "🌟", "description": "Rozpaczliwa prośba o potężną, lecz ściśle sytuacyjną pomoc bóstwa.", "action_text": "Błagam o Boską interwencję w obliczu obecnego zagrożenia dla całej drużyny.", "intent": "support", "tested_stat": "charisma", "mechanic_key": "support"},
+    {"id": "divine_judgment", "name": "Sąd boży", "category": "Cud mistrzowski", "required_level": 10, "icon": "⚖️", "description": "Potężna manifestacja wiary uderza w szczególnie groźnego przeciwnika.", "action_text": "Wzywam Sąd boży, kierując pełnię świętej mocy przeciw najgroźniejszemu przeciwnikowi.", "intent": "attack", "tested_stat": "charisma", "target_ref": "boss", "mechanic_key": "damage"}
+  ],
+  "loot_tables": [
+    {
+      "id": "dark_fantasy_core",
+      "entries": [
+        {"id": "weapon", "label": "Broń", "item_type": "weapon", "target_stat": "strength"},
+        {"id": "armor", "label": "Pancerz", "item_type": "armor", "target_stat": "strength"},
+        {"id": "trinket", "label": "Talizman", "item_type": "accessory", "target_stat": "charisma"},
+        {"id": "potion", "label": "Mikstura", "item_type": "consumable", "target_stat": "none"}
+      ]
+    }
+  ],
+  "item_vocabulary": [
+    {"id": "sword", "label": "miecz", "aliases": ["miecz", "ostrze", "szabla"]},
+    {"id": "bow", "label": "łuk", "aliases": ["łuk", "luk", "kusza"]},
+    {"id": "staff", "label": "kostur", "aliases": ["kostur", "laska"]},
+    {"id": "mace", "label": "buława", "aliases": ["buława", "bulawa", "młot", "mlot"]}
+  ],
+  "enemy_profile": {
+    "role_label": "przeciwnik",
+    "defeated_label": "pokonany",
+    "status_labels": ["aktywny", "osłabiony", "pokonany"]
+  },
+  "map_profile": {
+    "generator_id": "dark_fantasy_dungeon",
+    "generator_version": 1,
+    "start_location_name": "Brama Wyprawy",
+    "finale_location_name": "Sanktuarium Cienia",
+    "hidden_location_name": "Ukryty Skarbiec",
+    "room_types": [
+      {"id": "entrance", "label": "Wejście"},
+      {"id": "finale", "label": "Finał"},
+      {"id": "gallery", "label": "Galeria"},
+      {"id": "crypt", "label": "Krypta"},
+      {"id": "library", "label": "Archiwum"},
+      {"id": "armory", "label": "Zbrojownia"},
+      {"id": "shrine", "label": "Sanktuarium"},
+      {"id": "hall", "label": "Sala"},
+      {"id": "bridge", "label": "Most"},
+      {"id": "prison", "label": "Cele"},
+      {"id": "well", "label": "Studnia"},
+      {"id": "forge", "label": "Kuźnia"},
+      {"id": "chamber", "label": "Komnata"},
+      {"id": "crossroads", "label": "Rozdroże"},
+      {"id": "treasury", "label": "Skarbiec"},
+      {"id": "cave", "label": "Grota"},
+      {"id": "study", "label": "Pracownia"},
+      {"id": "tomb", "label": "Grobowiec"},
+      {"id": "guardroom", "label": "Strażnica"}
+    ]
+  },
+  "lore_categories": ["boss", "location", "npc", "weapon_artifact", "team_attack"],
+  "narrative_profile": {
+    "default_title": "Cienie Nad Przeklętą Kryptą",
+    "setting_theme": "Dark Fantasy / Gotycki Horror",
+    "campaign_intro": "Krople lodowatej wody spadają ze sklepienia prastarej krypty, rozbijając się o kamienne płyty. Wasza czwórka przekroczyła próg zniszczonych wrót, uciekając przed szalejącą na powierzchni nawałnicą cieni. W mroku przed wami rozbrzmiewa metaliczny zgrzyt oręża i ciche, gardłowe warczenie. Pochodnia oświetla ołtarz z czarnego obsydianu, na którym spoczywa starożytny relikwiarz, strzeżony przez ożywione kościotrupy strażników.",
+    "first_challenge": "Szkielety unoszą zardzewiałe miecze, a w ich pustych oczodołach płonie błękitny ogień. Co robicie?",
+    "suggested_actions": [
+      "⚔️ Ścieżka Siły: Bezpośredni atak na szkielety z wykorzystaniem przewagi zaskoczenia.",
+      "🏹 Ścieżka Sprytu: Przyjęcie pozycji obronnej i próba zwabienia strażników w wąskie przejście.",
+      "🔍 Ścieżka Wiedzy: Zbadanie run relikwiarza i mechanizmu ożywiającego kości."
+    ],
+    "image_art_direction": "Mroczne malarstwo fantasy, gotycki horror, dramatyczne światło i filmowa kompozycja.",
+    "initial_image_prompt": "Dark fantasy oil painting of four fantasy adventurers entering a Gothic crypt with glowing blue-eyed skeletal guardians, atmospheric torchlight and mist, cinematic composition"
+  }
+}

@@ -198,7 +198,7 @@ tryb offline i wrócić online; nie może pojawić się stary JS lub brakujący 
 
 ### Etap 4 - jądro pakietów świata
 
-Status: oczekuje na akceptację rozpoczęcia.
+Status: zakończony 2026-09-14, oczekuje na ręczny odbiór.
 
 - modele Pydantic `WorldPack` i typów składowych;
 - rejestr pakietów oraz walidacja ID, wersji i odwołań;
@@ -208,13 +208,26 @@ Status: oczekuje na akceptację rozpoczęcia.
 - endpoint katalogu światów;
 - kontrolowany fallback wyłącznie do `dark_fantasy@1`.
 
+Implementacja ładuje deklaratywne pliki JSON przy imporcie rejestru i odrzuca
+duplikaty, niepełne pary `id`/`version`, nieznane jawne wersje oraz błędne
+odwołania do klas, motywu i zdolności. Wszystkie kolekcje pakietu są krotkami
+zamrożonych modeli; mechanika jest wskazywana tylko kontrolowanymi kluczami.
+Startery nowych postaci oraz narracja nowo tworzonej sesji domyślnej pochodzą z
+`dark_fantasy@1`. Frontendowe szybkie akcje, runtime ksiąg, łup i generator mapy
+pozostają jeszcze adapterami zgodności i zostaną przepięte w etapie 6.
+
 Kryterium zakończenia: obecna kampania pobiera treść z rejestru, ale użytkownik
 nie może jeszcze zmieniać świata.
 
-Test lokalny: wymagany. Otworzyć katalog światów pod `/api/worlds`, potwierdzić
-obecność wyłącznie `dark_fantasy@1`, a następnie przeklikać tworzenie każdej z
-czterech obecnych klas. Startery, szybkie akcje, księgi, mapa i narracja muszą być
-takie same jak przed wprowadzeniem rejestru.
+Test lokalny: wymagany. Po zbudowaniu i uruchomieniu na izolowanej bazie otworzyć
+`http://localhost:8000/api/worlds`. Odpowiedź ma wskazywać
+`default_world.key="dark_fantasy@1"`, zawierać dokładnie jeden świat, cztery klasy
+i pięć deklarowanych atrybutów zakończonych `perception`. Następnie w aplikacji
+utworzyć kolejno Wojownika, Łotrzyka, Czarodzieja i Kleryka, sprawdzając ich trzy
+startery. Dla Czarodzieja i Kleryka otworzyć księgę, użyć jednej szybkiej akcji,
+odświeżyć stronę i otworzyć mapę. Nazwa kampanii, wstęp, startery, szybkie akcje,
+księgi i mapa muszą pozostać takie same jak przed etapem 4; UI nie powinno jeszcze
+oferować wyboru świata ani pola Percepcji.
 
 ### Etap 5 - wersjonowanie kampanii i migracje
 

@@ -20,6 +20,7 @@ from app.api.routers import (
     sessions,
     turns,
     ui,
+    worlds,
 )
 from app.config import UPLOADS_DIR
 from app.services.runtime import BASE_DIR, lifespan, validate_action_item_claim
@@ -55,6 +56,7 @@ for router in (
     actions.router,
     images.router,
     chat.router,
+    worlds.router,
 ):
     app.include_router(router)
 

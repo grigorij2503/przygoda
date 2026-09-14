@@ -38,8 +38,10 @@ def test_websocket_chat_communication():
         }
         ws1.send_text(json.dumps(chat_payload))
 
-        # 4. Odbierz zbroadcastowaną wiadomość czatu
+        # 4. Odbierz wiadomość, pomijając prawidłową historię z wcześniejszych uruchomień.
         chat_response = ws1.receive_json()
+        if chat_response["type"] == "CHAT_HISTORY":
+            chat_response = ws1.receive_json()
         assert chat_response["type"] == "CHAT_MESSAGE"
         assert chat_response["author"] == "MówcaTestowy"
         assert chat_response["text"] == "Przygotujcie się na starcie w mroku!"

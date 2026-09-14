@@ -111,6 +111,7 @@ from app.schemas import (
     VerifyPasswordRequest,
 )
 from app.websocket_manager import ws_manager
+from app.worlds.registry import get_default_world_pack
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ttrpg")
@@ -638,6 +639,8 @@ def validate_action_item_claim(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    default_world = get_default_world_pack()
+    narrative_profile = default_world.narrative_profile
     # Inicjalizacja bazy danych przy starcie
     await init_db()
     logger.info("Baza danych zainicjalizowana.")
@@ -653,14 +656,9 @@ async def lifespan(app: FastAPI):
         if not session:
             new_session = GameSession(
                 room_code="kampania-1",
-                title="Cienie Nad Przeklętą Kryptą",
-                setting_theme="Dark Fantasy / Gotycki Horror",
-                campaign_intro=(
-                    "Krople lodowatej wody spadają ze sklepienia prastarej krypty, rozbijając się o kamienne płyty. "
-                    "Wasza czwórka przekroczyła próg zniszczonych wrót, uciekając przed szalejącą na powierzchni nawałnicą cieni. "
-                    "W mroku przed wami rozbrzmiewa metaliczny zgrzyt oręża i ciche, gardłowe warczenie. "
-                    "Pochodnia oświetla ołtarz z czarnego obsydianu, na którym spoczywa starożytny relikwiarz, strzeżony przez ożywione kościotrupy strażników."
-                ),
+                title=narrative_profile.default_title,
+                setting_theme=narrative_profile.setting_theme,
+                campaign_intro=narrative_profile.campaign_intro,
                 current_turn_number=1,
             )
             db.add(new_session)
@@ -673,13 +671,9 @@ async def lifespan(app: FastAPI):
                 turn_number=1,
                 status="waiting_for_actions",
                 gm_narration=new_session.campaign_intro,
-                next_turn_prompt="Szkielety unoszą zardzewiałe miecze, a w ich pustych oczodołach płonie błękitny ogień. Co robicie?",
-                suggested_actions=[
-                    "⚔️ Ścieżka Siły: Bezpośredni atak na szkielety z wykorzystaniem przewagi zaskoczenia.",
-                    "🏹 Ścieżka Sprytu: Przyjęcie pozycji obronnej i próba zwabienia strażników w wąskie przejście.",
-                    "🔍 Ścieżka Wiedzy: Zbadanie run relikwiarza i mechanizmu ożywiającego kości."
-                ],
-                image_prompt="Dark fantasy oil painting of four fantasy adventurers entering a Gothic crypt with glowing blue-eyed skeletal guardians, atmospheric torchlight and mist, cinematic composition",
+                next_turn_prompt=narrative_profile.first_challenge,
+                suggested_actions=list(narrative_profile.suggested_actions),
+                image_prompt=narrative_profile.initial_image_prompt,
             )
             db.add(initial_turn)
             await db.commit()

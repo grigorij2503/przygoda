@@ -18,17 +18,18 @@ powinna pochodzić z wersjonowanego `WorldPack`.
 
 ## Backend i mechanika
 
-Po etapie 2 `app/main.py` nie zawiera już zależności od konkretnego świata. Składa
-aplikację i rejestruje routery, natomiast istniejące hardkody zostały przeniesione
-bez zmiany zachowania do poniższych serwisów. Ich ekstrakcja do `WorldPack`
-pozostaje zakresem etapów 4-6.
+Po etapie 4 `app/main.py` nie zawiera zależności od konkretnego świata. Składa
+aplikację i rejestruje routery, w tym katalog `/api/worlds`. Walidowany
+`app/worlds/registry.py` ładuje `dark_fantasy@1`; startery i początkowa narracja
+zostały już przeniesione do pakietu, a pozostałe hardkody są adapterami do
+usunięcia w etapach 5-6.
 
 | Plik / obszar | Zależności od Dark Fantasy | Kierunek ekstrakcji |
 |---|---|---|
-| `app/services/runtime.py` lifespan | krypta, szkielety, miecze, fantasy image prompt | domyślna kampania z `dark_fantasy@1` |
+| `app/services/runtime.py` lifespan | pobiera tytuł, wstęp, pierwsze wyzwanie, sugestie i prompt obrazu z rejestru | przypięty pakiet kampanii po etapie 5 |
 | `app/services/runtime.py` proxy actions | boss, atak i obrona opisane fantasy | neutralne szablony lub szybkie akcje pakietu |
 | `app/services/runtime.py` item claims | miecz, tarcza, topór, łuk, kostur itd. | `item_vocabulary` pakietu |
-| `app/services/character_service.py` tworzenie postaci | klasy rozpoznawane po fragmentach nazw i startery | `classes[].starter_items` |
+| `app/services/character_service.py` tworzenie postaci | startery pochodzą z `classes[].starter_items`; aliasy i fallback zachowują stary kontrakt | stabilne `class_id` przypiętej kampanii po etapie 5 |
 | `app/services/session_service.py` DTO sesji | `magic_book` i `active_boss` | adapter plus `ability_book` i terminologia świata |
 | `app/services/session_service.py` reset/setup | Dark Fantasy i karczma | wybór i inicjalizacja pakietu |
 | `app/services/session_service.py` naming | broń jako domyślna nagroda | profil kroniki i przedmiotów |
