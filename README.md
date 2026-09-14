@@ -99,12 +99,18 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
 │       └── index.html         # Szablon interfejsu (Tailwind CSS CDN + Alpine.js)
 ├── tests/
 │   ├── test_combat.py         # Testy walki, wyposażenia i efektów statusu
+│   ├── test_current_world_contract.py # Kontrakt regresyjny bieżącego świata, tras, klas, ksiąg, mapy i UI
 │   ├── test_dice.py           # Testy rzutów kośćmi i modyfikatorów
 │   ├── test_full_resolution.py # Test pełnego cyklu tury i awansu
 │   ├── test_lobby_flow.py     # Testy lobby, gotowości i uprawnień MG
 │   ├── test_loot.py           # Testy łupu oraz craftingu
 │   ├── test_turn_flow.py      # Testy API, autoryzacji i akcji
 │   └── test_websocket_chat.py # Test komunikacji czatu przez WebSocket
+├── docs/
+│   ├── WORLD_PACK_ROADMAP.md  # Etapowy plan przejścia do silnika wielu światów
+│   ├── WORLD_DEPENDENCY_INVENTORY.md # Inwentarz hardkodów i granica silnik/pakiet
+│   └── adr/
+│       └── 0001-versioned-world-packs.md # Decyzja o deklaratywnych pakietach świata
 ├── uploads/                   # Katalog na wygenerowane obrazy z Imagen 3
 ├── data/                      # Katalog na plik bazy SQLite (w Dockerze)
 ├── Dockerfile                 # Zoptymalizowany obraz produkcyjny Python 3.12-slim
@@ -284,6 +290,10 @@ python -m pytest tests/ -v
 ```
 
 Zakres testów:
+- `tests/test_current_world_contract.py`:
+  - Chroni publiczną tabelę tras HTTP i WebSocket oraz nazwy zdarzeń czasu rzeczywistego przed przypadkową zmianą podczas modularizacji.
+  - Utrwala obecne klasy, startowy ekwipunek, księgi Czarodzieja i Kleryka, profil mapy Dark Fantasy, kształt odpowiedzi sesji i kluczowe elementy renderowanego UI.
+  - Korzysta z fixture `tests/fixtures/dark_fantasy_v1_contract.json`, która jest punktem odniesienia dla przyszłego pakietu `dark_fantasy@1`.
 - `tests/test_combat.py`:
   - Rozpoznawanie dominującej intencji, w tym zdań zawierających mylące przysłowia lub wzmianki o innym typie akcji, skalowanie bossów, obrażenia, efekty statusu oraz walidacja używanego ekwipunku.
 - `tests/test_dice.py`:
@@ -302,6 +312,14 @@ Zakres testów:
   - Składanie akcji tury i sprawdzanie stanu gotowości drużyny.
 - `tests/test_websocket_chat.py`:
   - Wymiana wiadomości czatu przez WebSocket.
+
+---
+
+## 🧭 Roadmapa silnika wielu światów
+
+Rozwój w kierunku kampanii cyberpunkowych, pirackich, pustynnych, historyczno-okultystycznych, słowiańskich, wikińskich, westernowych, space-grimdark, infernalnych i pastoralnych jest podzielony na niezależnie odbierane etapy. Pełny plan znajduje się w [`docs/WORLD_PACK_ROADMAP.md`](docs/WORLD_PACK_ROADMAP.md), decyzja architektoniczna w [`docs/adr/0001-versioned-world-packs.md`](docs/adr/0001-versioned-world-packs.md), a aktualne sprzężenia fantasy w [`docs/WORLD_DEPENDENCY_INVENTORY.md`](docs/WORLD_DEPENDENCY_INVENTORY.md).
+
+Etap 1 został zakończony jako warstwa bezpieczeństwa i dokumentacja. Nie dodaje jeszcze wyboru świata ani nie zmienia zachowania aplikacji. Utrwala aktualną kampanię jako kontrakt `dark_fantasy_v1`, aby kolejne etapy mogły najpierw podzielić backend i frontend, a następnie przenieść zawartość do wersjonowanych pakietów.
 
 ---
 
