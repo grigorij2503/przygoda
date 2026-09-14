@@ -1,0 +1,47 @@
+  <!-- ==================== MODAL: KRONIKA ŚWIATA (LORE BOOK) ==================== -->
+  <div x-show="showLoreBookModal" role="dialog" aria-modal="true" aria-labelledby="lore-dialog-title" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
+    <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-2xl w-full border border-amber-900/50 shadow-2xl max-h-[85vh] flex flex-col">
+      <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
+        <h3 id="lore-dialog-title" class="text-2xl font-fantasy font-bold text-amber-300 flex items-center gap-2">
+          <span>📜</span> KRONIKA ŚWIATA I NAZWANE LEGENDY
+        </h3>
+        <button @click="showLoreBookModal = false" class="text-gray-400 hover:text-white text-lg" aria-label="Zamknij kronikę świata">✕</button>
+      </div>
+
+      <p class="text-xs text-gray-400 mb-4">Nazwane spotkania i odkrycia drużyny są automatycznie porządkowane według rodzaju:</p>
+
+      <div class="flex-1 overflow-y-auto pr-2">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <template x-for="category in loreCategories" :key="category.id">
+            <section class="lore-category">
+              <h4 class="lore-category__title">
+                <span aria-hidden="true" x-text="category.icon"></span>
+                <span x-text="category.label"></span>
+                <span class="lore-category__count" x-text="loreEntitiesByCategory(category.id).length"></span>
+              </h4>
+
+              <div class="space-y-2">
+                <template x-for="ent in loreEntitiesByCategory(category.id)" :key="ent.id">
+                  <article class="lore-entry">
+                    <h5 class="font-fantasy font-bold text-amber-300 text-sm" x-text="ent.custom_name"></h5>
+                    <p class="text-gray-300 text-xs mt-1" x-text="ent.original_description"></p>
+                    <p class="text-amber-500/80 text-xs font-mono mt-2" x-text="'Nazwał: ' + (ent.named_by_character_name || 'Bohater')"></p>
+                  </article>
+                </template>
+
+                <p x-show="loreEntitiesByCategory(category.id).length === 0" class="lore-empty">
+                  Jeszcze nic tu nie zapisano.
+                </p>
+              </div>
+            </section>
+          </template>
+        </div>
+
+        <div x-show="!session?.lore_entities || session?.lore_entities?.length === 0" class="text-center pt-5 text-gray-400 text-xs italic">
+          Kronika zapełni się podczas spotkań, odkrywania miejsc i najważniejszych wydarzeń kampanii.
+        </div>
+      </div>
+
+    </div>
+  </div>
+

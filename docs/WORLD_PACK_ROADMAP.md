@@ -163,7 +163,7 @@ ma pozostać zapisany, a interfejs nie może zgłaszać błędu tury ani rozłą
 
 ### Etap 3 - modularizacja Alpine, Jinja i CSS
 
-Status: oczekuje na akceptację rozpoczęcia.
+Status: zakończony 2026-09-14.
 
 - podział HTML na bramę, lobby, stół, historię, panel akcji, postać, ekwipunek,
   czat, mapę i modale;
@@ -173,6 +173,13 @@ Status: oczekuje na akceptację rozpoczęcia.
   gdzie przynosi to realną izolację;
 - podział CSS na tokeny, bazę, komponenty i funkcje;
 - aktualizacja listy zasobów oraz wersji cache service workera.
+
+Implementacja zachowuje jeden komponent `rpgGame`, jego 302 właściwości i 54
+gettery, ale składa go z funkcjonalnych modułów przez deskryptory właściwości.
+Lokalne stany podpowiedzi i informacji o atrybutach są nazwanymi komponentami
+`Alpine.data`. Render strony jest składany z partiali Jinja, a dotychczasowa
+kaskada CSS została przeniesiona bez zmiany kolejności do modułów ładowanych
+przez jeden arkusz wejściowy. Cache PWA `v30` zawiera wszystkie nowe zasoby.
 
 Kryterium zakończenia: zachowane selektory, formularze, synchronizacja,
 responsywność, dostępność i zachowanie PWA.
@@ -184,6 +191,8 @@ lightbox oraz obsługę klawiaturą. Następnie odświeżyć PWA, przełączyć 
 tryb offline i wrócić online; nie może pojawić się stary JS lub brakujący partial.
 
 ### Etap 4 - jądro pakietów świata
+
+Status: oczekuje na akceptację rozpoczęcia.
 
 - modele Pydantic `WorldPack` i typów składowych;
 - rejestr pakietów oraz walidacja ID, wersji i odwołań;

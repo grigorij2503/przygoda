@@ -1,0 +1,27 @@
+  <!-- ==================== MODAL: ODBLOKOWANIE NARZĘDZI MG ==================== -->
+  <div x-show="showGmAuthModal" role="dialog" aria-modal="true" aria-labelledby="gm-auth-dialog-title" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
+    <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-md w-full border border-slate-700 shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 id="gm-auth-dialog-title" class="text-xl font-fantasy font-bold text-amber-300 flex items-center gap-2">
+          <span>🔒</span> NARZĘDZIA MISTRZA GRY
+        </h3>
+        <button @click="showGmAuthModal = false; gmPin = ''; gmAuthError = ''" class="text-gray-400 hover:text-white text-lg" aria-label="Zamknij logowanie Mistrza Gry">✕</button>
+      </div>
+      <p class="text-sm text-gray-400 mb-5">Ta sekcja zawiera operacje administracyjne. Wpisz osobny PIN Mistrza Gry.</p>
+
+      <form @submit.prevent="authenticateGm()" class="space-y-4">
+        <div>
+          <label for="gm-pin" class="block text-xs font-semibold text-amber-400/90 uppercase tracking-widest mb-1">PIN Mistrza Gry</label>
+          <input id="gm-pin" type="password" inputmode="numeric" autocomplete="off" x-model="gmPin" placeholder="Wpisz PIN..."
+                 class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition">
+        </div>
+        <div x-show="gmAuthError" x-text="gmAuthError" class="text-rose-300 text-sm bg-rose-950/50 border border-rose-800/50 rounded-lg p-3"></div>
+        <button type="submit" :disabled="isAuthenticatingGm || !gmPin"
+                class="w-full py-3 bg-amber-600 hover:bg-amber-500 text-slate-950 font-fantasy font-bold rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed">
+          <span x-show="!isAuthenticatingGm">ODBLOKUJ</span>
+          <span x-show="isAuthenticatingGm">WERYFIKACJA...</span>
+        </button>
+      </form>
+    </div>
+  </div>
+

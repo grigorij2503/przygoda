@@ -1,0 +1,44 @@
+        <!-- STATUS DRUŻYNY (POZOSTALI GRACZE) -->
+        <div class="fantasy-card p-5 rounded-2xl border border-slate-800">
+          <h4 class="text-xs font-fantasy font-bold uppercase tracking-wider text-amber-300 mb-3 flex items-center gap-1.5">
+            <span>🛡️</span> DRUŻYNA PRZYGODY
+          </h4>
+          <div class="space-y-3">
+            <template x-for="p in session?.characters || []" :key="p.id">
+              <div class="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 flex items-center justify-between gap-3 text-xs">
+                <div>
+                  <div class="flex items-center gap-1.5 font-bold text-gray-200">
+                    <span x-text="p.name"></span>
+                    <span x-show="p.id === selectedCharacterId" class="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded">Ty</span>
+                  </div>
+                  <div class="text-[10px] text-gray-400">
+                    <span x-text="p.character_class"></span> • Lvl <span x-text="p.level"></span> • ❤️ <span x-text="p.current_hp + '/' + p.max_hp"></span>
+                  </div>
+                  <span class="inline-flex mt-1 px-2 py-0.5 rounded text-[10px] font-mono" :class="deathStateClass(p)" x-text="deathStateLabel(p)"></span>
+                  <div x-show="(p.status_effects || []).length > 0" class="flex flex-wrap gap-1 mt-1">
+                    <template x-for="effect in p.status_effects || []" :key="effect.type">
+                      <span class="px-1.5 py-0.5 rounded border text-[9px] cursor-help"
+                            :class="statusClass(effect)" :title="statusTooltip(effect)"
+                            x-text="effect.icon + ' ' + effect.label + ' (' + effect.turns_remaining + ')' "></span>
+                    </template>
+                  </div>
+                </div>
+
+                <div class="flex flex-col items-end gap-1.5">
+                  <span class="px-2 py-1 rounded text-[10px] font-medium"
+                        :class="p.has_submitted_action ? 'bg-emerald-950/80 border border-emerald-600/40 text-emerald-300' : 'bg-amber-950/60 border border-amber-600/30 text-amber-300'"
+                        x-text="p.has_submitted_action ? (p.action_submission_source === 'party_vote' ? '✓ Gotowy (drużyna)' : '✓ Gotowy') : '⏳ Czeka...'">
+                  </span>
+                  <button x-show="canOpenProxyAction(p)" x-cloak type="button"
+                          @click="openProxyActionVote(p)"
+                          class="px-2 py-1 rounded text-[10px] font-semibold bg-indigo-950/80 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-900 transition">
+                    🗳️ Wybierz ruch za niego
+                  </button>
+                  <span x-show="p.proxy_action?.decision?.status === 'open'" x-cloak
+                        class="text-[9px] text-indigo-300"
+                        x-text="'Głosowanie • większość ' + p.proxy_action?.decision?.quorum + ' głosów'"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>

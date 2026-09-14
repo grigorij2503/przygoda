@@ -1,0 +1,33 @@
+  <!-- ==================== POWRÓT DO GRY ==================== -->
+  <div x-show="welcomeBackVisible" x-cloak
+       class="welcome-back-overlay"
+       role="status" aria-live="polite" aria-atomic="true">
+    <div class="welcome-back-card">
+      <span class="welcome-back-rune" aria-hidden="true">⚔️</span>
+      <p class="welcome-back-title">Witaj ponownie, <span x-text="welcomeBackName"></span></p>
+      <p class="welcome-back-subtitle">Stan przygody został zsynchronizowany</p>
+    </div>
+  </div>
+
+  <!-- ==================== OFFLINE BANNER ==================== -->
+  <div x-show="isOffline" x-cloak class="fixed top-0 left-0 right-0 z-50 bg-amber-950/95 border-b border-amber-500/50 text-amber-200 px-4 py-2 text-xs font-fantasy text-center shadow-lg flex items-center justify-center gap-2">
+    <span>⚠️</span>
+    <span>Tryb Offline: Brak połączenia z siecią. Aplikacja działa z pamięci podręcznej (PWA).</span>
+  </div>
+
+  <!-- ==================== TOAST NOTIFICATIONS ==================== -->
+  <div class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-sm pointer-events-none" role="status" aria-live="polite" aria-atomic="false">
+    <template x-for="t in toasts" :key="t.id">
+      <div class="pointer-events-auto p-4 rounded-lg shadow-xl text-sm font-medium border flex items-center gap-3 transition-all duration-300 transform translate-y-0"
+           :class="{
+             'bg-emerald-950 border-emerald-600 text-emerald-100': t.type === 'success',
+             'bg-rose-950 border-rose-600 text-rose-100': t.type === 'error',
+             'bg-amber-950 border-amber-600 text-amber-100': t.type === 'warning',
+             'bg-slate-900 border-indigo-500 text-indigo-100': t.type === 'info'
+           }">
+        <span x-text="t.type === 'success' ? '⚔️' : t.type === 'error' ? '☠️' : t.type === 'warning' ? '⚠️' : '📜'"></span>
+        <span x-text="t.message" class="flex-1"></span>
+      </div>
+    </template>
+  </div>
+

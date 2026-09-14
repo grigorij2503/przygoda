@@ -1,0 +1,51 @@
+  <!-- ==================== MODAL: WYBÓR ATRYBUTU PO AWANSIE ==================== -->
+  <div x-show="showLevelUpModal && currentCharacter" x-cloak
+       @keydown.escape.window="showLevelUpModal = false"
+       role="dialog" aria-modal="true" aria-labelledby="level-dialog-title"
+       class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-lg w-full border border-amber-500/50 shadow-2xl">
+      <div class="text-center mb-6">
+        <div class="text-4xl mb-3">⭐</div>
+        <h3 id="level-dialog-title" class="text-2xl font-fantasy font-bold text-amber-300">AWANS BOHATERA</h3>
+        <p class="text-sm text-gray-300 mt-2">
+          <span x-text="currentCharacter?.name"></span> ma
+          <b class="text-amber-300" x-text="currentCharacter?.unspent_stat_points"></b>
+          <span x-text="currentCharacter?.unspent_stat_points === 1 ? ' punkt' : ' punkty'"></span>
+          do rozdania.
+        </p>
+        <p class="text-xs text-gray-500 mt-1">Wybierz atrybut, który zwiększysz o 1.</p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <button type="button" @click="spendStatPoint('strength')" :disabled="isSpendingStatPoint || (currentCharacter?.strength || 0) >= maxBaseStat"
+                class="p-4 rounded-xl bg-slate-950 hover:bg-amber-950/50 border border-slate-700 hover:border-amber-500 transition disabled:opacity-50">
+          <span class="block text-xs uppercase text-gray-400">Siła (STR)</span>
+          <span class="block mt-1 text-xl font-bold text-amber-300" x-text="(currentCharacter?.strength || 0) >= maxBaseStat ? ('+' + currentCharacter.strength + ' (MAX)') : ('+' + currentCharacter?.strength + ' → +' + ((currentCharacter?.strength || 0) + 1))"></span>
+        </button>
+        <button type="button" @click="spendStatPoint('agility')" :disabled="isSpendingStatPoint || (currentCharacter?.agility || 0) >= maxBaseStat"
+                class="p-4 rounded-xl bg-slate-950 hover:bg-amber-950/50 border border-slate-700 hover:border-amber-500 transition disabled:opacity-50">
+          <span class="block text-xs uppercase text-gray-400">Zręczność (AGI)</span>
+          <span class="block mt-1 text-xl font-bold text-amber-300" x-text="(currentCharacter?.agility || 0) >= maxBaseStat ? ('+' + currentCharacter.agility + ' (MAX)') : ('+' + currentCharacter?.agility + ' → +' + ((currentCharacter?.agility || 0) + 1))"></span>
+        </button>
+        <button type="button" @click="spendStatPoint('intellect')" :disabled="isSpendingStatPoint || (currentCharacter?.intellect || 0) >= maxBaseStat"
+                class="p-4 rounded-xl bg-slate-950 hover:bg-amber-950/50 border border-slate-700 hover:border-amber-500 transition disabled:opacity-50">
+          <span class="block text-xs uppercase text-gray-400">Rozum (INT)</span>
+          <span class="block mt-1 text-xl font-bold text-amber-300" x-text="(currentCharacter?.intellect || 0) >= maxBaseStat ? ('+' + currentCharacter.intellect + ' (MAX)') : ('+' + currentCharacter?.intellect + ' → +' + ((currentCharacter?.intellect || 0) + 1))"></span>
+        </button>
+        <button type="button" @click="spendStatPoint('charisma')" :disabled="isSpendingStatPoint || (currentCharacter?.charisma || 0) >= maxBaseStat"
+                class="p-4 rounded-xl bg-slate-950 hover:bg-amber-950/50 border border-slate-700 hover:border-amber-500 transition disabled:opacity-50">
+          <span class="block text-xs uppercase text-gray-400">Charyzma (CHA)</span>
+          <span class="block mt-1 text-xl font-bold text-amber-300" x-text="(currentCharacter?.charisma || 0) >= maxBaseStat ? ('+' + currentCharacter.charisma + ' (MAX)') : ('+' + currentCharacter?.charisma + ' → +' + ((currentCharacter?.charisma || 0) + 1))"></span>
+        </button>
+      </div>
+
+      <p x-show="statPointError" x-text="statPointError"
+         class="mt-4 text-rose-300 text-xs bg-rose-950/40 border border-rose-800 rounded-lg p-3"></p>
+
+      <button type="button" @click="showLevelUpModal = false"
+              class="w-full mt-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-gray-400 rounded-lg text-xs font-fantasy transition">
+        Wybiorę później
+      </button>
+    </div>
+  </div>
+

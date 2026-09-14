@@ -1,0 +1,23 @@
+  <!-- ==================== EKRAN 3: GŁÓWNY STÓŁ GRY ==================== -->
+  <div x-show="isAuthenticated && session?.status !== 'lobby' && selectedCharacterId" class="min-h-screen flex flex-col">
+    {% include "partials/table/header.html" %}
+
+    <!-- GŁÓWNA PRZESTRZEŃ (KRONIKA + KARTA POSTACI + CZAT) -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <!-- LEWA KOLUMNA: KRONIKA PRZYGODY (STORY LOG) -->
+      <section class="lg:col-span-8 flex flex-col gap-6">
+        {% include "partials/table/story_history.html" %}
+        {% include "partials/table/action_panel.html" %}
+      </section>
+
+      <!-- PRAWA KOLUMNA: KARTA POSTACI, DRUŻYNA & CZAT -->
+      <aside class="lg:col-span-4 space-y-6 lg:sticky"
+             :class="session?.active_boss ? 'lg:top-36' : 'lg:top-20'">
+        {% include "partials/table/character_panel.html" %}
+        {% include "partials/table/inventory_panel.html" %}
+        </div>
+        {% include "partials/table/chat_panel.html" %}
+        {% include "partials/table/party_panel.html" %}
+      </aside>
+    </main>
+  </div>

@@ -1,0 +1,57 @@
+/* Kategoryzowana Kronika Świata. */
+.lore-category {
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid rgba(71, 85, 105, 0.68);
+  border-radius: 0.85rem;
+  background: rgba(2, 6, 23, 0.62);
+}
+
+.lore-category__title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.7rem;
+  color: #ddd6fe;
+  font-family: 'Cinzel', serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.lore-category__count {
+  min-width: 1.4rem;
+  margin-left: auto;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  color: #c4b5fd;
+  background: rgba(109, 40, 217, 0.28);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+.lore-entry {
+  padding: 0.75rem;
+  border: 1px solid rgba(51, 65, 85, 0.7);
+  border-radius: 0.7rem;
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.lore-empty {
+  padding: 0.8rem;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  font-style: italic;
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .campaign-map-modal {
+    max-height: calc(100vh - 2.5rem);
+  }
+
+  .campaign-map-viewport {
+    min-height: 22rem;
+  }
+}
+

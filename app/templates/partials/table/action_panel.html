@@ -1,0 +1,231 @@
+        <!-- DOLNY PANEL AKCJI (ACTION BAR) -->
+        <div class="mobile-action-panel fantasy-card p-6 rounded-2xl border border-amber-900/50 sticky bottom-4 z-20 shadow-2xl backdrop-blur-lg"
+             :class="{ 'mobile-action-panel--collapsed': mobileActionPanelCollapsed && !session?.is_turn_resolving, 'mobile-action-panel--pending': !hasSubmittedCurrentTurn }">
+          <!-- Kompaktowy status zastępuje wysoki panel na telefonie lub mniejszym ekranie komputera. -->
+          <button type="button" @click="mobileActionPanelCollapsed = false"
+                  class="mobile-action-summary items-center justify-between gap-3 w-full text-left"
+                  :aria-expanded="(!mobileActionPanelCollapsed).toString()"
+                  :aria-label="hasSubmittedCurrentTurn ? 'Rozwiń panel wysłanej akcji' : 'Rozwiń formularz akcji bohatera'">
+            <span class="flex items-center gap-2 min-w-0 font-fantasy text-xs font-semibold"
+                  :class="hasSubmittedCurrentTurn ? 'text-emerald-300' : 'text-amber-300'">
+              <span class="shrink-0" x-text="hasSubmittedCurrentTurn ? '✓' : '⚔️'"></span>
+              <span class="truncate" x-text="hasSubmittedCurrentTurn ? 'Akcja złożona na tę turę' : 'Zaplanuj akcję bohatera'"></span>
+            </span>
+            <span class="flex items-center gap-2 shrink-0 text-[10px] text-gray-400">
+              <span><b class="text-amber-300" x-text="readyCount"></b>/<span x-text="totalAlivePlayers"></span> gotowych</span>
+              <svg class="w-4 h-4 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </span>
+          </button>
+
+          <div class="mobile-action-content">
+          
+          <!-- Stan przetwarzania tury przez Gemini -->
+          <div x-show="session?.is_turn_resolving" class="text-center py-6">
+            <div class="inline-flex items-center gap-3 px-6 py-3 rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-300 pulse-resolving">
+              <svg class="animate-spin h-5 w-5 text-amber-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+              <span class="font-fantasy text-sm font-bold tracking-wider">GEMINI MISTRZ GRY ROZSTRZYGA TURĘ...</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">Wszyscy gracze złożyli akcje. Czekamy na odpowiedź AI i podsumowanie konsekwencji.</p>
+          </div>
+
+          <!-- Gracz już złożył akcję i czeka -->
+          <div x-show="!session?.is_turn_resolving && hasSubmittedCurrentTurn" class="text-center py-4">
+            <button type="button" @click="mobileActionPanelCollapsed = true"
+                    class="compact-panel-collapse-trigger ml-auto mb-3 items-center gap-1.5 text-[11px] text-gray-400 hover:text-emerald-300 transition"
+                    aria-label="Zwiń panel wysłanej akcji">
+              <span>Zwiń panel</span>
+              <svg class="w-3.5 h-3.5 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </button>
+            <div class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-950/60 border border-emerald-600/40 text-emerald-300 font-fantasy text-xs font-semibold">
+              <span>✓</span>
+              <span x-text="currentCharacter?.action_submission_source === 'party_vote'
+                ? 'DRUŻYNA WYBRAŁA AKCJĘ ZASTĘPCZĄ ZA CIEBIE'
+                : 'TWOJA AKCJA ZOSTAŁA ZŁOŻONA NA TĘ TURĘ'"></span>
+            </div>
+            <p x-show="currentCharacter?.action_submission_source === 'party_vote'" x-cloak
+               class="text-xs text-indigo-300 mt-2">
+              Nadal możesz użyć opcji edycji poniżej i zastąpić ją własną deklaracją.
+            </p>
+            <p class="text-xs text-gray-400 mt-2">
+              Stan drużyny: 
+              <b class="text-amber-300"><span x-text="readyCount"></span> z <span x-text="totalAlivePlayers"></span></b> graczy gotowych.
+            </p>
+
+            <!-- Opcja edycji swojej deklaracji przed generowaniem -->
+            <div class="mt-2">
+              <button @click="editCurrentAction()" type="button" class="text-[11px] text-gray-400 hover:text-amber-300 underline underline-offset-2 transition">
+                ✏️ Chcesz coś dopisać lub zmienić? Edytuj swoją deklarację
+              </button>
+            </div>
+
+            <!-- Przycisk GENERUJ KOLEJNĄ TURĘ gdy wszyscy ukończyli -->
+            <template x-if="readyCount >= totalAlivePlayers && totalAlivePlayers > 0">
+              <div class="mt-4 pt-4 border-t border-slate-800">
+                <button @click="triggerTurnResolution()" :disabled="session?.is_turn_resolving || isResolvingTurn"
+                        class="w-full sm:w-auto px-6 py-3.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-fantasy font-black rounded-xl shadow-2xl transition flex items-center justify-center gap-3 mx-auto text-sm tracking-wide animate-pulse">
+                  <span class="text-lg">⚔️</span>
+                  <span x-show="!isResolvingTurn">WSZYSCY GRACZE UKOŃCZYLI – GENERUJ KOLEJNĄ TURĘ</span>
+                  <span x-show="isResolvingTurn">MISTRZ GRY ROZSTRZYGA TURĘ...</span>
+                </button>
+                <p class="text-[11px] text-amber-300/80 mt-2">Wszyscy bohaterowie złożyli akcje. Kliknij powyżej, aby Mistrz Gry podsumował rezultaty i otworzył nową turę!</p>
+              </div>
+            </template>
+          </div>
+
+          <!-- Formularz złożenia akcji -->
+          <div x-show="!session?.is_turn_resolving && !hasSubmittedCurrentTurn && !currentCharacter?.is_alive"
+               class="rounded-xl border border-rose-700/50 bg-rose-950/35 p-4 text-sm text-rose-100">
+            <button type="button" @click="mobileActionPanelCollapsed = true"
+                    class="compact-panel-collapse-trigger ml-auto mb-3 items-center gap-1.5 text-[11px] text-gray-400 hover:text-rose-300 transition"
+                    aria-label="Zwiń panel akcji">
+              <span>Zwiń panel</span>
+              <svg class="w-3.5 h-3.5 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </button>
+            <strong class="font-fantasy" x-text="deathStateLabel(currentCharacter)"></strong>
+            <p class="mt-1 text-gray-300" x-show="currentCharacter?.death_state === 'downed'">
+              Na końcu każdej kolejnej tury otrzymujesz porażkę śmierci. Trzecia oznacza zgon. Sojusznik może Cię ustabilizować lub podnieść akcją wsparcia.
+            </p>
+            <p class="mt-1 text-gray-300" x-show="currentCharacter?.death_state === 'stable'">Nie wykonujesz akcji i nie zbierasz porażek śmierci. Udane wsparcie przywróci Ci co najmniej 1 PW.</p>
+            <p class="mt-1 text-gray-300" x-show="currentCharacter?.death_state === 'dead'">Zwykłe leczenie nie działa. Kleryk od 7. poziomu może użyć Wskrzeszenia.</p>
+          </div>
+
+          <div x-show="!session?.is_turn_resolving && !hasSubmittedCurrentTurn && currentCharacter?.is_alive">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <span class="text-xs font-fantasy font-bold text-amber-300 tracking-wider flex items-center gap-1.5">
+                <span>⚔️</span> DEKLARACJA AKCJI BOHATERA (TURA #<span x-text="session?.current_turn_number"></span>)
+              </span>
+              <span class="flex items-center gap-3 ml-auto">
+                <span class="text-xs text-gray-400">
+                  Gotowi gracze: <b class="text-amber-400" x-text="readyCount + ' / ' + totalAlivePlayers"></b>
+                </span>
+                <button type="button" @click="mobileActionPanelCollapsed = true"
+                        class="compact-panel-collapse-trigger items-center gap-1.5 text-[11px] text-gray-400 hover:text-amber-300 transition"
+                        aria-label="Zwiń formularz akcji bohatera">
+                  <span>Zwiń panel</span>
+                  <svg class="w-3.5 h-3.5 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                  </svg>
+                </button>
+              </span>
+            </div>
+
+            <!-- Szybkie akcje dopasowane do klasy aktualnej postaci. -->
+            <div class="mb-3">
+              <p class="mb-1.5 text-[10px] uppercase tracking-wide text-gray-500">
+                Szybkie akcje: <span class="text-amber-400" x-text="currentCharacter?.character_class"></span>
+              </p>
+              <div class="flex flex-wrap gap-1.5">
+                <template x-for="action in quickActions" :key="action.id">
+                  <button type="button" @click="selectQuickAction(action)"
+                          class="text-[11px] px-2.5 py-1 rounded-md border transition"
+                          :class="action.magicAbilityId
+                            ? 'bg-violet-950/60 hover:bg-violet-900/60 border-violet-800 text-violet-200'
+                            : action.intent === 'support'
+                              ? 'bg-emerald-950/60 hover:bg-emerald-900/60 border-emerald-800 text-emerald-200'
+                              : 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-gray-300'">
+                    <span x-text="action.icon + ' ' + action.label"></span>
+                  </button>
+                </template>
+                <button x-show="!(session?.active_boss?.hp > 0) && !session?.inventory_rules?.current_location_searched" x-cloak
+                        @click="setQuickAction('Dokładnie przeszukuję tę lokację w poszukiwaniu wartościowego łupu.', 'interact')"
+                        class="text-[11px] bg-amber-950/60 hover:bg-amber-900/60 border border-amber-700/60 text-amber-200 px-2.5 py-1 rounded-md transition">
+                  🎒 Szukaj łupu
+                </button>
+              </div>
+            </div>
+
+            <div x-show="session?.inventory_rules?.crafting_available" x-cloak
+                 class="mb-3 rounded-lg border border-cyan-600/40 bg-cyan-950/30 px-3 py-2 text-[11px] text-cyan-200">
+              🔨 Warsztat jest dostępny w tej turze. Crafting jest całą akcją: wpisz dokładne nazwy trzech przedmiotów tego samego typu, które chcesz scalić.
+            </div>
+            <p class="mb-3 text-[10px] text-gray-500">
+              Jedna tura obejmuje jeden główny zamiar. Każdą lokację można przeszukać tylko raz, a boss pozostawia jeden wspólny łup.
+            </p>
+
+            <div class="space-y-3">
+              <div x-show="selectedMagicAbility" x-cloak
+                   class="flex items-center justify-between gap-3 rounded-lg border border-violet-500/40 bg-violet-950/40 px-3 py-2 text-[11px]">
+                <span class="min-w-0 text-violet-200">
+                  <span x-text="selectedMagicAbility?.icon"></span>
+                  Wybrana zdolność: <b x-text="selectedMagicAbility?.name"></b>
+                </span>
+                <button type="button" @click="magicAbilityId = null; actionIntent = null; actionTestedStat = null; interpretAction()" class="shrink-0 text-gray-400 hover:text-white underline">
+                  Odłącz
+                </button>
+              </div>
+              <label for="action-description" class="sr-only">Opis akcji bohatera</label>
+              <textarea id="action-description" x-model="actionText"
+                        @input="actionInterpretation = null; actionInterpretationRequestId += 1"
+                        @input.debounce.350ms="interpretAction()" rows="2" placeholder="Opisz dokładnie co zamierza zrobić Twoja postać... Silnik odczyta zamiar, dobierze atrybut i rzuci d20."
+                        class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 transition resize-none"></textarea>
+
+              <div x-show="effectiveActionIntent() === 'support'" x-cloak>
+                <label for="support-target" class="block text-xs font-semibold text-emerald-300 mb-1">Sojusznik objęty wsparciem</label>
+                <select id="support-target" x-model="actionTargetRef"
+                        class="w-full bg-slate-950 border border-emerald-800/70 rounded-lg px-3 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none">
+                  <option value="">Wybierz postać…</option>
+                  <template x-for="character in supportTargets" :key="character.id">
+                    <option :value="String(character.id)" x-text="character.name + ' • ' + deathStateLabel(character) + ' • ' + character.current_hp + '/' + character.max_hp + ' PW'"></option>
+                  </template>
+                </select>
+                <p x-show="magicAbilityId === 'resurrection'" class="mt-1 text-xs text-violet-300">Wskrzeszenie może wskazać poległego bohatera.</p>
+              </div>
+
+              <div x-show="actionInterpretation" x-cloak class="rounded-lg border border-indigo-800/50 bg-indigo-950/25 px-3 py-2 text-[10px]">
+                <div class="flex flex-wrap items-center gap-1.5 font-mono text-indigo-200">
+                  <span>Odczytano z opisu:</span>
+                  <b x-text="intentLabel(actionInterpretation?.intent)"></b>
+                  <span>•</span>
+                  <b x-text="statShortLabel(actionInterpretation?.tested_stat)"></b>
+                  <span x-show="Math.min(actionInterpretation?.intent_confidence || 0, actionInterpretation?.stat_confidence || 0) < 0.65"
+                        class="rounded bg-amber-950/70 px-1.5 py-0.5 text-amber-300">niska pewność</span>
+                  <button x-show="!magicAbilityId && !showActionInterpretationControls" type="button"
+                          @click="beginActionInterpretationCorrection()"
+                          class="ml-auto text-gray-400 hover:text-white underline">skoryguj</button>
+                </div>
+                <p x-show="actionInterpretation?.reason" class="mt-1 text-gray-500" x-text="actionInterpretation?.reason"></p>
+
+                <div x-show="showActionInterpretationControls && !magicAbilityId" class="mt-2 grid grid-cols-2 gap-2">
+                  <label class="text-gray-400">
+                    Zamiar
+                    <select x-model="actionIntent" @change="interpretAction()"
+                            class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white">
+                      <option value="attack">Atak</option>
+                      <option value="defend">Obrona</option>
+                      <option value="interact">Interakcja</option>
+                      <option value="support">Wsparcie</option>
+                      <option value="other">Inna akcja</option>
+                    </select>
+                  </label>
+                  <label class="text-gray-400">
+                    Cecha
+                    <select x-model="actionTestedStat" @change="interpretAction()"
+                            class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white">
+                      <option value="strength">STR</option>
+                      <option value="agility">AGI</option>
+                      <option value="intellect">INT</option>
+                      <option value="charisma">CHA</option>
+                    </select>
+                  </label>
+                  <button type="button" @click="clearActionInterpretationCorrection()"
+                          class="col-span-2 justify-self-start text-gray-500 hover:text-gray-300 underline">wróć do automatycznej interpretacji</button>
+                </div>
+              </div>
+
+              <div x-show="actionError" x-text="actionError" class="text-xs text-rose-400"></div>
+
+              <button @click="submitAction()" :disabled="isSubmittingAction"
+                      class="w-full py-3 bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-500 text-slate-950 font-fantasy font-bold rounded-xl shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50">
+                <span x-show="!isSubmittingAction">ZATWIERDŹ AKCJĘ I RZUĆ KOŚCIĄ</span>
+                <span x-show="isSubmittingAction">ZAPISYWANIE...</span>
+              </button>
+            </div>
+          </div>
+          </div>
+        </div>

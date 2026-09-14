@@ -1,0 +1,31 @@
+  <!-- ==================== MODAL: NAZWIJ ODKRYCIE (LORE NAMING) ==================== -->
+  <div x-show="showNamingModal && pendingNaming?.character_id === selectedCharacterId" role="dialog" aria-modal="true" aria-labelledby="naming-dialog-title" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4" x-cloak>
+    <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-lg w-full border border-amber-500/60 shadow-2xl relative">
+      <div class="w-14 h-14 mx-auto mb-3 rounded-full bg-amber-500/20 border-2 border-amber-400 flex items-center justify-center text-3xl animate-bounce">
+        <span x-text="loreCategory(pendingNaming?.category).icon"></span>
+      </div>
+
+      <h3 id="naming-dialog-title" class="text-2xl font-fantasy font-bold text-amber-300 text-center mb-1">LOS WYBRAŁ CIEBIE!</h3>
+      <p class="text-xs text-center uppercase tracking-widest text-amber-400/80 mb-4" x-text="'Tworzenie Świata: ' + pendingNaming?.category"></p>
+
+      <div class="p-4 bg-slate-950/90 rounded-xl border border-slate-800 text-xs text-gray-300 mb-5 text-center italic">
+        „<span x-text="pendingNaming?.prompt"></span>”
+      </div>
+
+      <form @submit.prevent="submitEntityName()" class="space-y-4">
+        <div>
+          <label for="lore-name" class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Wpisz trwałą nazwę</label>
+          <input id="lore-name" type="text" x-model="namingInput" placeholder="np. Andrzej, Czarna Przełęcz, Pożeracz Dusz..." autofocus
+                 class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-white text-base font-fantasy placeholder-gray-500 focus:border-amber-500 focus:outline-none">
+          <span class="text-[10px] text-gray-400 mt-1 block">Ta nazwa zostanie zapamiętana przez Mistrza Gry i drużynę do końca przygody.</span>
+        </div>
+
+        <button type="submit" :disabled="isSubmittingNaming || !namingInput.trim()"
+                class="w-full py-3.5 bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-500 text-slate-950 font-fantasy font-bold rounded-xl shadow-lg transition disabled:opacity-50">
+          <span x-show="!isSubmittingNaming">ZATWIERDŹ NAZWĘ W KRONICE</span>
+          <span x-show="isSubmittingNaming">ZAPISYWANIE...</span>
+        </button>
+      </form>
+    </div>
+  </div>
+

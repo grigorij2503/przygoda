@@ -1,0 +1,13 @@
+:root {
+  --bg-primary: #0a0c10;
+  --bg-card: #12151e;
+  --bg-parchment: #1a1e2b;
+  --gold-primary: #e6c35c;
+  --gold-dim: #9c8238;
+  --crimson: #991b1b;
+  --crimson-glow: #dc2626;
+  --mana: #3b82f6;
+  --border-gold: rgba(230, 195, 92, 0.25);
+  --border-glow: rgba(230, 195, 92, 0.4);
+}
+

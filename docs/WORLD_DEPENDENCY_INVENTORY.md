@@ -45,20 +45,24 @@ pozostaje zakresem etapów 4-6.
 
 ## Frontend
 
+Po etapie 3 zależności pozostają funkcjonalnie takie same, ale nie są już
+skupione w trzech dużych plikach. Poniższe ścieżki wskazują nowe miejsca
+ekstrakcji do pakietów świata w etapach 4-7.
+
 | Miejsce | Zależności od Dark Fantasy | Kierunek ekstrakcji |
 |---|---|---|
-| `app/static/js/app.js` stan | domyślna klasa i scenariusz fantasy | domyślne wartości z aktywnego pakietu |
-| szybkie akcje | cztery klasy zdefiniowane ponownie w JS | `classes[].quick_actions` z API |
-| `magicBook` | nazwa i semantyka tylko dla magii | ogólne `abilityBook` z aliasem |
+| `app/static/js/modules/core.js` stan | domyślna klasa i scenariusz fantasy | domyślne wartości z aktywnego pakietu |
+| `app/static/js/modules/session-character.js` szybkie akcje | cztery klasy zdefiniowane ponownie w JS | `classes[].quick_actions` z API |
+| `session-character.js` `magicBook` | nazwa i semantyka tylko dla magii | ogólne `abilityBook` z aliasem |
 | etykiety statystyk | stałe polskie etykiety | prezentacyjne etykiety pakietu |
-| kreator, karta, awans i panel MG | cztery pola statystyk | piąte pole Percepcji bez zwiększania puli punktów |
+| partiale postaci, kreatora, awansu i MG | cztery pola statystyk | piąte pole Percepcji bez zwiększania puli punktów |
 | kronika | stałe boss/location/npc/weapon/attack | stabilne ID i etykiety pakietu |
-| mapa | ikony pomieszczeń podziemi | ikony bezpiecznie wybierane przez profil mapy |
-| `index.html` kreator | cztery klasy i dokładne startery | renderowanie katalogu klas z API |
-| `index.html` teksty | bohater, magia, boss, wyprawa | `terminology` i neutralne komponenty |
-| `style.css` | Cinzel, złoto, runy, `fantasy-card` | semantyczne tokeny i `theme_id` |
+| `story-map-proxy.js` i partial mapy | ikony pomieszczeń podziemi | ikony bezpiecznie wybierane przez profil mapy |
+| `partials/modals/character_creation.html` | cztery klasy i dokładne startery | renderowanie katalogu klas z API |
+| partiale Jinja | bohater, magia, boss, wyprawa | `terminology` i neutralne komponenty |
+| `css/modules/` | Cinzel, złoto, runy, `fantasy-card` | semantyczne tokeny i `theme_id` |
 | manifest i meta | jedna ciemna tożsamość PWA | neutralny manifest, dynamiczny meta kolor strony |
-| service worker | jedna ręczna lista plików CSS/JS | cache wszystkich modułów i zasobów motywów |
+| `app/static/sw.js` | ręczna lista modułów CSS/JS Dark Fantasy | cache wszystkich modułów i zasobów motywów |
 
 ## Kontrakt pozostający w silniku
 

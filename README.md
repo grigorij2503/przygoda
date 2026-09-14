@@ -99,17 +99,21 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
 │   │   ├── chat_service.py    # Trwały czat i obsługa WebSocket
 │   │   └── image_service.py   # Generowanie ilustracji oraz limit kampanii
 │   ├── static/
-│   │   ├── css/style.css      # Style Dark Fantasy, dostępność i responsywny interfejs
-│   │   ├── js/app.js          # Alpine.js, WebSockets, kategoryzowana kronika, mapa i obsługa modali
+│   │   ├── css/style.css      # Punkt wejścia kaskady CSS
+│   │   ├── css/modules/       # Tokeny, baza, komponenty, ekwipunek, mapa, kronika, komunikaty i responsywność
+│   │   ├── js/app.js          # Składanie głównego komponentu Alpine `rpgGame`
+│   │   ├── js/modules/        # Stan, PWA, auth/MG, sesja/postać, mapa/historia, realtime/czat, akcje i ekwipunek
 │   │   ├── manifest.json      # Manifest instalowalnej PWA
-│   │   ├── sw.js              # Service worker i obsługa Web Push
+│   │   ├── sw.js              # Service worker, cache modułów i obsługa Web Push
 │   │   └── icons/             # Ikony aplikacji
 │   └── templates/
-│       └── index.html         # Szablon interfejsu (Tailwind CSS CDN + Alpine.js)
+│       ├── index.html         # Szkielet dokumentu i kolejność zasobów
+│       └── partials/          # Brama, lobby, stół, panele funkcjonalne i osobne modale Jinja
 ├── tests/
 │   ├── test_combat.py         # Testy walki, wyposażenia i efektów statusu
 │   ├── test_current_world_contract.py # Kontrakt regresyjny bieżącego świata, tras, klas, ksiąg, mapy i UI
 │   ├── test_dice.py           # Testy rzutów kośćmi i modyfikatorów
+│   ├── test_frontend_module_contract.py # Partiale, zasoby, kaskada CSS, kolejność skryptów i cache PWA
 │   ├── test_full_resolution.py # Test pełnego cyklu tury i awansu
 │   ├── test_lobby_flow.py     # Testy lobby, gotowości i uprawnień MG
 │   ├── test_loot.py           # Testy łupu oraz craftingu
@@ -304,6 +308,7 @@ Zakres testów:
   - Rozwija routery dołączane leniwie przez FastAPI, dzięki czemu porównuje faktyczne endpointy z niezmienioną fixture również po podziale backendu.
   - Utrwala obecne klasy, startowy ekwipunek, księgi Czarodzieja i Kleryka, profil mapy Dark Fantasy, kształt odpowiedzi sesji i kluczowe elementy renderowanego UI.
   - Korzysta z fixture `tests/fixtures/dark_fantasy_v1_contract.json`, która jest punktem odniesienia dla przyszłego pakietu `dark_fantasy@1`.
+  - Sprawdza kluczowe markery UI już po złożeniu wszystkich partiali Jinja.
 - `tests/test_combat.py`:
   - Rozpoznawanie dominującej intencji, w tym zdań zawierających mylące przysłowia lub wzmianki o innym typie akcji, skalowanie bossów, obrażenia, efekty statusu oraz walidacja używanego ekwipunku.
 - `tests/test_dice.py`:
@@ -312,6 +317,9 @@ Zakres testów:
   - Wyznaczanie progów sukcesu i kontrolowany testowo rzut k20.
 - `tests/test_full_resolution.py`:
   - Pełny cykl rozstrzygnięcia tury, zapis narracji, aktualizacja HP/XP i awans.
+- `tests/test_frontend_module_contract.py`:
+  - Renderowanie wszystkich partiali Jinja i istnienie wskazanych zasobów lokalnych.
+  - Kolejność modułów CSS i skryptów Alpine oraz kompletność wersjonowanego cache PWA.
 - `tests/test_lobby_flow.py`:
   - Konfiguracja lobby, gotowość graczy oraz kontrola dostępu do narzędzi MG.
 - `tests/test_loot.py`:
@@ -329,11 +337,12 @@ Zakres testów:
 
 Rozwój w kierunku kampanii cyberpunkowych, pirackich, pustynnych, historyczno-okultystycznych, słowiańskich, wikińskich, westernowych, space-grimdark, infernalnych i pastoralnych jest podzielony na niezależnie odbierane etapy. Pełny plan znajduje się w [`docs/WORLD_PACK_ROADMAP.md`](docs/WORLD_PACK_ROADMAP.md), decyzja architektoniczna w [`docs/adr/0001-versioned-world-packs.md`](docs/adr/0001-versioned-world-packs.md), a aktualne sprzężenia fantasy w [`docs/WORLD_DEPENDENCY_INVENTORY.md`](docs/WORLD_DEPENDENCY_INVENTORY.md).
 
-Etapy 1 i 2 są zakończone. Kontrakt `dark_fantasy_v1` utrwala obecną rozgrywkę,
-a backend został rozdzielony na routery i serwisy domenowe. `app/main.py` odpowiada
-teraz wyłącznie za złożenie aplikacji; wybór świata i zachowanie runtime nadal
-pozostają bez zmian. Następny etap, uruchamiany dopiero po ręcznym odbiorze, dzieli
-Alpine, Jinja i CSS.
+Etapy 1-3 są zakończone. Kontrakt `dark_fantasy_v1` utrwala obecną rozgrywkę,
+backend jest rozdzielony na routery i serwisy domenowe, a frontend na partiale
+Jinja oraz funkcjonalne moduły Alpine i CSS. Publiczne zachowanie, jeden główny
+komponent `rpgGame` i wygląd Dark Fantasy pozostają bez zmian. Następny etap,
+uruchamiany dopiero po ręcznym odbiorze, wprowadzi jądro wersjonowanych pakietów
+świata bez udostępniania ich wyboru graczom.
 
 Docelowy ruleset będzie używać pięciu kanonicznych atrybutów: Siły, Zręczności, Intelektu, Charyzmy i Percepcji. Percepcja zostanie dodana addytywnie w etapie 5; istniejące postacie otrzymają wartość `0` bez zmiany pozostałych cech, HP, XP i poziomu. Roadmapa zawiera przy każdym etapie osobną checklistę ręcznego odbioru po lokalnym zbudowaniu aplikacji oraz instrukcję użycia izolowanej bazy `manual_review.db`.
 

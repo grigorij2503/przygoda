@@ -1,0 +1,75 @@
+  <!-- ==================== MODAL: TWORZENIE POSTACI ==================== -->
+  <div x-show="showCharModal" role="dialog" aria-modal="true" aria-labelledby="character-dialog-title" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
+    <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-lg w-full border border-amber-900/50 shadow-2xl relative">
+      <h3 id="character-dialog-title" class="text-2xl font-fantasy font-bold text-amber-300 mb-1">STWÓRZ BOHATERA</h3>
+      <p class="text-xs text-gray-400 mb-6">Wybierz klasę i rozdysponuj atrybuty (punkty modyfikatorów d20).</p>
+
+      <form @submit.prevent="createCharacter()" class="space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label for="player-name" class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Twoje Imię (Gracz)</label>
+            <input id="player-name" type="text" x-model="newChar.player_name" placeholder="np. Tomek"
+                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none">
+          </div>
+          <div>
+            <label for="character-name" class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Imię Postaci</label>
+            <input id="character-name" type="text" x-model="newChar.name" placeholder="np. Thorin Kamiennoręki"
+                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label for="character-class" class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Archetyp / Klasa</label>
+          <select id="character-class" x-model="newChar.character_class" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none">
+            <option value="Wojownik">Wojownik (Start: Krasnoludzki Miecz + Zbroja)</option>
+            <option value="Łotrzyk">Łotrzyk (Start: Zatruty Sztylet + Wytrychy)</option>
+            <option value="Czarodziej">Czarodziej (Start: Runiczny Kostur + Amulet Ognia)</option>
+            <option value="Kleryk">Kleryk (Start: Srebrzysta Buława + Sygnet Wiary)</option>
+          </select>
+        </div>
+
+        <!-- Rozdział Atrybutów -->
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <span class="text-xs font-semibold text-amber-400/90 uppercase">Modyfikatory Atrybutów (0 do +4)</span>
+            <span class="text-xs font-bold" :class="statPointsRemaining >= 0 ? 'text-amber-400' : 'text-red-400'">
+              Pozostało punktów: <span x-text="statPointsRemaining"></span>
+            </span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-slate-950/90 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
+              <span class="text-xs text-gray-300">Siła (STR)</span>
+              <input type="number" min="0" max="4" x-model.number="newChar.strength" aria-label="Siła postaci" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
+            </div>
+            <div class="bg-slate-950/90 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
+              <span class="text-xs text-gray-300">Zręczność (AGI)</span>
+              <input type="number" min="0" max="4" x-model.number="newChar.agility" aria-label="Zręczność postaci" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
+            </div>
+            <div class="bg-slate-950/90 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
+              <span class="text-xs text-gray-300">Rozum (INT)</span>
+              <input type="number" min="0" max="4" x-model.number="newChar.intellect" aria-label="Rozum postaci" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
+            </div>
+            <div class="bg-slate-950/90 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
+              <span class="text-xs text-gray-300">Charyzma (CHA)</span>
+              <input type="number" min="0" max="4" x-model.number="newChar.charisma" aria-label="Charyzma postaci" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
+            </div>
+          </div>
+        </div>
+
+        <div x-show="charError" x-text="charError" class="text-red-400 text-xs font-medium bg-red-950/40 p-2.5 rounded border border-red-800"></div>
+
+        <div class="flex gap-3 pt-3">
+          <button type="button" @click="showCharModal = false" class="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-gray-400 rounded-lg text-xs font-fantasy">
+            Anuluj
+          </button>
+          <button type="submit" :disabled="isCreatingChar || statPointsRemaining < 0"
+                  class="flex-1 py-2.5 bg-amber-600 hover:bg-amber-500 text-slate-950 rounded-lg text-xs font-fantasy font-bold transition disabled:opacity-50">
+            <span x-show="!isCreatingChar">POWOŁAJ DO ŻYCIA</span>
+            <span x-show="isCreatingChar">TWORZENIE...</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+

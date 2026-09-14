@@ -1,0 +1,187 @@
+  <!-- ==================== EKRAN LOBBY: ZBIÓRKA DRUŻYNY (SESSION ZERO) ==================== -->
+  <div x-show="isAuthenticated && session?.status === 'lobby'" class="min-h-screen p-4 lg:p-8 max-w-6xl mx-auto flex flex-col justify-center" x-cloak>
+    <div class="fantasy-card p-6 md:p-10 rounded-2xl border border-amber-900/50 shadow-2xl space-y-8">
+      
+      <!-- Nagłówek Lobby -->
+      <div class="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-slate-800">
+        <div>
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-fantasy tracking-wider mb-2">
+            <span>🏰</span> ZBIÓRKA DRUŻYNY • KARCZMA PRZED WYPRAWĄ
+          </div>
+          <h2 class="text-3xl font-fantasy font-bold text-amber-300 leading-tight" x-text="session?.title"></h2>
+          <p class="text-gray-400 text-sm mt-1">
+            Motyw: <span class="text-amber-400/90 font-mono" x-text="session?.setting_theme"></span>
+          </p>
+        </div>
+        <div class="flex items-center gap-3">
+          <template x-if="canInstallPWA">
+            <button @click="installPWA()" class="text-xs font-fantasy bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/50 text-amber-300 px-3.5 py-2 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+              <span>📲</span> Zainstaluj PWA
+            </button>
+          </template>
+          <button @click="openGmTools()" class="text-xs font-fantasy bg-slate-900 hover:bg-slate-800 border border-slate-700 text-gray-300 px-3.5 py-2 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+            <span>🔒</span> Narzędzia MG
+          </button>
+          <button @click="logout()" class="text-xs font-fantasy bg-red-950/60 hover:bg-red-900 border border-red-700/40 text-red-300 px-3.5 py-2 rounded-lg transition">
+            Wyloguj
+          </button>
+        </div>
+      </div>
+
+      <!-- Karta Stanu Gotowości Gracza (Twoja Postać) -->
+      <div class="p-5 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-2xl shrink-0">
+            <span x-text="currentCharacter ? (currentCharacter.character_class === 'Wojownik' ? '⚔️' : currentCharacter.character_class === 'Czarodziej' ? '✨' : currentCharacter.character_class === 'Kleryk' ? '☀️' : currentCharacter.character_class === 'Łotrzyk' ? '🏹' : '🛡️') : '👤'"></span>
+          </div>
+          <div>
+            <template x-if="currentCharacter">
+              <div>
+                <span class="text-[10px] uppercase font-mono text-gray-500">Twoja wybrana postać:</span>
+                <h4 class="text-lg font-fantasy font-bold text-amber-300">
+                  <span x-text="currentCharacter.name"></span>
+                  <span class="text-xs font-sans text-gray-400 font-normal" x-text="'(' + currentCharacter.character_class + ')'"></span>
+                </h4>
+              </div>
+            </template>
+            <template x-if="!currentCharacter">
+              <div>
+                <span class="text-xs text-rose-300/90 font-medium">Nie wybrałeś jeszcze postaci dla siebie!</span>
+                <p class="text-[11px] text-gray-400">Wybierz jednego z bohaterów poniżej lub stwórz nowego.</p>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <template x-if="currentCharacter">
+            <div class="flex items-center gap-2">
+              <button @click="toggleReady()"
+                      type="button"
+                      class="px-5 py-2.5 rounded-xl font-fantasy text-xs font-bold transition flex items-center gap-2 shadow-lg"
+                      :class="isCurrentCharacterReady 
+                        ? 'bg-emerald-600 hover:bg-emerald-500 text-slate-950 shadow-emerald-950/50' 
+                        : 'bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/50 text-amber-300 animate-pulse'">
+                <span x-text="isCurrentCharacterReady ? '✓ JESTEŚ GOTOWY' : '⏳ OZNACZ: JESTEM GOTOWY'"></span>
+              </button>
+              <button @click="selectedCharacterId = null" class="text-xs text-gray-400 hover:text-white px-2 py-1">
+                Zmień
+              </button>
+            </div>
+          </template>
+          <template x-if="!currentCharacter">
+            <button @click="showCharModal = true"
+                    class="px-4 py-2 bg-gradient-to-r from-amber-700 to-amber-600 hover:from-amber-600 hover:to-amber-500 text-slate-950 font-fantasy font-bold rounded-xl text-xs shadow transition">
+              ⚔️ STWÓRZ NOWĄ POSTAĆ
+            </button>
+          </template>
+        </div>
+      </div>
+
+      <!-- Lista Bohaterów Drużyny -->
+      <div>
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-xs font-fantasy uppercase tracking-widest text-amber-400 font-bold flex items-center gap-2">
+            <span>🛡️</span> ZEBRANA DRUŻYNA (<span x-text="lobbyReadyCount + ' / ' + lobbyAliveCharacters.length"></span> GOTOWYCH)
+          </h3>
+          <button @click="showCharModal = true" class="text-xs text-amber-300/80 hover:text-amber-300 font-fantasy flex items-center gap-1">
+            <span>+</span> Dodaj kolejną postać
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <template x-for="char in session?.characters || []" :key="char.id">
+            <div class="p-5 rounded-xl border transition-all duration-200 relative overflow-hidden"
+                 :class="{
+                   'bg-amber-950/20 border-amber-500/60 ring-1 ring-amber-500/30': char.id === selectedCharacterId,
+                   'bg-slate-900/80 border-slate-800': char.id !== selectedCharacterId
+                 }">
+              
+              <div class="flex items-start justify-between gap-2 mb-3">
+                <div>
+                  <h4 class="text-lg font-fantasy font-bold text-amber-200" x-text="char.name"></h4>
+                  <p class="text-xs text-gray-400">
+                    <span x-text="char.character_class"></span> • Gracz: <b class="text-gray-300" x-text="char.player_name"></b>
+                  </p>
+                </div>
+                
+                <!-- Status Gotowości -->
+                <span class="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold tracking-wider uppercase shrink-0"
+                      :class="char.is_ready ? 'bg-emerald-950 border border-emerald-500 text-emerald-300' : 'bg-slate-950 border border-slate-700 text-gray-400'"
+                      x-text="char.is_ready ? '✓ GOTOWY' : '⏳ CZEKA'">
+                </span>
+              </div>
+
+              <!-- Statystyki -->
+              <div class="grid grid-cols-4 gap-1.5 text-center text-xs py-2 bg-slate-950/60 rounded-lg border border-slate-800/80 mb-3">
+                <div><span class="text-gray-500 block text-[10px]">SIŁ</span><b class="text-amber-300" x-text="'+' + char.strength"></b></div>
+                <div><span class="text-gray-500 block text-[10px]">ZRĘ</span><b class="text-amber-300" x-text="'+' + char.agility"></b></div>
+                <div><span class="text-gray-500 block text-[10px]">ROZ</span><b class="text-amber-300" x-text="'+' + char.intellect"></b></div>
+                <div><span class="text-gray-500 block text-[10px]">CHA</span><b class="text-amber-300" x-text="'+' + char.charisma"></b></div>
+              </div>
+
+              <!-- Akcje dla karty -->
+              <div class="flex items-center justify-between text-xs pt-2 border-t border-slate-800/60">
+                <template x-if="char.id === selectedCharacterId">
+                  <span class="text-amber-400 font-fantasy text-[11px] flex items-center gap-1 font-semibold">
+                    <span>👑</span> Twoja Postać
+                  </span>
+                </template>
+                <template x-if="char.id !== selectedCharacterId">
+                  <button @click="selectCharacter(char.id)" class="text-amber-300 hover:text-amber-100 font-fantasy text-[11px] underline">
+                    Graj tą postacią →
+                  </button>
+                </template>
+
+                <button @click="deleteCharacter(char.id, char.name)" class="text-gray-600 hover:text-red-400 transition" title="Usuń postać">
+                  🗑️
+                </button>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <div x-show="session?.characters?.length === 0" class="text-center py-12 bg-slate-900/40 rounded-xl border border-dashed border-slate-800">
+          <p class="text-gray-400 text-sm mb-2">Karczma jest pusta – nikt jeszcze nie dołączył do zbiórki.</p>
+          <button @click="showCharModal = true" class="text-xs text-amber-400 hover:underline font-fantasy">
+            Stwórz pierwszego bohatera, by zacząć!
+          </button>
+        </div>
+      </div>
+
+      <!-- DOLNY PANEL LOBBY: PRZYCISK STARTU GRY Z PROLOGIEM -->
+      <div class="pt-6 border-t border-slate-800 space-y-3">
+        <div class="text-center">
+          <template x-if="lobbyAliveCharacters.length === 0">
+            <p class="text-xs text-amber-400/80">⚠️ Stwórzcie co najmniej jedną postać w drużynie przed rozpoczęciem.</p>
+          </template>
+          <template x-if="lobbyAliveCharacters.length > 0 && !allLobbyCharactersReady">
+            <p class="text-xs text-amber-300">
+              ⏳ Narada w toku... Czekamy na potwierdzenie gotowości: 
+              <b class="text-white" x-text="unreadyCharacterNames.join(', ')"></b>
+            </p>
+          </template>
+          <template x-if="lobbyAliveCharacters.length > 0 && allLobbyCharactersReady">
+            <p class="text-xs text-emerald-400 font-semibold flex items-center justify-center gap-1.5">
+              <span>✨</span> Cała drużyna jest gotowa! Możecie wyruszyć na wyprawę.
+            </p>
+          </template>
+        </div>
+
+        <button @click="startPartyPrologue()"
+                :disabled="!allLobbyCharactersReady || isGeneratingPrologue"
+                class="w-full py-4 rounded-xl font-fantasy font-bold text-sm tracking-wider shadow-2xl transition flex items-center justify-center gap-3 disabled:opacity-40 disabled:cursor-not-allowed"
+                :class="allLobbyCharactersReady 
+                  ? 'bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-400 text-slate-950 shadow-amber-900/50 cursor-pointer' 
+                  : 'bg-slate-900 border border-slate-800 text-gray-500'">
+          <span x-show="!isGeneratingPrologue">⚔️ ROZPOCZNIJ PRZYGODĘ (GENERUJ PROLOG DLA DRUŻYNY)</span>
+          <span x-show="isGeneratingPrologue" class="flex items-center gap-2">
+            <svg class="animate-spin h-5 w-5 text-slate-950" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+            GEMINI TKA PROLOG DLA ZEBRANEJ DRUŻYNY...
+          </span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+

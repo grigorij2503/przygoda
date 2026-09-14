@@ -1,0 +1,182 @@
+          <!-- Ekwipunek i Przedmioty -->
+          <section class="equipment-panel" aria-labelledby="equipment-heading">
+            <div class="flex items-center justify-between gap-3 mb-3">
+              <div>
+                <h4 id="equipment-heading" class="text-xs font-fantasy font-bold uppercase tracking-widest text-amber-300">Wyposażenie</h4>
+                <p class="text-[10px] text-gray-500 mt-0.5">Premie działają tylko z aktywnych slotów</p>
+              </div>
+              <span class="text-[10px] text-gray-400 font-mono whitespace-nowrap" x-text="(currentCharacter?.inventory?.length || 0) + ' szt.'"></span>
+            </div>
+
+            <div class="equipment-paperdoll">
+              <div class="paperdoll-slot paperdoll-slot--main" :class="mainHandItem ? 'paperdoll-slot--filled' : ''">
+                <span class="paperdoll-slot__label">Główna dłoń</span>
+                <template x-if="mainHandItem">
+                  <button type="button" @click="toggleEquip(mainHandItem)" :disabled="changingEquipmentItemId === mainHandItem.id"
+                          :title="mainHandItem.description + ' — kliknij, aby zdjąć'" class="paperdoll-slot__item">
+                    <span class="paperdoll-slot__icon" x-text="itemIcon(mainHandItem)"></span>
+                    <strong x-text="mainHandItem.name"></strong>
+                    <small x-text="itemBonusLabel(mainHandItem)"></small>
+                  </button>
+                </template>
+                <template x-if="!mainHandItem">
+                  <button type="button" @click="showItemsForSlot('main_hand')" class="paperdoll-slot__empty" aria-label="Wybierz broń do głównej dłoni z plecaka">
+                    <span>＋</span><small>Wybierz broń</small>
+                  </button>
+                </template>
+              </div>
+
+              <div class="equipment-avatar" aria-label="Sylwetka postaci z miejscem na pancerz">
+                <svg viewBox="0 0 110 220" role="img" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="hero-steel" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0" stop-color="#667085"/>
+                      <stop offset="0.48" stop-color="#30394c"/>
+                      <stop offset="1" stop-color="#161c2a"/>
+                    </linearGradient>
+                    <linearGradient id="hero-cloak" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="#343047"/>
+                      <stop offset="1" stop-color="#111522"/>
+                    </linearGradient>
+                    <filter id="rune-glow" x="-100%" y="-100%" width="300%" height="300%">
+                      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+                      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                    </filter>
+                  </defs>
+                  <!-- płaszcz -->
+                  <path d="M34 48 Q55 37 76 48 L91 88 L99 174 L75 158 L83 205 L55 190 L27 205 L35 158 L11 174 L19 88 Z"
+                        fill="url(#hero-cloak)" stroke="#4b435e" stroke-width="2" stroke-linejoin="round"/>
+                  <!-- nogi i wysokie buty -->
+                  <path d="M37 126 L53 130 L50 193 L43 211 L24 211 L34 193 Z M57 130 L73 126 L76 193 L86 211 L67 211 L60 193 Z"
+                        fill="url(#hero-steel)" stroke="#7b8495" stroke-width="2" stroke-linejoin="round"/>
+                  <path d="M27 190 L49 190 L46 211 L22 211 Z M61 190 L83 190 L88 211 L64 211 Z"
+                        fill="#151a27" stroke="#806a43" stroke-width="1.5"/>
+                  <!-- ramiona, rękawice i naramienniki -->
+                  <path d="M33 58 L20 64 L6 121 L20 129 L42 78 Z M77 58 L90 64 L104 121 L90 129 L68 78 Z"
+                        fill="url(#hero-steel)" stroke="#7b8495" stroke-width="2" stroke-linejoin="round"/>
+                  <path d="M9 113 L23 118 L21 132 L6 126 Z M87 118 L101 113 L104 126 L89 132 Z"
+                        fill="#202737" stroke="#9b7b42" stroke-width="1.5"/>
+                  <path d="M25 52 Q34 43 47 54 L40 72 L20 65 Z M85 52 Q76 43 63 54 L70 72 L90 65 Z"
+                        fill="url(#hero-steel)" stroke="#a38a59" stroke-width="2"/>
+                  <!-- kolczuga i skórzany pas -->
+                  <path d="M36 49 Q55 42 74 49 L82 126 L68 144 L55 151 L42 144 L28 126 Z"
+                        fill="url(#hero-steel)" stroke="#8992a3" stroke-width="2" stroke-linejoin="round"/>
+                  <path d="M40 57 L70 57 L68 137 L55 146 L42 137 Z" fill="#262d3c" stroke="#75613e" stroke-width="1.5"/>
+                  <path d="M29 115 L81 115 L80 127 L30 127 Z" fill="#241b16" stroke="#9b7b42" stroke-width="2"/>
+                  <rect x="50" y="115" width="10" height="12" rx="2" fill="#17120f" stroke="#d0a850" stroke-width="2"/>
+                  <!-- kaptur i ukryta twarz -->
+                  <path d="M34 35 Q34 10 55 3 Q76 10 76 35 L68 52 L42 52 Z"
+                        fill="url(#hero-cloak)" stroke="#92805d" stroke-width="2.5" stroke-linejoin="round"/>
+                  <path d="M42 27 Q55 16 68 27 L65 42 Q55 49 45 42 Z" fill="#080b12" stroke="#566176" stroke-width="1.5"/>
+                  <path d="M47 32 L52 30 M58 30 L63 32" stroke="#d6ad4b" stroke-width="2" stroke-linecap="round" filter="url(#rune-glow)"/>
+                  <!-- runa na napierśniku, widoczna przy pustym slocie -->
+                  <path d="M55 70 L62 82 L55 94 L48 82 Z M48 82 H62" fill="none" stroke="#9b7b42" stroke-width="1.5" opacity="0.8"/>
+                </svg>
+
+                <div class="paperdoll-armor" :class="equippedArmor ? 'paperdoll-armor--filled' : ''">
+                  <template x-if="equippedArmor">
+                    <button type="button" @click="toggleEquip(equippedArmor)" :disabled="changingEquipmentItemId === equippedArmor.id"
+                            :title="equippedArmor.description + ' — kliknij, aby zdjąć'">
+                      <span>🛡️</span>
+                      <strong x-text="equippedArmor.name"></strong>
+                      <small x-text="itemBonusLabel(equippedArmor)"></small>
+                    </button>
+                  </template>
+                  <template x-if="!equippedArmor">
+                    <button type="button" @click="showItemsForSlot('armor')" title="Pokaż pancerze w plecaku" aria-label="Wybierz pancerz z plecaka">
+                      <span>＋</span><strong>Pancerz</strong><small>Pusty slot</small>
+                    </button>
+                  </template>
+                </div>
+              </div>
+
+              <div class="paperdoll-slot paperdoll-slot--off" :class="offHandItem || offHandBlockedByTwoHandedWeapon ? 'paperdoll-slot--filled' : ''">
+                <span class="paperdoll-slot__label">Druga dłoń</span>
+                <template x-if="offHandItem">
+                  <button type="button" @click="toggleEquip(offHandItem)" :disabled="changingEquipmentItemId === offHandItem.id"
+                          :title="offHandItem.description + ' — kliknij, aby zdjąć'" class="paperdoll-slot__item">
+                    <span class="paperdoll-slot__icon" x-text="itemIcon(offHandItem)"></span>
+                    <strong x-text="offHandItem.name"></strong>
+                    <small x-text="itemBonusLabel(offHandItem)"></small>
+                  </button>
+                </template>
+                <template x-if="!offHandItem && offHandBlockedByTwoHandedWeapon">
+                  <div class="paperdoll-slot__blocked" :title="mainHandItem?.name">
+                    <span>⚔️</span><small>Broń dwuręczna</small>
+                  </div>
+                </template>
+                <template x-if="!offHandItem && !offHandBlockedByTwoHandedWeapon">
+                  <button type="button" @click="showItemsForSlot('off_hand')" class="paperdoll-slot__empty" aria-label="Wybierz broń lub tarczę do drugiej dłoni z plecaka">
+                    <span>＋</span><small>Broń lub tarcza</small>
+                  </button>
+                </template>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between mt-4 mb-2">
+              <span class="text-[10px] font-fantasy font-bold uppercase tracking-widest text-violet-300">🔮 Aktywne przedmioty</span>
+              <span class="text-[10px] text-gray-500" x-text="activeItems.length + ' / 5'"></span>
+            </div>
+            <div class="active-slot-row mb-4">
+              <template x-for="(item, slotIndex) in activeItemSlots" :key="'active-slot-' + slotIndex">
+                <div class="active-mini-slot" :class="item ? 'active-mini-slot--filled' : ''">
+                  <template x-if="item">
+                    <button type="button" @click="toggleEquip(item)" :disabled="changingEquipmentItemId === item.id"
+                            :title="item.name + ': ' + item.description + ' — kliknij, aby zdjąć'">
+                      <span x-text="itemIcon(item)"></span>
+                      <small x-text="item.name"></small>
+                    </button>
+                  </template>
+                  <template x-if="!item">
+                    <button type="button" @click="showItemsForSlot('active')" title="Pokaż aktywne przedmioty w plecaku" :aria-label="'Wybierz aktywny przedmiot do slotu ' + (slotIndex + 1)">
+                      <span>＋</span><small x-text="slotIndex + 1"></small>
+                    </button>
+                  </template>
+                </div>
+              </template>
+            </div>
+
+            <div x-ref="inventoryBackpack" class="flex items-center justify-between gap-3 mb-2 pt-3 border-t border-slate-800 scroll-mt-4">
+              <div class="flex items-center gap-2">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-gray-300">🎒 Plecak</span>
+                <span x-show="newInventoryItemIds.length" x-cloak class="inventory-new-count" x-text="newInventoryItemIds.length + ' nowe'"></span>
+              </div>
+              <span class="text-[10px] text-gray-500" x-text="visibleBackpackItems.length + ' przedmiotów'"></span>
+            </div>
+
+            <div x-show="inventoryFilter !== 'all'" x-cloak class="inventory-filter-bar">
+              <span x-text="'Pokazuję: ' + inventoryFilterLabel"></span>
+              <button type="button" @click="inventoryFilter = 'all'">Pokaż wszystko</button>
+            </div>
+
+            <div x-show="visibleBackpackItems.length === 0" class="py-5 text-center text-[11px] text-gray-600 border border-dashed border-slate-800 rounded-xl">
+              <span x-text="inventoryFilter === 'all' ? 'Plecak jest pusty' : 'Brak pasujących przedmiotów w plecaku'"></span>
+            </div>
+
+            <div class="space-y-2 max-h-72 overflow-y-auto pr-1">
+              <template x-for="item in visibleBackpackItems" :key="item.id">
+                <article @click="markInventoryItemSeen(item.id)" class="inventory-item" :class="isNewInventoryItem(item.id) ? 'inventory-item--new' : ''">
+                  <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-1.5">
+                      <span class="text-base" x-text="itemIcon(item)"></span>
+                      <strong class="text-xs text-gray-200 leading-tight" x-text="item.name"></strong>
+                      <span x-show="item.quantity > 1" class="inventory-quantity" x-text="'×' + item.quantity"></span>
+                      <span x-show="isNewInventoryItem(item.id)" class="inventory-new-badge">Nowy łup</span>
+                    </div>
+                    <p class="text-[10px] leading-relaxed text-gray-400 mt-1" x-text="item.description"></p>
+                    <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      <span class="inventory-type" x-text="itemTypeLabel(item)"></span>
+                      <span x-show="itemBonusLabel(item)" class="equipment-bonus" x-text="itemBonusLabel(item)"></span>
+                    </div>
+                  </div>
+
+                  <template x-if="item.item_type === 'consumable'">
+                    <button type="button" @click.stop="markInventoryItemSeen(item.id); useItem(item.id)" class="inventory-action inventory-action--use">Użyj</button>
+                  </template>
+                  <template x-if="item.item_type !== 'consumable'">
+                    <button type="button" @click.stop="toggleEquip(item)" :disabled="changingEquipmentItemId === item.id" class="inventory-action">Załóż</button>
+                  </template>
+                </article>
+              </template>
+            </div>
+          </section>
