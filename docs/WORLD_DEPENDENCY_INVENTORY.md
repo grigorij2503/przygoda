@@ -10,6 +10,7 @@ powinna pochodzić z wersjonowanego `WorldPack`.
 |---|---|---|
 | `GameSession.setting_theme` | dowolny tekst, domyślnie Dark Fantasy | opis kampanii plus przypięty pakiet i wersja |
 | `Character.character_class` | prezentacyjna polska nazwa klasy | adapter; docelowo stabilne `class_id` z pakietu |
+| atrybuty postaci | cztery kolumny bez Percepcji | pięć kanonicznych cech; addytywne `perception=0` dla historii |
 | `PlayerAction.magic_ability_id` | ID zdolności magicznej | adapter; docelowo ogólne `ability_id` |
 | pola `active_boss_*` | nazewnictwo głównego przeciwnika | stan silnika z terminologią prezentowaną przez pakiet |
 | `NamedLoreEntity.category` | boss, location, npc, weapon, attack | stabilne kategorie silnika z etykietami pakietu |
@@ -31,6 +32,7 @@ powinna pochodzić z wersjonowanego `WorldPack`.
 | `app/magic.py` | Czarodziej, Kleryk, księgi i polskie aliasy magii | ogólny katalog zdolności pakietu |
 | `app/combat.py` | boss, fantasy statusy, specjalne Wskrzeszenie | silnik encounter oraz rejestr efektów zdolności |
 | `app/dice.py` | słowa miecz, topór, łuk, magia, modlitwa | wspólny rdzeń plus słowniki pakietu |
+| `app/dice.py` i schematy akcji | brak `perception`, obserwacja miesza się z Intelektem lub Zręcznością | osobne reguły Percepcji i stabilne rozróżnienie od analizy |
 | `app/loot.py` | runiczne nazwy, eliksiry, klasy fantasy | tabele łupu i preferencje klasy z pakietu |
 | `app/map_generator.py` | krypty, kaplice, grobowce, kuźnie | wspólny graf plus `map_profile` |
 | `app/gemini_service.py` | Wiedźmin, Dark Souls, Warhammer, magia i bossowie | neutralny prompt bazowy plus profil narratora |
@@ -44,6 +46,7 @@ powinna pochodzić z wersjonowanego `WorldPack`.
 | szybkie akcje | cztery klasy zdefiniowane ponownie w JS | `classes[].quick_actions` z API |
 | `magicBook` | nazwa i semantyka tylko dla magii | ogólne `abilityBook` z aliasem |
 | etykiety statystyk | stałe polskie etykiety | prezentacyjne etykiety pakietu |
+| kreator, karta, awans i panel MG | cztery pola statystyk | piąte pole Percepcji bez zwiększania puli punktów |
 | kronika | stałe boss/location/npc/weapon/attack | stabilne ID i etykiety pakietu |
 | mapa | ikony pomieszczeń podziemi | ikony bezpiecznie wybierane przez profil mapy |
 | `index.html` kreator | cztery klasy i dokładne startery | renderowanie katalogu klas z API |
@@ -56,7 +59,7 @@ powinna pochodzić z wersjonowanego `WorldPack`.
 
 - blokada tury do czasu akcji wszystkich żywych postaci;
 - serwerowy rzut d20 i poziomy wyniku;
-- kanoniczne atrybuty w pierwszej wersji;
+- pięć kanonicznych atrybutów: Siła, Zręczność, Intelekt, Charyzma i Percepcja;
 - HP, XP, poziomy, agonia, stabilizacja i śmierć;
 - statusy i kontrolowany rejestr efektów;
 - wyposażanie, sloty i zużywanie przedmiotów;
@@ -79,6 +82,15 @@ powinna pochodzić z wersjonowanego `WorldPack`.
 - paleta, typografia, tekstura i bezpieczne zasoby;
 - instrukcje narratora, ton i kierunek artystyczny ilustracji.
 
+## Planowane rozszerzenie: Percepcja
+
+Fixture etapu 1 zachowuje cztery cechy, ponieważ opisuje aktualne zachowanie, a
+nie stan docelowy. W etapie 5 Percepcja zostanie dodana do ORM, migracji, Pydantic,
+API, rozpoznawania akcji, modyfikatorów przedmiotów, kreatora, karty, awansu i
+narzędzi MG. Historyczne rekordy otrzymają wartość `0`. Nowe światy będą mogły
+wyświetlać ją jako Percepcję, Czujność, Obserwację lub Sensory, zachowując
+kanoniczne ID `perception`.
+
 ## Reguły przeglądu kolejnych etapów
 
 - nowe odwołanie do konkretnego świata wymaga wskazania pola `WorldPack`;
@@ -86,4 +98,3 @@ powinna pochodzić z wersjonowanego `WorldPack`.
 - zmiana istniejącego payloadu wymaga aktualizacji adaptera i fixture kontraktu;
 - zmiana zachowania `dark_fantasy@1` jest jawna, a nie skutkiem ubocznym refaktoru;
 - nazwy inspirowane cudzymi franczyzami nie trafiają do pakietów produkcyjnych.
-

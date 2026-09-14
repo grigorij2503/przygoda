@@ -321,6 +321,8 @@ Rozwój w kierunku kampanii cyberpunkowych, pirackich, pustynnych, historyczno-o
 
 Etap 1 został zakończony jako warstwa bezpieczeństwa i dokumentacja. Nie dodaje jeszcze wyboru świata ani nie zmienia zachowania aplikacji. Utrwala aktualną kampanię jako kontrakt `dark_fantasy_v1`, aby kolejne etapy mogły najpierw podzielić backend i frontend, a następnie przenieść zawartość do wersjonowanych pakietów.
 
+Docelowy ruleset będzie używać pięciu kanonicznych atrybutów: Siły, Zręczności, Intelektu, Charyzmy i Percepcji. Percepcja zostanie dodana addytywnie w etapie 5; istniejące postacie otrzymają wartość `0` bez zmiany pozostałych cech, HP, XP i poziomu. Roadmapa zawiera przy każdym etapie osobną checklistę ręcznego odbioru po lokalnym zbudowaniu aplikacji oraz instrukcję użycia izolowanej bazy `manual_review.db`.
+
 ---
 
 ## 📝 Utrzymanie Dokumentacji

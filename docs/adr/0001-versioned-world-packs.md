@@ -64,6 +64,23 @@ Silnik posiada zamknięty rejestr implementacji `mechanic_key`. Dzięki temu
 Wskrzeszenie, leczenie, hack, skan lub zakłócenie nie wymagają porównywania nazw
 klasy i ID świata w routerach.
 
+## Kanoniczne atrybuty
+
+Docelowy `d20_v1` posiada pięć stabilnych identyfikatorów atrybutów:
+
+- `strength` - siła i działania wymagające krzepy;
+- `agility` - zręczność, refleks i precyzja;
+- `intellect` - wiedza, analiza, technika i rozwiązywanie problemów;
+- `charisma` - wpływ, perswazja i przywództwo;
+- `perception` - czujność, obserwacja, tropienie, zmysły i sensory.
+
+Pakiety mogą nadawać im inne etykiety oraz opisy, ale nie zmieniają ID. Percepcja
+zostanie dodana addytywnie: historyczne postacie otrzymają `0`, a ich dotychczasowe
+cechy, HP, XP i poziom pozostaną bez zmian. Budżet punktów nowej postaci i formuła
+HP nie wzrosną tylko z powodu dodania piątej cechy. Reguły interpretacji mają
+rozróżniać zauważenie informacji przez Percepcję od jej zrozumienia przez
+Intelekt.
+
 ## Motywy
 
 Pakiet wskazuje `theme_id`. Motyw jest zdefiniowany w kodzie statycznym za pomocą
@@ -109,4 +126,3 @@ i nie dają stabilnego kontraktu danych.
 
 Nie rozwiązuje sprzężenia domenowego backendu, promptów, mapy i danych. Najpierw
 modularizujemy obecną warstwę Alpine/Jinja.
-
