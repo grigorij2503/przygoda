@@ -77,6 +77,24 @@ def test_deduce_tested_attribute_uses_best_character_stat_only_as_fallback():
 
     assert deduce_tested_attribute("Idę za drużyną w dół schodów.", char) == "strength"
 
+
+def test_attack_ignores_charisma_flavor_and_uses_physical_fallback():
+    char = Character(
+        id=1,
+        player_name="Piotr",
+        name="Thorgal",
+        character_class="Wojownik",
+        strength=5,
+        agility=2,
+        intellect=0,
+        charisma=8,
+    )
+    char.inventory = []
+
+    action = 'Atakuję przeciwnika, wykorzystując jego chwilę nieuwagi i krzycząc "Tandaradei!"'
+
+    assert deduce_tested_attribute(action, char, intent="attack") == "strength"
+
 def test_calculate_item_modifier():
     char = Character(
         id=1,

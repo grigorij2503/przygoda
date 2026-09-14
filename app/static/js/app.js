@@ -15,8 +15,13 @@ document.addEventListener('alpine:init', () => {
     // Turn Actions & Error
     actionText: '',
     actionIntent: null,
+    actionTestedStat: null,
     actionTargetRef: null,
     magicAbilityId: null,
+    actionInterpretation: null,
+    showActionInterpretationControls: false,
+    isInterpretingAction: false,
+    actionInterpretationRequestId: 0,
     isSubmittingAction: false,
     actionError: '',
     turnError: '',
@@ -828,8 +833,11 @@ document.addEventListener('alpine:init', () => {
         if (previousTurnNumber !== undefined && previousTurnNumber !== data.current_turn_number) {
           this.actionText = '';
           this.actionIntent = null;
+          this.actionTestedStat = null;
           this.actionTargetRef = null;
           this.magicAbilityId = null;
+          this.actionInterpretation = null;
+          this.showActionInterpretationControls = false;
           this.isEditingSubmittedAction = false;
           this.turnError = '';
         }
@@ -909,8 +917,11 @@ document.addEventListener('alpine:init', () => {
       this.selectedCharacterId = charId;
       this.actionText = '';
       this.actionIntent = null;
+      this.actionTestedStat = null;
       this.actionTargetRef = null;
       this.magicAbilityId = null;
+      this.actionInterpretation = null;
+      this.showActionInterpretationControls = false;
       this.actionError = '';
       this.newInventoryItemIds = [];
       this.inventoryFilter = 'all';
@@ -1951,8 +1962,11 @@ document.addEventListener('alpine:init', () => {
           this.addToast(`Tura #${msg.completed_turn_number} zakończona! Mistrz Gry wydał werdykt.`, 'success');
           this.actionText = '';
           this.actionIntent = null;
+          this.actionTestedStat = null;
           this.actionTargetRef = null;
           this.magicAbilityId = null;
+          this.actionInterpretation = null;
+          this.showActionInterpretationControls = false;
           await this.fetchSession();
           if (followCurrentTurn) {
             this.scrollToLatestResolution();
@@ -2398,6 +2412,60 @@ document.addEventListener('alpine:init', () => {
     },
 
     // --- Składanie Akcji ---
+    effectiveActionIntent() {
+      return this.actionIntent || this.actionInterpretation?.intent;
+    },
+
+    async interpretAction() {
+      const actionText = this.actionText.trim();
+      if (!this.selectedCharacterId || !actionText) {
+        this.actionInterpretationRequestId += 1;
+        this.actionInterpretation = null;
+        this.isInterpretingAction = false;
+        return;
+      }
+
+      const requestId = ++this.actionInterpretationRequestId;
+      this.isInterpretingAction = true;
+      try {
+        const res = await fetch('/api/actions/interpret', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            character_id: this.selectedCharacterId,
+            action_text: actionText,
+            magic_ability_id: this.magicAbilityId,
+            intent: this.actionIntent,
+            tested_stat: this.actionTestedStat,
+            target_ref: this.actionTargetRef
+          })
+        });
+        if (!res.ok) return;
+        const interpretation = await res.json();
+        if (requestId !== this.actionInterpretationRequestId) return;
+        this.actionInterpretation = interpretation;
+      } catch (_) {
+        // Podgląd jest pomocniczy; właściwe zatwierdzenie nadal waliduje akcję na backendzie.
+      } finally {
+        if (requestId === this.actionInterpretationRequestId) this.isInterpretingAction = false;
+      }
+    },
+
+    beginActionInterpretationCorrection() {
+      if (!this.actionInterpretation || this.magicAbilityId) return;
+      this.actionIntent = this.actionInterpretation.intent;
+      this.actionTestedStat = this.actionInterpretation.tested_stat;
+      this.showActionInterpretationControls = true;
+    },
+
+    clearActionInterpretationCorrection() {
+      if (this.magicAbilityId) return;
+      this.actionIntent = null;
+      this.actionTestedStat = null;
+      this.showActionInterpretationControls = false;
+      this.interpretAction();
+    },
+
     async submitAction() {
       if (!this.actionText.trim()) {
         this.actionError = 'Wpisz treść akcji dla swojej postaci.';
@@ -2407,7 +2475,7 @@ document.addEventListener('alpine:init', () => {
         this.actionError = 'Musisz najpierw wybrać swoją postać.';
         return;
       }
-      if (this.actionIntent === 'support' && !this.actionTargetRef) {
+      if (this.effectiveActionIntent() === 'support' && !this.actionTargetRef) {
         this.actionError = 'Wybierz sojusznika, którego wspierasz.';
         return;
       }
@@ -2423,6 +2491,7 @@ document.addEventListener('alpine:init', () => {
             action_text: this.actionText.trim(),
             magic_ability_id: this.magicAbilityId,
             intent: this.actionIntent,
+            tested_stat: this.actionTestedStat,
             target_ref: this.actionTargetRef
           })
         });
@@ -2475,8 +2544,17 @@ document.addEventListener('alpine:init', () => {
         if (myAction) {
           this.actionText = myAction.action_text;
           this.magicAbilityId = myAction.magic_ability_id || null;
-          this.actionIntent = myAction.intent || null;
+          this.actionIntent = this.magicAbilityId ? (myAction.intent || null) : null;
+          this.actionTestedStat = null;
           this.actionTargetRef = myAction.target_ref || null;
+          this.actionInterpretation = {
+            intent: myAction.intent,
+            tested_stat: myAction.tested_stat,
+            intent_confidence: 1,
+            stat_confidence: 1,
+            reason: 'interpretacja zapisana przy zgłoszeniu akcji'
+          };
+          this.showActionInterpretationControls = false;
         }
       }
       this.isEditingSubmittedAction = true;
@@ -2494,7 +2572,10 @@ document.addEventListener('alpine:init', () => {
       this.actionText = text;
       this.magicAbilityId = null;
       this.actionIntent = intent;
+      this.actionTestedStat = null;
       this.actionTargetRef = targetRef;
+      this.actionInterpretation = null;
+      this.showActionInterpretationControls = false;
       this.actionError = '';
       this.mobileActionPanelCollapsed = false;
       this.$nextTick(() => {
@@ -2504,6 +2585,7 @@ document.addEventListener('alpine:init', () => {
           textarea.focus();
         }
       });
+      this.interpretAction();
       this.addToast('⚡ Wybrano ścieżkę działania – możesz ją dostosować przed zatwierdzeniem!', 'info');
     },
 
@@ -2513,7 +2595,7 @@ document.addEventListener('alpine:init', () => {
         if (ability) this.selectMagicAbility(ability);
         return;
       }
-      this.setQuickAction(action.text, action.intent, action.targetRef);
+      this.setQuickAction(action.text);
     },
 
     availableSuggestedActions(actions) {
@@ -2533,7 +2615,10 @@ document.addEventListener('alpine:init', () => {
       this.actionText = ability.action_text;
       this.magicAbilityId = ability.id;
       this.actionIntent = ability.intent || null;
+      this.actionTestedStat = this.magicBook?.casting_stat || null;
       this.actionTargetRef = ability.target_ref || null;
+      this.actionInterpretation = null;
+      this.showActionInterpretationControls = false;
       this.mobileActionPanelCollapsed = false;
       this.actionError = '';
       this.$nextTick(() => {
@@ -2543,6 +2628,7 @@ document.addEventListener('alpine:init', () => {
           textarea.focus();
         }
       });
+      this.interpretAction();
       this.addToast(`Wybrano: ${ability.name}. Możesz dopisać cel lub sposób wykonania.`, 'info');
     },
 

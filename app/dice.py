@@ -61,11 +61,24 @@ def _normalize_action_text(action_text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", normalized).strip()
 
 
-def deduce_tested_attribute(action_text: str, character: Character) -> str:
+def deduce_tested_attribute_details(
+    action_text: str,
+    character: Character,
+    intent: str | None = None,
+    explicit_stat: str | None = None,
+) -> dict[str, str | float]:
     """
-    Dedukuje najbardziej adekwatną statystykę do rzutu na podstawie tekstu akcji gracza.
-    Jeżeli akcja nie zawiera wyraźnych słów kluczowych, bierze najwyższą pasującą statystykę postaci.
+    Dedukuje cechę z dominującego sposobu wykonania akcji. Słabe ozdobniki
+    narracyjne nie przebijają rodzaju akcji ani statystyki używanej broni.
     """
+    valid_stats = {"strength", "agility", "intellect", "charisma"}
+    if explicit_stat in valid_stats:
+        return {
+            "tested_stat": explicit_stat,
+            "confidence": 1.0,
+            "reason": "korekta gracza lub reguła wybranej zdolności",
+        }
+
     cleaned_text = _normalize_action_text(action_text)
     scores = {"strength": 0, "agility": 0, "intellect": 0, "charisma": 0}
     strongest_evidence = {stat: 0 for stat in scores}
@@ -75,6 +88,12 @@ def deduce_tested_attribute(action_text: str, character: Character) -> str:
             if re.search(pattern, cleaned_text):
                 scores[stat] += weight
                 strongest_evidence[stat] = max(strongest_evidence[stat], weight)
+
+    # Okrzyk, szybki ruch lub inny detal o wadze 1 jest tylko kolorytem, kiedy
+    # główny zamiar jest fizycznym atakiem albo obroną.
+    if intent in {"attack", "defend"} and max(strongest_evidence.values()) <= 1:
+        scores = {stat: 0 for stat in scores}
+        strongest_evidence = {stat: 0 for stat in scores}
 
     # Najpierw liczy się najbardziej jednoznaczna przesłanka, potem suma kontekstu.
     # Dzięki temu np. jawne "zaklęcie" nie przegrywa z kilkoma słabszymi
@@ -86,16 +105,51 @@ def deduce_tested_attribute(action_text: str, character: Character) -> str:
     best_rank = max(ranks.values())
     if best_rank > (0, 0):
         candidates = [stat for stat, rank in ranks.items() if rank == best_rank]
-        return max(candidates, key=lambda stat: getattr(character, stat, 0))
+        selected = max(candidates, key=lambda stat: getattr(character, stat, 0))
+        confidence = 0.92 if best_rank[0] >= 3 else 0.78
+        return {
+            "tested_stat": selected,
+            "confidence": confidence,
+            "reason": "sposób wykonania opisany przez gracza",
+        }
 
-    # Fallback dla akcji bez rozpoznawalnego kontekstu: najwyższa statystyka postaci.
-    char_stats = {
-        "strength": character.strength,
-        "agility": character.agility,
-        "intellect": character.intellect,
-        "charisma": character.charisma
+    equipped = get_effectively_equipped_items(character.inventory)
+    preferred_types = {"weapon"} if intent == "attack" else {"shield"} if intent == "defend" else set()
+    matching_items = [
+        item for item in equipped
+        if item.item_type in preferred_types and item.target_stat in valid_stats
+    ]
+    if matching_items:
+        selected_item = max(
+            matching_items,
+            key=lambda item: (int(getattr(item, "damage_power", 0) or 0), int(item.stat_bonus or 0)),
+        )
+        return {
+            "tested_stat": selected_item.target_stat,
+            "confidence": 0.82,
+            "reason": f"cecha używanego wyposażenia: {selected_item.name}",
+        }
+
+    fallback_stats = {
+        "attack": ("strength", "agility"),
+        "defend": ("strength", "agility"),
+        "interact": ("agility", "intellect"),
+        "support": ("intellect", "charisma"),
+    }.get(intent, ("strength", "agility", "intellect", "charisma"))
+    selected = max(fallback_stats, key=lambda stat: getattr(character, stat, 0))
+    return {
+        "tested_stat": selected,
+        "confidence": 0.48,
+        "reason": "najlepsza cecha pasująca do ogólnego zamiaru",
     }
-    return max(char_stats, key=char_stats.get)
+
+
+def deduce_tested_attribute(
+    action_text: str,
+    character: Character,
+    intent: str | None = None,
+) -> str:
+    return str(deduce_tested_attribute_details(action_text, character, intent)["tested_stat"])
 
 
 def calculate_item_modifier(character: Character, tested_stat: str) -> int:
@@ -115,6 +169,7 @@ def resolve_dice_roll(
     dc: int = 12,
     tested_stat_override: str | None = None,
     roll_modifier: int = 0,
+    intent: str | None = None,
 ) -> Tuple[str, int, int, int, int, str]:
     """
     Wykonuje deterministyczny, kryptograficznie bezpieczny rzut kością k20
@@ -126,7 +181,7 @@ def resolve_dice_roll(
     tested_stat = (
         tested_stat_override
         if tested_stat_override in {"strength", "agility", "intellect", "charisma"}
-        else deduce_tested_attribute(action_text, character)
+        else deduce_tested_attribute(action_text, character, intent)
     )
 
     # Wartość cechy postaci

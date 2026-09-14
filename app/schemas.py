@@ -117,7 +117,23 @@ class SubmitActionRequest(BaseModel):
     action_text: str
     magic_ability_id: Optional[str] = Field(default=None, max_length=80)
     intent: Optional[Literal["attack", "defend", "interact", "support", "other"]] = None
+    tested_stat: Optional[Literal["strength", "agility", "intellect", "charisma"]] = None
     target_ref: Optional[str] = None
+
+class InterpretActionRequest(BaseModel):
+    character_id: int
+    action_text: str = Field(min_length=1, max_length=2000)
+    magic_ability_id: Optional[str] = Field(default=None, max_length=80)
+    intent: Optional[Literal["attack", "defend", "interact", "support", "other"]] = None
+    tested_stat: Optional[Literal["strength", "agility", "intellect", "charisma"]] = None
+    target_ref: Optional[str] = None
+
+class ActionInterpretationResponse(BaseModel):
+    intent: Literal["attack", "defend", "interact", "support", "other"]
+    tested_stat: Literal["strength", "agility", "intellect", "charisma"]
+    intent_confidence: float
+    stat_confidence: float
+    reason: str
 
 class ProxyActionVoteRequest(BaseModel):
     voter_character_id: int

@@ -7,21 +7,30 @@ from app.inventory import get_effectively_equipped_items
 from app.models import Character, GameSession, InventoryItem, PlayerAction
 
 
-ATTACK_WORDS = (
-    "atak", "walcz", "zabij", "dobij", "ranie", "cios", "tnę", "tne", "uderz", "strzel", "strzał", "strzal",
-    "pocisk", "zaklęcie ofensywne", "zaklecie ofensywne", "kula ognia",
-    "kula ognia", "blyskawic", "podpal", "zamraz", "truj", "miecz",
-    "topor", "luk", "wlocz",
-)
-DEFENCE_WORDS = (
-    "bronię", "bron", "blok", "zasłani", "oslani", "tarc", "unik",
-    "osłon", "oslon", "chronię", "chronie",
-)
-INTERACTION_WORDS = (
-    "badam", "urucham", "niszczę", "niszcze", "przewrac", "pieczęć",
-    "pieczec", "filar", "otoczen", "mechanizm", "run", "arena",
-)
-SUPPORT_WORDS = ("lecz", "uzdraw", "opatru", "antidot", "oczyszcz", "wspier")
+INTENT_RULES: dict[str, tuple[tuple[str, int, str], ...]] = {
+    "attack": (
+        (r"\b(?:atakuj|walcz|nacier|szarz|uderz|tne|tnij|siek|strzel|wystrzel|rani|zabij|dobij)\w*\b", 5, "bezpośrednia czynność ofensywna"),
+        (r"\bwyprowadz\w*\s+(?:kolejn\w*\s+|zamaszyst\w*\s+)*(?:cios|cieci|atak)\w*\b", 5, "wyprowadzany cios lub cięcie"),
+        (r"\b(?:cios|cieci|strzal|pocisk)\w*\b", 3, "opis ciosu lub pocisku"),
+        (r"\b(?:atak|natarci|ofensyw)\w*\b", 1, "wzmianka o ataku"),
+    ),
+    "defend": (
+        (r"\b(?:broni|blokuj|paruj|unikam|uskakuj|odskakuj|oslaniam|zaslaniam|chronie|cofam|wycof)\w*\b", 5, "bezpośrednia czynność obronna"),
+        (r"\b(?:przyjm|zajm)\w*\s+(?:bezpieczn\w*\s+|tward\w*\s+)?pozycj\w*\s+obron\w*\b", 4, "przyjęcie pozycji obronnej"),
+        (r"\b(?:tarc|blok|parad|unik|oslona|obronn)\w*\b", 3, "obronny sposób działania"),
+        (r"\b(?:obrona|obrony|obronie|obrona)\b", 1, "wzmianka o obronie"),
+    ),
+    "interact": (
+        (r"\b(?:bada|zbada|analiz|rozpozn|przeszuk|urucham|otwier|otworz|rozszyfr|manipul)\w*\b", 5, "badanie lub użycie otoczenia"),
+        (r"\b(?:niszcze|przewracam|przesuwam)\w*\s+(?:filar|mechanizm|pieczec|element|obiekt|drzwi)\w*\b", 4, "zmiana elementu otoczenia"),
+        (r"\b(?:mechanizm|pieczec|filar|run|arena|otoczen)\w*\b", 2, "odwołanie do otoczenia"),
+    ),
+    "support": (
+        (r"\b(?:wspier|pomag|lecz|uzdraw|opatru|stabiliz|oczyszcz)\w*\b", 5, "bezpośrednia pomoc sojusznikowi"),
+        (r"\b(?:odwracam\s+uwage|wkraczam\s+miedzy)\b.{0,80}\b(?:sojusz|druzyn|rann)\w*\b", 5, "działanie tworzące przewagę dla sojusznika"),
+        (r"\b(?:wspier|pomoc|leczen|uzdrow|opatrun|antidot)\w*\b", 2, "opis wsparcia"),
+    ),
+}
 
 STATUS_CATALOG = {
     "burning": {
@@ -71,7 +80,63 @@ STATUS_CATALOG = {
 
 def normalize_text(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", (value or "").casefold())
-    return "".join(char for char in normalized if not unicodedata.combining(char))
+    normalized = "".join(char for char in normalized if not unicodedata.combining(char))
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", normalized).split())
+
+
+def infer_action_intent_details(
+    action_text: str,
+    explicit_intent: str | None = None,
+) -> dict[str, str | float]:
+    """Rozpoznaje dominujący zamiar, nadając pierwszeństwo wykonywanej czynności."""
+    if explicit_intent in {"attack", "defend", "interact", "support", "other"}:
+        return {
+            "intent": explicit_intent,
+            "confidence": 1.0,
+            "reason": "korekta gracza lub reguła wybranej zdolności",
+        }
+
+    normalized = normalize_text(action_text)
+    scores = {intent: 0 for intent in INTENT_RULES}
+    strongest_matches: dict[str, tuple[int, int, str] | None] = {
+        intent: None for intent in INTENT_RULES
+    }
+
+    for intent, rules in INTENT_RULES.items():
+        for pattern, weight, reason in rules:
+            match = re.search(pattern, normalized)
+            if not match:
+                continue
+            scores[intent] += weight
+            candidate = (weight, -match.start(), reason)
+            current = strongest_matches[intent]
+            if current is None or candidate > current:
+                strongest_matches[intent] = candidate
+
+    top_score = max(scores.values(), default=0)
+    if top_score == 0:
+        return {
+            "intent": "other",
+            "confidence": 0.25,
+            "reason": "brak jednoznacznej czynności w opisie",
+        }
+
+    candidates = [intent for intent, score in scores.items() if score == top_score]
+    if len(candidates) > 1:
+        candidates.sort(
+            key=lambda intent: strongest_matches[intent] or (0, 0, ""),
+            reverse=True,
+        )
+    selected = candidates[0]
+    runner_up = max((score for intent, score in scores.items() if intent != selected), default=0)
+    margin = top_score - runner_up
+    confidence = 0.92 if top_score >= 5 and margin >= 3 else 0.76 if top_score >= 3 and margin >= 1 else 0.55
+    match = strongest_matches[selected]
+    return {
+        "intent": selected,
+        "confidence": confidence,
+        "reason": match[2] if match else "najsilniejszy kontekst zdania",
+    }
 
 
 def make_status(
@@ -249,18 +314,7 @@ def ensure_boss_encounter(session: GameSession, characters: Iterable[Character])
 
 
 def infer_action_intent(action_text: str, explicit_intent: str | None = None) -> str:
-    if explicit_intent in {"attack", "defend", "interact", "support", "other"}:
-        return explicit_intent
-    normalized = normalize_text(action_text)
-    if any(word in normalized for word in DEFENCE_WORDS):
-        return "defend"
-    if any(word in normalized for word in INTERACTION_WORDS):
-        return "interact"
-    if any(word in normalized for word in SUPPORT_WORDS):
-        return "support"
-    if any(word in normalized for word in ATTACK_WORDS):
-        return "attack"
-    return "other"
+    return str(infer_action_intent_details(action_text, explicit_intent)["intent"])
 
 
 def action_dc(session: GameSession, action: PlayerAction) -> tuple[int, str | None]:

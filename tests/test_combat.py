@@ -41,6 +41,14 @@ def test_defensive_declaration_is_not_treated_as_attack():
     assert intent == "defend"
 
 
+def test_offensive_action_is_not_changed_by_defence_mentioned_in_proverb():
+    intent = infer_action_intent(
+        "Boo mówi, że najlepszą obroną jest atak! Krzyknę i wyprowadzę kolejne zamaszyste cięcia."
+    )
+
+    assert intent == "attack"
+
+
 def test_boss_health_scales_above_legacy_value_for_level_four_party():
     party = [make_level_four_character(f"Bohater {index}") for index in range(4)]
 

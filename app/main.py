@@ -31,6 +31,7 @@ from app.combat import (
     build_boss_encounter,
     ensure_boss_encounter,
     infer_action_intent,
+    infer_action_intent_details,
     infer_item_damage_power,
     resolve_boss_turn,
     resolve_status_turn,
@@ -39,7 +40,7 @@ from app.combat import (
     status_roll_penalty,
 )
 from app.database import AsyncSessionLocal, get_db, init_db
-from app.dice import resolve_dice_roll
+from app.dice import deduce_tested_attribute_details, resolve_dice_roll
 from app.inventory import (
     EQUIPMENT_SLOT_LIMITS,
     equipment_slot_group,
@@ -84,6 +85,7 @@ from app.models import (
 from app.push_service import is_web_push_configured, schedule_web_push
 from app.schemas import (
     AdminUpdateCharacterStatsRequest,
+    ActionInterpretationResponse,
     DeletePushSubscriptionRequest,
     SavePushSubscriptionRequest,
     CharacterDto,
@@ -92,6 +94,7 @@ from app.schemas import (
     GenerateImageRequest,
     GenerateIntroRequest,
     GenerateIntroResponse,
+    InterpretActionRequest,
     NameEntityRequest,
     PrologueRequest,
     PrologueResponse,
@@ -2129,6 +2132,71 @@ async def vote_for_proxy_action(
     }
 
 
+def interpret_player_action(
+    character: Character,
+    action_text: str,
+    magic_ability: dict | None = None,
+    explicit_intent: str | None = None,
+    explicit_stat: str | None = None,
+    target_ref: str | None = None,
+) -> dict:
+    forced_intent = magic_ability["intent"] if magic_ability else explicit_intent
+    intent_details = infer_action_intent_details(action_text, forced_intent)
+    resolved_intent = str(intent_details["intent"])
+
+    forced_stat = get_magic_casting_stat(character.character_class) if magic_ability else explicit_stat
+    if not magic_ability and resolved_intent == "interact" and target_ref:
+        feature = next(
+            (
+                item for item in (character.session.active_boss_features or [])
+                if isinstance(item, dict)
+                and str(item.get("id")) == str(target_ref)
+                and item.get("state") == "active"
+            ),
+            None,
+        )
+        if feature and feature.get("required_stat"):
+            forced_stat = str(feature["required_stat"])
+
+    stat_details = deduce_tested_attribute_details(
+        action_text,
+        character,
+        resolved_intent,
+        forced_stat,
+    )
+    return {
+        "intent": resolved_intent,
+        "tested_stat": str(stat_details["tested_stat"]),
+        "intent_confidence": float(intent_details["confidence"]),
+        "stat_confidence": float(stat_details["confidence"]),
+        "reason": f"{intent_details['reason']}; {stat_details['reason']}",
+    }
+
+
+@app.post("/api/actions/interpret", response_model=ActionInterpretationResponse)
+async def interpret_action(payload: InterpretActionRequest, db: AsyncSession = Depends(get_db)):
+    c_stmt = (
+        select(Character)
+        .options(selectinload(Character.session), selectinload(Character.inventory))
+        .where(Character.id == payload.character_id)
+    )
+    character = (await db.execute(c_stmt)).scalar_one_or_none()
+    if not character:
+        raise HTTPException(status_code=404, detail="Postać nie istnieje")
+
+    magic_ability = get_magic_ability(character.character_class, payload.magic_ability_id)
+    if magic_ability and character.level < magic_ability["required_level"]:
+        magic_ability = None
+    return interpret_player_action(
+        character,
+        payload.action_text.strip(),
+        magic_ability=magic_ability,
+        explicit_intent=payload.intent,
+        explicit_stat=payload.tested_stat,
+        target_ref=payload.target_ref,
+    )
+
+
 @app.post("/api/actions")
 async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends(get_db)):
     # Pobierz postać z sesją
@@ -2163,7 +2231,16 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
         else magic_ability["target_ref"] if magic_ability
         else payload.target_ref
     )
-    resolved_intent = infer_action_intent(action_text, action_intent)
+    interpretation = interpret_player_action(
+        character,
+        action_text,
+        magic_ability=magic_ability,
+        explicit_intent=action_intent,
+        explicit_stat=payload.tested_stat,
+        target_ref=action_target_ref,
+    )
+    resolved_intent = interpretation["intent"]
+    resolved_stat = interpretation["tested_stat"]
     if resolved_intent == "support":
         try:
             support_target_id = int(action_target_ref or "")
@@ -2239,8 +2316,9 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
     if existing_action:
         existing_action.action_text = action_text
         existing_action.magic_ability_id = magic_ability["id"] if magic_ability else None
-        existing_action.intent = action_intent
+        existing_action.intent = resolved_intent
         existing_action.target_ref = action_target_ref
+        existing_action.tested_stat = resolved_stat
         existing_action.submission_source = "player"
         existing_action.submitted_at = datetime.now(timezone.utc)
     else:
@@ -2249,8 +2327,9 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
             character_id=character.id,
             action_text=action_text,
             magic_ability_id=magic_ability["id"] if magic_ability else None,
-            intent=action_intent,
+            intent=resolved_intent,
             target_ref=action_target_ref,
+            tested_stat=resolved_stat,
             submission_source="player",
         )
         db.add(new_action)
@@ -2363,6 +2442,8 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                     dc, tested_stat_override = action_dc(session, action)
                     if get_magic_ability(char.character_class, action.magic_ability_id):
                         tested_stat_override = get_magic_casting_stat(char.character_class)
+                    elif tested_stat_override is None:
+                        tested_stat_override = action.tested_stat
                     roll_penalty = status_roll_penalty(char)
                     tested_stat, d20_raw, stat_mod, item_mod, total, outcome_tier = resolve_dice_roll(
                         action.action_text,
@@ -2370,6 +2451,7 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                         dc=dc,
                         tested_stat_override=tested_stat_override,
                         roll_modifier=roll_penalty,
+                        intent=action.intent,
                     )
                     action.tested_stat = tested_stat
                     action.dice_roll_raw = d20_raw

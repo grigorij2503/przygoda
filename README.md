@@ -13,7 +13,9 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
    - Sugerowanie plastycznych promptów dla sceny w języku angielskim dla Imagen 3.
 2. **Serwerowy Silnik Rzutów d20:**
    - Kryptograficznie bezpieczny generator liczb losowych (`secrets` w Pythonie); wynik jest losowy, a nie deterministyczny.
-   - Automatyczna dedukcja cechy (Siła, Zręczność, Rozum, Charyzma) z tekstu akcji gracza.
+   - Narracyjny opis gracza jest podstawowym źródłem zamiaru i testowanej cechy; ważone reguły rozpoznają dominującą czynność oraz sposób wykonania zamiast wybierać pierwszy napotkany wyraz.
+   - Poboczne ozdobniki, takie jak okrzyk podczas ataku, nie przebijają fizycznej metody działania; przy niejednoznacznym ataku silnik korzysta z cechy używanej broni, a następnie z najlepiej pasującej cechy postaci.
+   - Formularz na bieżąco pokazuje nieblokującą interpretację (`zamiar • cecha`), poziom niskiej pewności i krótkie uzasadnienie; gracz może opcjonalnie skorygować oba pola przed zatwierdzeniem bez rezygnowania ze swobodnego opisu.
    - Dynamiczne kalkulowanie modyfikatorów cech oraz założonego ekwipunku ($\text{Wynik} = d20 + \text{Cecha} + \text{Ekwipunek}$).
    - Klasyfikacja: *Krytyczny Sukces* (nat 20), *Sukces* ($\ge$ DC), *Częściowy Sukces* (DC-2 do DC-1), *Porażka*, *Krytyczna Porażka* (nat 1); domyślny próg to DC 12, lecz mechanika może go zmienić.
 3. **Turn Gating (Blokada Tury):**
@@ -49,6 +51,7 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
     - Zdolności odblokowywane poziomami, walidowane po stronie backendu i powiązane z właściwą cechą postaci.
     - Szybkie akcje są dopasowane do klasy wybranego bohatera; Wojownik i Łotrzyk nie otrzymują propozycji czarów, a Czarodziej i Kleryk widzą wśród skrótów wyłącznie odblokowane zdolności ze swojej księgi lub modlitw.
     - Drużynowe podpowiedzi Gemini pozostają niemagiczne i dostępne dla każdej klasy; magia jest deklarowana wyłącznie przez wybór konkretnej zdolności klasowej.
+    - Wybrana zdolność jawnie ustala swój zamiar i cechę rzucania; tych wartości nie zastępuje automatyczna interpretacja ozdobników dopisanych przez gracza.
     - Kleryk od 7. poziomu otrzymuje Wskrzeszenie, które jako jedyne zwykłe działanie może przywrócić poległego bohatera (25% PW, a przy krytycznym sukcesie 50% PW).
 11. **Łup, Ekwipunek i Crafting:**
     - Łup z przeszukiwania lokacji i wspólna nagroda po pokonaniu bossa.
@@ -280,9 +283,9 @@ python -m pytest tests/ -v
 
 Zakres testów:
 - `tests/test_combat.py`:
-  - Rozpoznawanie intencji, skalowanie bossów, obrażenia, efekty statusu oraz walidacja używanego ekwipunku.
+  - Rozpoznawanie dominującej intencji, w tym zdań zawierających mylące przysłowia lub wzmianki o innym typie akcji, skalowanie bossów, obrażenia, efekty statusu oraz walidacja używanego ekwipunku.
 - `tests/test_dice.py`:
-  - Dedukcja atrybutów z treści deklaracji gracza (Siła, Zręczność, Rozum, Charyzma).
+  - Dedukcja atrybutów z treści deklaracji gracza (Siła, Zręczność, Rozum, Charyzma), z ignorowaniem słabych ozdobników narracyjnych przy fizycznym ataku.
   - Obliczanie modyfikatorów z aktywnego ekwipunku.
   - Wyznaczanie progów sukcesu i kontrolowany testowo rzut k20.
 - `tests/test_full_resolution.py`:

@@ -50,7 +50,7 @@
   <!-- Alpine.js CDN -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
   <!-- App Logic -->
-  <script src="/static/js/app.js?v=25"></script>
+  <script src="/static/js/app.js?v=26"></script>
 </head>
 <body x-data="rpgGame" class="min-h-screen text-gray-200 antialiased selection:bg-amber-600 selection:text-white">
 
@@ -1058,15 +1058,17 @@
                   <span x-text="selectedMagicAbility?.icon"></span>
                   Wybrana zdolność: <b x-text="selectedMagicAbility?.name"></b>
                 </span>
-                <button type="button" @click="magicAbilityId = null" class="shrink-0 text-gray-400 hover:text-white underline">
+                <button type="button" @click="magicAbilityId = null; actionIntent = null; actionTestedStat = null; interpretAction()" class="shrink-0 text-gray-400 hover:text-white underline">
                   Odłącz
                 </button>
               </div>
               <label for="action-description" class="sr-only">Opis akcji bohatera</label>
-              <textarea id="action-description" x-model="actionText" rows="2" placeholder="Opisz dokładnie co zamierza zrobić Twoja postać... Silnik dedukuje atrybut i rzuci d20."
+              <textarea id="action-description" x-model="actionText"
+                        @input="actionInterpretation = null; actionInterpretationRequestId += 1"
+                        @input.debounce.350ms="interpretAction()" rows="2" placeholder="Opisz dokładnie co zamierza zrobić Twoja postać... Silnik odczyta zamiar, dobierze atrybut i rzuci d20."
                         class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 transition resize-none"></textarea>
 
-              <div x-show="actionIntent === 'support'" x-cloak>
+              <div x-show="effectiveActionIntent() === 'support'" x-cloak>
                 <label for="support-target" class="block text-xs font-semibold text-emerald-300 mb-1">Sojusznik objęty wsparciem</label>
                 <select id="support-target" x-model="actionTargetRef"
                         class="w-full bg-slate-950 border border-emerald-800/70 rounded-lg px-3 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none">
@@ -1078,9 +1080,45 @@
                 <p x-show="magicAbilityId === 'resurrection'" class="mt-1 text-xs text-violet-300">Wskrzeszenie może wskazać poległego bohatera.</p>
               </div>
 
-              <div x-show="actionIntent" class="text-[10px] font-mono text-indigo-300">
-                Cel mechaniczny: <span x-text="intentLabel(actionIntent)"></span><span x-show="actionTargetRef" x-text="' • ' + targetLabel(actionTargetRef)"></span>
-                <button type="button" @click="actionIntent = null; actionTargetRef = null" class="ml-2 text-gray-500 hover:text-gray-300 underline">wyczyść wybór</button>
+              <div x-show="actionInterpretation" x-cloak class="rounded-lg border border-indigo-800/50 bg-indigo-950/25 px-3 py-2 text-[10px]">
+                <div class="flex flex-wrap items-center gap-1.5 font-mono text-indigo-200">
+                  <span>Odczytano z opisu:</span>
+                  <b x-text="intentLabel(actionInterpretation?.intent)"></b>
+                  <span>•</span>
+                  <b x-text="statShortLabel(actionInterpretation?.tested_stat)"></b>
+                  <span x-show="Math.min(actionInterpretation?.intent_confidence || 0, actionInterpretation?.stat_confidence || 0) < 0.65"
+                        class="rounded bg-amber-950/70 px-1.5 py-0.5 text-amber-300">niska pewność</span>
+                  <button x-show="!magicAbilityId && !showActionInterpretationControls" type="button"
+                          @click="beginActionInterpretationCorrection()"
+                          class="ml-auto text-gray-400 hover:text-white underline">skoryguj</button>
+                </div>
+                <p x-show="actionInterpretation?.reason" class="mt-1 text-gray-500" x-text="actionInterpretation?.reason"></p>
+
+                <div x-show="showActionInterpretationControls && !magicAbilityId" class="mt-2 grid grid-cols-2 gap-2">
+                  <label class="text-gray-400">
+                    Zamiar
+                    <select x-model="actionIntent" @change="interpretAction()"
+                            class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white">
+                      <option value="attack">Atak</option>
+                      <option value="defend">Obrona</option>
+                      <option value="interact">Interakcja</option>
+                      <option value="support">Wsparcie</option>
+                      <option value="other">Inna akcja</option>
+                    </select>
+                  </label>
+                  <label class="text-gray-400">
+                    Cecha
+                    <select x-model="actionTestedStat" @change="interpretAction()"
+                            class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white">
+                      <option value="strength">STR</option>
+                      <option value="agility">AGI</option>
+                      <option value="intellect">INT</option>
+                      <option value="charisma">CHA</option>
+                    </select>
+                  </label>
+                  <button type="button" @click="clearActionInterpretationCorrection()"
+                          class="col-span-2 justify-self-start text-gray-500 hover:text-gray-300 underline">wróć do automatycznej interpretacji</button>
+                </div>
               </div>
 
               <div x-show="actionError" x-text="actionError" class="text-xs text-rose-400"></div>
