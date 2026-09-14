@@ -2514,8 +2514,14 @@ document.addEventListener('alpine:init', () => {
           })
         });
         if (!res.ok) {
-          const errData = await res.json();
-          throw new Error(errData.detail || 'Nie udało się złożyć akcji.');
+          const responseText = await res.text();
+          let detail = '';
+          try {
+            detail = JSON.parse(responseText).detail || '';
+          } catch (_) {
+            detail = responseText;
+          }
+          throw new Error(detail || 'Nie udało się złożyć akcji.');
         }
         const data = await res.json();
         this.isEditingSubmittedAction = false;

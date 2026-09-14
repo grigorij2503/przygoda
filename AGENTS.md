@@ -9,7 +9,7 @@ This is a Python/FastAPI multiplayer TTRPG application with Gemini narration and
 - `app/gemini_service.py`: structured Gemini narration, campaign setup, and generated scene images.
 - `app/push_service.py` and `generate_vapid_keys.py`: Web Push delivery and VAPID setup.
 - `app/websocket_manager.py`: real-time event and chat broadcasting.
-- `app/templates/index.html`: accessible Jinja2/Alpine.js interface with collapsible session and action panels on phones and smaller desktop screens, a categorized world chronicle, and an interactive campaign map; `app/static/` contains JavaScript, CSS, icons, the PWA manifest, and service worker.
+- `app/templates/index.html`: accessible Jinja2/Alpine.js interface with collapsible session and action panels, live narrative-action interpretation, resilient action error reporting on phones and smaller desktop screens, a categorized world chronicle, and an interactive campaign map; `app/static/` contains JavaScript, CSS, icons, the PWA manifest, and service worker.
 - `tests/`: dice, combat, loot/crafting, API, lobby/admin, full turn resolution, and WebSocket chat tests.
 - `uploads/`: generated images; `data/`: Docker-mounted SQLite storage.
 
