@@ -8,6 +8,8 @@ class GameSession(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     room_code = Column(String(50), unique=True, index=True, nullable=False)
+    world_pack_id = Column(String(80), nullable=False, default="dark_fantasy")
+    world_pack_version = Column(Integer, nullable=False, default=1)
     title = Column(String(200), default="Wyprawa do Przeklętej Twierdzy")
     setting_theme = Column(String(100), default="Dark Fantasy / Gothic Horror")
     campaign_intro = Column(Text, default="")
@@ -61,6 +63,7 @@ class Character(Base):
     player_name = Column(String(100), nullable=False)
     name = Column(String(100), nullable=False)
     character_class = Column(String(100), default="Wojownik")
+    class_id = Column(String(80), nullable=False, default="warrior")
     level = Column(Integer, default=1)
     xp = Column(Integer, default=0)
     current_hp = Column(Integer, default=25)
@@ -69,6 +72,7 @@ class Character(Base):
     agility = Column(Integer, default=1)
     intellect = Column(Integer, default=1)
     charisma = Column(Integer, default=0)
+    perception = Column(Integer, nullable=False, default=0)
     unspent_stat_points = Column(Integer, nullable=False, default=0)
     personal_note = Column(Text, nullable=False, default="")
     status_effects = Column(JSON, default=list)
@@ -112,7 +116,7 @@ class InventoryItem(Base):
     name = Column(String(150), nullable=False)
     description = Column(String(300), default="")
     item_type = Column(String(50), default="weapon")  # weapon, shield, armor, accessory, consumable, misc
-    target_stat = Column(String(50), default="strength")  # strength, agility, intellect, charisma, hp_max, none
+    target_stat = Column(String(50), default="strength")  # strength, agility, intellect, charisma, perception, hp_max, none
     stat_bonus = Column(Integer, default=0)
     damage_power = Column(Integer, nullable=False, default=0)
     hands_required = Column(Integer, nullable=False, default=1)  # 1 albo 2 dla broni; pozostałe typy ignorują tę wartość
@@ -156,6 +160,7 @@ class PlayerAction(Base):
     character_id = Column(Integer, ForeignKey("characters.id", ondelete="CASCADE"), nullable=False)
     action_text = Column(Text, nullable=False)
     magic_ability_id = Column(String(80), nullable=True, default=None)
+    ability_id = Column(String(80), nullable=True, default=None)
     intent = Column(String(30), nullable=True, default=None)
     target_ref = Column(String(100), nullable=True, default=None)
     tested_stat = Column(String(50), nullable=True, default=None)

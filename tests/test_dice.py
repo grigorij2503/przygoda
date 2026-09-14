@@ -78,6 +78,30 @@ def test_deduce_tested_attribute_uses_best_character_stat_only_as_fallback():
     assert deduce_tested_attribute("Idę za drużyną w dół schodów.", char) == "strength"
 
 
+@pytest.mark.parametrize(
+    ("action_text", "expected_stat"),
+    [
+        ("Nasłuchuję odgłosów za drzwiami.", "perception"),
+        ("Wypatruję zasadzki i ukrytych przeciwników.", "perception"),
+        ("Analizuję zapisany dokument i jego znaczenie.", "intellect"),
+    ],
+)
+def test_perception_is_distinct_from_intellectual_analysis(action_text, expected_stat):
+    char = Character(
+        id=1,
+        player_name="Piotr",
+        name="Thorgal",
+        character_class="Wojownik",
+        strength=1,
+        agility=1,
+        intellect=3,
+        charisma=1,
+        perception=3,
+    )
+
+    assert deduce_tested_attribute(action_text, char) == expected_stat
+
+
 def test_attack_ignores_charisma_flavor_and_uses_physical_fallback():
     char = Character(
         id=1,
@@ -118,6 +142,29 @@ def test_calculate_item_modifier():
     assert calculate_item_modifier(char, "strength") == 1
     # Dla intellect brak
     assert calculate_item_modifier(char, "intellect") == 0
+
+
+def test_perception_item_modifier_uses_equipped_items():
+    char = Character(
+        id=1,
+        player_name="Anna",
+        name="Lyanna",
+        character_class="Łotrzyk",
+        perception=2,
+    )
+    char.inventory = [
+        InventoryItem(
+            id=1,
+            character_id=1,
+            name="Sokole Szkło",
+            item_type="accessory",
+            target_stat="perception",
+            stat_bonus=2,
+            is_equipped=True,
+        )
+    ]
+
+    assert calculate_item_modifier(char, "perception") == 2
 
 def test_resolve_dice_roll():
     char = Character(

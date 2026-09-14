@@ -122,6 +122,18 @@ class WorldPackRegistry:
             if class_definition.id == pack.fallback_class_id
         )
 
+    def get_class(self, pack: WorldPack, class_id: str) -> WorldClassDefinition:
+        try:
+            return next(
+                class_definition
+                for class_definition in pack.classes
+                if class_definition.id == class_id
+            )
+        except StopIteration as error:
+            raise WorldPackNotFoundError(
+                f"unknown class {class_id} in world pack {pack.key}"
+            ) from error
+
 
 WORLD_PACK_REGISTRY = WorldPackRegistry.from_directory(PACKS_DIR)
 

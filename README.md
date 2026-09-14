@@ -70,8 +70,10 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
 13. **Jądro Wersjonowanych Światów:**
     - Deklaratywne, niemutowalne modele Pydantic walidują identyfikatory, wersje, klasy, zdolności, startery, mapę, motyw, terminologię i odwołania pakietu przy imporcie aplikacji.
     - Rejestr zawiera obecnie wyłącznie `dark_fantasy@1` dla rulesetu `d20_v1`; katalog `GET /api/worlds` udostępnia jego bezpieczne podsumowanie, ale nie pozwala jeszcze zmieniać świata kampanii.
-    - Pakiet deklaruje pięć kanonicznych cech, w tym Percepcję. Bieżące modele postaci i API nadal używają czterech cech do czasu addytywnej migracji w etapie 5.
-    - Startery nowych postaci i treść początkowej kampanii są pobierane z rejestru. Nieznana jawna wersja pakietu kończy się błędem; jedyny kontrolowany fallback bez przypisania kampanii prowadzi do `dark_fantasy@1`.
+    - Każda kampania jest trwale przypięta do `world_pack_id` i `world_pack_version`, a postacie i zdolności zapisują stabilne `class_id` i `ability_id`. Dotychczasowe `character_class` oraz `magic_ability_id` pozostają adapterami zgodności.
+    - Percepcja (`perception`, `PER`) jest piątą pełnoprawną cechą w bazie, API, kreatorze, karcie, lobby, awansie, korekcie MG, ekwipunku i interpretacji działań. Historyczne postacie otrzymują `0`, bez zmiany pozostałych cech, HP, XP ani poziomu.
+    - Startery nowych postaci i treść początkowej kampanii są pobierane z przypiętego pakietu. Zmiana świata aktywnej kampanii jest blokowana, a nieznana jawna wersja kończy się błędem.
+    - Schemat jest wersjonowany przez Alembic. Kontener wykonuje `alembic upgrade head` przed uruchomieniem serwera; bezpośredni start przez `uvicorn` zachowuje tymczasowy fallback dla starszych lokalnych baz.
 
 ---
 
@@ -130,7 +132,8 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
 │   ├── test_loot.py           # Testy łupu oraz craftingu
 │   ├── test_turn_flow.py      # Testy API, autoryzacji i akcji
 │   ├── test_websocket_chat.py # Test komunikacji czatu przez WebSocket
-│   └── test_world_registry.py # Walidacja pakietów, odwołań, fallbacku i katalogu światów
+│   ├── test_world_registry.py # Walidacja pakietów, odwołań, fallbacku i katalogu światów
+│   └── test_world_migration.py # Migracja historycznej kampanii bez zmiany postępu
 ├── docs/
 │   ├── WORLD_PACK_ROADMAP.md  # Etapowy plan przejścia do silnika wielu światów
 │   ├── WORLD_DEPENDENCY_INVENTORY.md # Inwentarz hardkodów i granica silnik/pakiet
@@ -138,9 +141,11 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
 │       └── 0001-versioned-world-packs.md # Decyzja o deklaratywnych pakietach świata
 ├── uploads/                   # Katalog na wygenerowane obrazy z Imagen 3
 ├── data/                      # Katalog na plik bazy SQLite (w Dockerze)
+├── alembic/                   # Środowisko i wersjonowane migracje schematu bazy
+├── alembic.ini                # Konfiguracja migracji korzystająca z DATABASE_URL
 ├── Dockerfile                 # Zoptymalizowany obraz produkcyjny Python 3.12-slim
 ├── docker-compose.yml         # Konfiguracja uruchomieniowa kontenera
-├── requirements.txt           # Zależności Python, w tym dane stref czasowych dla limitu ilustracji
+├── requirements.txt           # Zależności Python, w tym Alembic i dane stref czasowych
 ├── .env.example               # Wzór pliku środowiskowego
 └── README.md                  # Dokumentacja techniczna
 ```
@@ -213,10 +218,13 @@ python -m pip install -r requirements.txt
 # 3. Utwórz lokalną konfigurację
 Copy-Item .env.example .env
 
-# 4. Uruchom testy automatyczne
+# 4. Zastosuj migracje bazy
+python -m alembic upgrade head
+
+# 5. Uruchom testy automatyczne
 python -m pytest tests/
 
-# 5. Uruchom serwer developerski
+# 6. Uruchom serwer developerski
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
@@ -241,7 +249,7 @@ docker compose logs -f ttrpg-game
 docker compose down
 ```
 
-Kontener przechowuje stan bazy w wolumenie `./data`, a wygenerowane grafiki w wolumenie `./uploads`, co zapewnia pełną trwałość danych przy restartach i aktualizacjach.
+Kontener przechowuje stan bazy w wolumenie `./data`, a wygenerowane grafiki w wolumenie `./uploads`, co zapewnia pełną trwałość danych przy restartach i aktualizacjach. Przed aktualizacją istniejącej kampanii wykonaj kopię pliku SQLite; kontener automatycznie uruchamia migracje Alembic przed startem API.
 
 ---
 
@@ -325,7 +333,7 @@ Zakres testów:
 - `tests/test_combat.py`:
   - Rozpoznawanie dominującej intencji, w tym zdań zawierających mylące przysłowia lub wzmianki o innym typie akcji, skalowanie bossów, obrażenia, efekty statusu oraz walidacja używanego ekwipunku z polskimi znakami.
 - `tests/test_dice.py`:
-  - Dedukcja atrybutów z treści deklaracji gracza (Siła, Zręczność, Rozum, Charyzma), z ignorowaniem słabych ozdobników narracyjnych przy fizycznym ataku.
+  - Dedukcja atrybutów z treści deklaracji gracza (Siła, Zręczność, Rozum, Charyzma i Percepcja), z ignorowaniem słabych ozdobników narracyjnych przy fizycznym ataku oraz rozdzieleniem obserwacji od analizy.
   - Obliczanie modyfikatorów z aktywnego ekwipunku.
   - Wyznaczanie progów sukcesu i kontrolowany testowo rzut k20.
 - `tests/test_full_resolution.py`:
@@ -347,6 +355,8 @@ Zakres testów:
 - `tests/test_world_registry.py`:
   - Ładowanie wyłącznie `dark_fantasy@1`, pięć kanonicznych cech rulesetu i zachowanie obecnych klas, starterów, ksiąg, mapy oraz narracji.
   - Odrzucanie nieznanej jawnej wersji i błędnych referencji oraz kontrakt odpowiedzi `GET /api/worlds`.
+- `tests/test_world_migration.py`:
+  - Uruchomienie Alembic na historycznej bazie i kontrola backfillu świata, klasy, Percepcji oraz ogólnego ID zdolności bez zmiany postępu postaci.
 
 ---
 
@@ -354,14 +364,14 @@ Zakres testów:
 
 Rozwój w kierunku kampanii cyberpunkowych, pirackich, pustynnych, historyczno-okultystycznych, słowiańskich, wikińskich, westernowych, space-grimdark, infernalnych i pastoralnych jest podzielony na niezależnie odbierane etapy. Pełny plan znajduje się w [`docs/WORLD_PACK_ROADMAP.md`](docs/WORLD_PACK_ROADMAP.md), decyzja architektoniczna w [`docs/adr/0001-versioned-world-packs.md`](docs/adr/0001-versioned-world-packs.md), a aktualne sprzężenia fantasy w [`docs/WORLD_DEPENDENCY_INVENTORY.md`](docs/WORLD_DEPENDENCY_INVENTORY.md).
 
-Etapy 1-4 są zakończone. Kontrakt `dark_fantasy_v1` utrwala obecną rozgrywkę,
+Etapy 1-5 są zakończone. Kontrakt `dark_fantasy_v1` utrwala obecną rozgrywkę,
 backend i frontend są podzielone na moduły, a walidowany rejestr ładuje pierwszy
-pakiet `dark_fantasy@1`. Endpoint `GET /api/worlds` zwraca publiczny katalog;
-wybór świata nie jest jeszcze dostępny, a istniejące kampanie korzystają z
-kontrolowanego domyślnego pakietu. Następny etap przypnie ID i wersję świata do
-kampanii, wdroży migracje oraz doda Percepcję do trwałego modelu i UI.
+pakiet `dark_fantasy@1`. Kampania zapisuje jego ID i wersję, klasy oraz zdolności
+mają stabilne identyfikatory, a Alembic migruje historyczne dane. Percepcja działa
+w całej bieżącej ścieżce gry. Wybór świata nadal nie jest dostępny w UI; etap 6
+przepnie pozostałą zawartość, księgi, łup, mapę i frontend na dane pakietu.
 
-Docelowy ruleset będzie używać pięciu kanonicznych atrybutów: Siły, Zręczności, Intelektu, Charyzmy i Percepcji. Percepcja zostanie dodana addytywnie w etapie 5; istniejące postacie otrzymają wartość `0` bez zmiany pozostałych cech, HP, XP i poziomu. Roadmapa zawiera przy każdym etapie osobną checklistę ręcznego odbioru po lokalnym zbudowaniu aplikacji oraz instrukcję użycia izolowanej bazy `manual_review.db`.
+Ruleset używa pięciu kanonicznych atrybutów: Siły, Zręczności, Intelektu, Charyzmy i Percepcji. Migracja nadaje istniejącym postaciom Percepcję `0` bez zmiany pozostałych cech, HP, XP i poziomu. Roadmapa zawiera przy każdym etapie osobną checklistę ręcznego odbioru po lokalnym zbudowaniu aplikacji oraz instrukcję użycia izolowanej bazy `manual_review.db`.
 
 ---
 

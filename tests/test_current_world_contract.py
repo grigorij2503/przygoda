@@ -193,6 +193,9 @@ async def test_existing_classes_keep_starter_items_and_session_shape(
 
     assert set(session_payload) == set(dark_fantasy_contract["session_response_keys"])
     assert session_payload["setting_theme"] == "Dark Fantasy / Gotycki Horror"
+    assert session_payload["world_pack_id"] == "dark_fantasy"
+    assert session_payload["world_pack_version"] == 1
+    assert session_payload["world_pack"]["key"] == "dark_fantasy@1"
 
     characters_by_class = {
         character["character_class"]: character
@@ -202,6 +205,8 @@ async def test_existing_classes_keep_starter_items_and_session_shape(
     for class_name, class_contract in dark_fantasy_contract["classes"].items():
         character = characters_by_class[class_name]
         assert set(character) == set(dark_fantasy_contract["character_response_keys"])
+        assert character["class_id"] == class_contract["class_id"]
+        assert character["perception"] == 0
         assert sorted(item["name"] for item in character["inventory"]) == sorted(
             class_contract["starter_items"]
         )

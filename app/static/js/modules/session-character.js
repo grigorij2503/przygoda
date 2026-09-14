@@ -426,7 +426,8 @@
         strength: 'STR',
         agility: 'AGI',
         intellect: 'INT',
-        charisma: 'CHA'
+        charisma: 'CHA',
+        perception: 'PER'
       }[stat] || String(stat || '').toUpperCase();
     },
 

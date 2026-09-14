@@ -102,7 +102,7 @@ async def generate_party_prologue_ai(
 
     party_descriptions = []
     for c in characters:
-        party_descriptions.append(f"• {c.name} (Klasa: {c.character_class}, prowadzony przez gracza: {c.player_name}) - Siła +{c.strength}, Zręczność +{c.agility}, Rozum +{c.intellect}, Charyzma +{c.charisma}")
+        party_descriptions.append(f"• {c.name} (Klasa: {c.character_class}, prowadzony przez gracza: {c.player_name}) - Siła +{c.strength}, Zręczność +{c.agility}, Rozum +{c.intellect}, Charyzma +{c.charisma}, Percepcja +{c.perception}")
 
     party_text = "\n".join(party_descriptions) if party_descriptions else "Drużyna samotnych awanturników"
 
@@ -252,7 +252,7 @@ async def resolve_turn_with_gemini(
             "death_failures": int(getattr(c, "death_failures", 0) or 0),
             "level": c.level,
             "status_effects": getattr(c, "status_effects", None) or [],
-            "stats": f"STR:+{c.strength}, AGI:+{c.agility}, INT:+{c.intellect}, CHA:+{c.charisma}",
+            "stats": f"STR:+{c.strength}, AGI:+{c.agility}, INT:+{c.intellect}, CHA:+{c.charisma}, PER:+{c.perception}",
             "equipped": equipped_items,
             "inventory": [
                 {

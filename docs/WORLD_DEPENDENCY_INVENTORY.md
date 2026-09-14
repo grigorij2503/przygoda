@@ -8,10 +8,10 @@ powinna pochodzić z wersjonowanego `WorldPack`.
 
 | Miejsce | Stan obecny | Docelowa odpowiedzialność |
 |---|---|---|
-| `GameSession.setting_theme` | dowolny tekst, domyślnie Dark Fantasy | opis kampanii plus przypięty pakiet i wersja |
-| `Character.character_class` | prezentacyjna polska nazwa klasy | adapter; docelowo stabilne `class_id` z pakietu |
-| atrybuty postaci | cztery kolumny bez Percepcji | pięć kanonicznych cech; addytywne `perception=0` dla historii |
-| `PlayerAction.magic_ability_id` | ID zdolności magicznej | adapter; docelowo ogólne `ability_id` |
+| `GameSession.setting_theme` | dowolny opis kampanii obok `world_pack_id` i `world_pack_version` | prezentacyjny opis przypiętego pakietu |
+| `Character.character_class` | prezentacyjna polska nazwa klasy obok stabilnego `class_id` | adapter do usunięcia po okresie zgodności |
+| atrybuty postaci | pięć kolumn, historyczne `perception=0` | pięć kanonicznych cech rulesetu |
+| `PlayerAction.magic_ability_id` | adapter zapisywany obok ogólnego `ability_id` | usunięcie adaptera po okresie zgodności |
 | pola `active_boss_*` | nazewnictwo głównego przeciwnika | stan silnika z terminologią prezentowaną przez pakiet |
 | `NamedLoreEntity.category` | boss, location, npc, weapon, attack | stabilne kategorie silnika z etykietami pakietu |
 | `CampaignMap.layout` | graf odpowiedni dla podziemi | graf silnika wygenerowany przez profil mapy pakietu |
@@ -92,14 +92,13 @@ ekstrakcji do pakietów świata w etapach 4-7.
 - paleta, typografia, tekstura i bezpieczne zasoby;
 - instrukcje narratora, ton i kierunek artystyczny ilustracji.
 
-## Planowane rozszerzenie: Percepcja
+## Percepcja
 
-Fixture etapu 1 zachowuje cztery cechy, ponieważ opisuje aktualne zachowanie, a
-nie stan docelowy. W etapie 5 Percepcja zostanie dodana do ORM, migracji, Pydantic,
-API, rozpoznawania akcji, modyfikatorów przedmiotów, kreatora, karty, awansu i
-narzędzi MG. Historyczne rekordy otrzymają wartość `0`. Nowe światy będą mogły
-wyświetlać ją jako Percepcję, Czujność, Obserwację lub Sensory, zachowując
-kanoniczne ID `perception`.
+Fixture kontraktu obejmuje już pięć cech. Etap 5 dodał Percepcję do ORM, Alembic,
+Pydantic, API, rozpoznawania akcji, modyfikatorów przedmiotów, kontekstu narratora,
+kreatora, kart, awansu i narzędzi MG. Historyczne rekordy otrzymują wartość `0`.
+Nowe światy będą mogły wyświetlać ją jako Percepcję, Czujność, Obserwację lub
+Sensory, zachowując kanoniczne ID `perception`.
 
 ## Reguły przeglądu kolejnych etapów
 

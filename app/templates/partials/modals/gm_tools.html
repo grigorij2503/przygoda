@@ -26,12 +26,13 @@
               </select>
             </div>
 
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
               <template x-for="stat in [
                 {key: 'strength', label: 'STR'},
                 {key: 'agility', label: 'AGI'},
                 {key: 'intellect', label: 'INT'},
-                {key: 'charisma', label: 'CHA'}
+                {key: 'charisma', label: 'CHA'},
+                {key: 'perception', label: 'PER'}
               ]" :key="stat.key">
                 <label class="bg-slate-900 p-2 rounded-lg border border-slate-800 text-center">
                   <span class="block text-[10px] font-semibold text-gray-400 mb-1" x-text="stat.label"></span>
@@ -108,4 +109,3 @@
       </div>
     </div>
   </div>
-

@@ -527,7 +527,7 @@
     },
 
     get statPointsRemaining() {
-      const sum = Number(this.newChar.strength) + Number(this.newChar.agility) + Number(this.newChar.intellect) + Number(this.newChar.charisma);
+      const sum = Number(this.newChar.strength) + Number(this.newChar.agility) + Number(this.newChar.intellect) + Number(this.newChar.charisma) + Number(this.newChar.perception);
       return 4 - sum;
     },
 

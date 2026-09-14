@@ -130,7 +130,7 @@
     },
 
     get gmStatTotal() {
-      return ['strength', 'agility', 'intellect', 'charisma'].reduce(
+      return ['strength', 'agility', 'intellect', 'charisma', 'perception'].reduce(
         (total, stat) => total + Number(this.gmStatForm[stat] || 0),
         0
       );
@@ -138,7 +138,7 @@
 
     get gmOriginalStatTotal() {
       if (!this.gmOriginalStats) return 0;
-      return ['strength', 'agility', 'intellect', 'charisma'].reduce(
+      return ['strength', 'agility', 'intellect', 'charisma', 'perception'].reduce(
         (total, stat) => total + Number(this.gmOriginalStats[stat] || 0),
         0
       );
@@ -149,14 +149,14 @@
     },
 
     get gmStatsValid() {
-      return ['strength', 'agility', 'intellect', 'charisma'].every(stat => {
+      return ['strength', 'agility', 'intellect', 'charisma', 'perception'].every(stat => {
         const value = Number(this.gmStatForm[stat]);
         return Number.isInteger(value) && value >= 0 && value <= this.maxBaseStat;
       });
     },
 
     get gmStatsChanged() {
-      return Boolean(this.gmOriginalStats) && ['strength', 'agility', 'intellect', 'charisma'].some(
+      return Boolean(this.gmOriginalStats) && ['strength', 'agility', 'intellect', 'charisma', 'perception'].some(
         stat => Number(this.gmStatForm[stat]) !== Number(this.gmOriginalStats[stat])
       );
     },
@@ -180,7 +180,8 @@
         strength: Number(character.strength || 0),
         agility: Number(character.agility || 0),
         intellect: Number(character.intellect || 0),
-        charisma: Number(character.charisma || 0)
+        charisma: Number(character.charisma || 0),
+        perception: Number(character.perception || 0)
       };
       this.gmStatForm = { ...stats };
       this.gmOriginalStats = { ...stats };
@@ -217,7 +218,8 @@
             strength: Number(this.gmStatForm.strength),
             agility: Number(this.gmStatForm.agility),
             intellect: Number(this.gmStatForm.intellect),
-            charisma: Number(this.gmStatForm.charisma)
+            charisma: Number(this.gmStatForm.charisma),
+            perception: Number(this.gmStatForm.perception)
           })
         });
         const data = await res.json().catch(() => ({}));

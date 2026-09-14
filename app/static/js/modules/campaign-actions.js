@@ -188,7 +188,8 @@
         strength: 'Siła',
         agility: 'Zręczność',
         intellect: 'Rozum',
-        charisma: 'Charyzma'
+        charisma: 'Charyzma',
+        perception: 'Percepcja'
       }[stat] || stat;
     },
 
@@ -242,6 +243,7 @@
             character_id: this.selectedCharacterId,
             action_text: actionText,
             magic_ability_id: this.magicAbilityId,
+            ability_id: this.magicAbilityId,
             intent: this.actionIntent,
             tested_stat: this.actionTestedStat,
             target_ref: this.actionTargetRef
@@ -297,6 +299,7 @@
             character_id: this.selectedCharacterId,
             action_text: this.actionText.trim(),
             magic_ability_id: this.magicAbilityId,
+            ability_id: this.magicAbilityId,
             intent: this.actionIntent,
             tested_stat: this.actionTestedStat,
             target_ref: this.actionTargetRef
@@ -356,7 +359,7 @@
         const myAction = curTurn.actions?.find(a => a.character_id === this.selectedCharacterId);
         if (myAction) {
           this.actionText = myAction.action_text;
-          this.magicAbilityId = myAction.magic_ability_id || null;
+          this.magicAbilityId = myAction.ability_id || myAction.magic_ability_id || null;
           this.actionIntent = this.magicAbilityId ? (myAction.intent || null) : null;
           this.actionTestedStat = null;
           this.actionTargetRef = myAction.target_ref || null;
@@ -472,7 +475,7 @@
     },
 
     statShortLabel(stat) {
-      return { strength: 'SIŁ', agility: 'ZRĘ', intellect: 'ROZ', charisma: 'CHA' }[stat] || stat;
+      return { strength: 'SIŁ', agility: 'ZRĘ', intellect: 'ROZ', charisma: 'CHA', perception: 'PER' }[stat] || stat;
     },
 
     intentLabel(intent) {

@@ -37,6 +37,11 @@
           <span class="block text-xs uppercase text-gray-400">Charyzma (CHA)</span>
           <span class="block mt-1 text-xl font-bold text-amber-300" x-text="(currentCharacter?.charisma || 0) >= maxBaseStat ? ('+' + currentCharacter.charisma + ' (MAX)') : ('+' + currentCharacter?.charisma + ' → +' + ((currentCharacter?.charisma || 0) + 1))"></span>
         </button>
+        <button type="button" @click="spendStatPoint('perception')" :disabled="isSpendingStatPoint || (currentCharacter?.perception || 0) >= maxBaseStat"
+                class="p-4 rounded-xl bg-slate-950 hover:bg-amber-950/50 border border-slate-700 hover:border-amber-500 transition disabled:opacity-50 sm:col-span-2">
+          <span class="block text-xs uppercase text-gray-400">Percepcja (PER)</span>
+          <span class="block mt-1 text-xl font-bold text-amber-300" x-text="(currentCharacter?.perception || 0) >= maxBaseStat ? ('+' + currentCharacter.perception + ' (MAX)') : ('+' + currentCharacter?.perception + ' → +' + ((currentCharacter?.perception || 0) + 1))"></span>
+        </button>
       </div>
 
       <p x-show="statPointError" x-text="statPointError"
@@ -48,4 +53,3 @@
       </button>
     </div>
   </div>
-

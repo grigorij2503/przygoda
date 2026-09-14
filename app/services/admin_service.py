@@ -98,12 +98,16 @@ async def update_character_base_stats(
         "agility": character.agility,
         "intellect": character.intellect,
         "charisma": character.charisma,
+        "perception": character.perception,
     }
     updated_stats = {
         "strength": payload.strength,
         "agility": payload.agility,
         "intellect": payload.intellect,
         "charisma": payload.charisma,
+        "perception": (
+            payload.perception if payload.perception is not None else character.perception
+        ),
     }
     for stat_name, stat_value in updated_stats.items():
         setattr(character, stat_name, stat_value)

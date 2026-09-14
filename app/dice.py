@@ -6,6 +6,7 @@ from app.inventory import get_effectively_equipped_items
 from app.models import Character
 
 _POLISH_CHAR_TRANSLATION = str.maketrans("ąćęłńóśźż", "acelnoszz")
+CANONICAL_STATS = ("strength", "agility", "intellect", "charisma", "perception")
 
 # Reguły korzystają z rdzeni słów, aby obejmować polską odmianę. Waga 4 oznacza
 # jawną deklarację cechy lub magii, 3 jednoznaczny sposób wykonania akcji,
@@ -39,8 +40,7 @@ ATTRIBUTE_RULES: dict[str, tuple[tuple[str, int], ...]] = {
         (r"\b(?:kula\s+ognia|ognist\w*\s+kula\w*|blyskawic\w*|telekinez\w*|teleport\w*)\b", 3),
         (r"\b(?:bada\w*|zbada\w*|analiz\w*|rozpozn\w*|rozszyfr\w*|odczyt\w*)\b", 2),
         (r"\b(?:wiedz\w*|przypomn\w*|histori\w*|legend\w*|zagad\w*|deduk\w*)\b", 2),
-        (r"\b(?:wykry\w*|wytrop\w*|trop\w*|nasluch\w*|obserw\w*|dostrzeg\w*)\b", 2),
-        (r"\b(?:ksieg\w*|bibliotek\w*|map\w*|mechanizm\w*|slad\w*|skup\w*)\b", 1),
+        (r"\b(?:ksieg\w*|bibliotek\w*|map\w*|mechanizm\w*|skup\w*)\b", 1),
     ),
     "charisma": (
         (r"\b(?:charyzm\w*|autorytet\w*|retory\w*)\b", 4),
@@ -50,6 +50,13 @@ ATTRIBUTE_RULES: dict[str, tuple[tuple[str, int], ...]] = {
         (r"\b(?:uspok\w*|pociesz\w*|blag\w*|dyskut\w*|wypyt\w*|targuj\w*|naklon\w*)\b", 2),
         (r"\b(?:krzycz\w*|zawol\w*|spiew\w*|wystep\w*|opowiad\w*)\b", 1),
         (r"\b(?:modlitw\w*|modl\w*|bostw\w*|kaplan\w*)\b", 2),
+    ),
+    "perception": (
+        (r"\b(?:percepc\w*|spostrzeg\w*|czujn\w*)\b", 4),
+        (r"\b(?:nasluch\w*|wypatruj\w*|dostrzeg\w*|zauwaz\w*)\b", 3),
+        (r"\b(?:wykry\w*|wytrop\w*|trop\w*|obserw\w*)\b", 3),
+        (r"\b(?:zasadzk\w*|ukryt\w*|szmer\w*|halas\w*|zapach\w*|odglos\w*)\b", 2),
+        (r"\b(?:slad\w*|widze\w*|slysze\w*|wechu\w*|zmysl\w*)\b", 2),
     ),
 }
 
@@ -71,7 +78,7 @@ def deduce_tested_attribute_details(
     Dedukuje cechę z dominującego sposobu wykonania akcji. Słabe ozdobniki
     narracyjne nie przebijają rodzaju akcji ani statystyki używanej broni.
     """
-    valid_stats = {"strength", "agility", "intellect", "charisma"}
+    valid_stats = set(CANONICAL_STATS)
     if explicit_stat in valid_stats:
         return {
             "tested_stat": explicit_stat,
@@ -80,7 +87,7 @@ def deduce_tested_attribute_details(
         }
 
     cleaned_text = _normalize_action_text(action_text)
-    scores = {"strength": 0, "agility": 0, "intellect": 0, "charisma": 0}
+    scores = {stat: 0 for stat in CANONICAL_STATS}
     strongest_evidence = {stat: 0 for stat in scores}
 
     for stat, rules in ATTRIBUTE_RULES.items():
@@ -133,9 +140,9 @@ def deduce_tested_attribute_details(
     fallback_stats = {
         "attack": ("strength", "agility"),
         "defend": ("strength", "agility"),
-        "interact": ("agility", "intellect"),
+        "interact": ("agility", "intellect", "perception"),
         "support": ("intellect", "charisma"),
-    }.get(intent, ("strength", "agility", "intellect", "charisma"))
+    }.get(intent, ("strength", "agility", "intellect", "charisma", "perception"))
     selected = max(fallback_stats, key=lambda stat: getattr(character, stat, 0))
     return {
         "tested_stat": selected,
@@ -180,7 +187,7 @@ def resolve_dice_roll(
     """
     tested_stat = (
         tested_stat_override
-        if tested_stat_override in {"strength", "agility", "intellect", "charisma"}
+        if tested_stat_override in {"strength", "agility", "intellect", "charisma", "perception"}
         else deduce_tested_attribute(action_text, character, intent)
     )
 

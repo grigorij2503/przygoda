@@ -85,10 +85,12 @@
       player_name: '',
       name: '',
       character_class: 'Wojownik',
+      class_id: 'warrior',
       strength: 2,
       agility: 1,
       intellect: 1,
-      charisma: 0
+      charisma: 0,
+      perception: 0
     },
     charError: '',
     isCreatingChar: false,
@@ -115,7 +117,8 @@
       strength: 0,
       agility: 0,
       intellect: 0,
-      charisma: 0
+      charisma: 0,
+      perception: 0
     },
     gmOriginalStats: null,
     gmStatError: '',

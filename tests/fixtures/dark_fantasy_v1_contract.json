@@ -5,7 +5,8 @@
     "strength",
     "agility",
     "intellect",
-    "charisma"
+    "charisma",
+    "perception"
   ],
   "action_intents": [
     "attack",
@@ -31,6 +32,9 @@
   "session_response_keys": [
     "session_id",
     "room_code",
+    "world_pack_id",
+    "world_pack_version",
+    "world_pack",
     "title",
     "setting_theme",
     "campaign_intro",
@@ -53,6 +57,7 @@
     "player_name",
     "name",
     "character_class",
+    "class_id",
     "level",
     "xp",
     "xp_progress",
@@ -65,6 +70,7 @@
     "agility",
     "intellect",
     "charisma",
+    "perception",
     "unspent_stat_points",
     "is_alive",
     "death_state",
@@ -144,6 +150,7 @@
   ],
   "classes": {
     "Wojownik": {
+      "class_id": "warrior",
       "starter_items": [
         "Krasnoludzki Miecz",
         "Skórzana Zbroja",
@@ -152,6 +159,7 @@
       "ability_book": null
     },
     "Łotrzyk": {
+      "class_id": "rogue",
       "starter_items": [
         "Zatruty Sztylet",
         "Wytrychy Mistrza",
@@ -160,6 +168,7 @@
       "ability_book": null
     },
     "Czarodziej": {
+      "class_id": "wizard",
       "starter_items": [
         "Runiczny Kostur",
         "Amulet Ognia",
@@ -182,6 +191,7 @@
       }
     },
     "Kleryk": {
+      "class_id": "cleric",
       "starter_items": [
         "Srebrzysta Buława",
         "Sygnet Wiary",
@@ -218,6 +228,7 @@
     "GEMINI MISTRZ GRY ROZSTRZYGA TURĘ",
     "Kronika Świata",
     "MAPA WYPRAWY",
-    "STWÓRZ BOHATERA"
+    "STWÓRZ BOHATERA",
+    "Percepcja (PER)"
   ]
 }

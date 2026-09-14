@@ -656,6 +656,8 @@ async def lifespan(app: FastAPI):
         if not session:
             new_session = GameSession(
                 room_code="kampania-1",
+                world_pack_id=default_world.id,
+                world_pack_version=default_world.version,
                 title=narrative_profile.default_title,
                 setting_theme=narrative_profile.setting_theme,
                 campaign_intro=narrative_profile.campaign_intro,

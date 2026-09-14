@@ -424,7 +424,7 @@ def _resolve_support_action(
             target_id = None
         target = next((item for item in characters if item.id == target_id), None)
 
-    is_resurrection = action.magic_ability_id == "resurrection"
+    is_resurrection = (action.ability_id or action.magic_ability_id) == "resurrection"
     if not target or target.id == actor.id:
         candidates = [
             item for item in characters

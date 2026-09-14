@@ -11,7 +11,8 @@ from app.schemas import (
     UpdatePersonalNoteRequest,
 )
 from app.services.runtime import MAX_BASE_ATTRIBUTE
-from app.worlds.registry import WORLD_PACK_REGISTRY, get_default_world_pack
+from app.services.world_service import get_session_world_pack
+from app.worlds.registry import WORLD_PACK_REGISTRY, WorldPackNotFoundError
 from app.websocket_manager import ws_manager
 
 
@@ -45,16 +46,35 @@ async def create_character(
         raise HTTPException(status_code=404, detail="Sesja nie istnieje")
 
     # Walidacja sumy punktów (np. 4 punkty do rozdania)
-    total_stats = payload.strength + payload.agility + payload.intellect + payload.charisma
+    total_stats = (
+        payload.strength
+        + payload.agility
+        + payload.intellect
+        + payload.charisma
+        + payload.perception
+    )
     if total_stats > 5:
         raise HTTPException(status_code=400, detail="Maksymalna suma punktów atrybutów to 4 lub 5")
+
+    world_pack = get_session_world_pack(session)
+    try:
+        class_definition = (
+            WORLD_PACK_REGISTRY.get_class(world_pack, payload.class_id)
+            if payload.class_id
+            else WORLD_PACK_REGISTRY.resolve_class(world_pack, payload.character_class)
+        )
+    except WorldPackNotFoundError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
     max_hp = 20 + (payload.strength * 5)
     char = Character(
         session_id=session.id,
         player_name=payload.player_name.strip(),
         name=payload.name.strip(),
-        character_class=payload.character_class.strip(),
+        character_class=(
+            class_definition.name if payload.class_id else payload.character_class.strip()
+        ),
+        class_id=class_definition.id,
         level=1,
         xp=0,
         current_hp=max_hp,
@@ -63,6 +83,7 @@ async def create_character(
         agility=payload.agility,
         intellect=payload.intellect,
         charisma=payload.charisma,
+        perception=payload.perception,
         is_alive=True,
         death_state="alive",
         death_failures=0,
@@ -72,13 +93,7 @@ async def create_character(
     await db.commit()
     await db.refresh(char)
 
-    # Do czasu przypięcia wersji świata do kampanii (etap 5) istniejąca gra
-    # korzysta z jedynego kontrolowanego fallbacku dark_fantasy@1.
-    world_pack = get_default_world_pack()
-    class_definition = WORLD_PACK_REGISTRY.resolve_class(
-        world_pack,
-        payload.character_class,
-    )
+    # Startery są rozwiązywane z wersji świata przypiętej do kampanii.
     starter_items = [
         InventoryItem(
             character_id=char.id,
@@ -99,6 +114,7 @@ async def create_character(
             "name": char.name,
             "player_name": char.player_name,
             "character_class": char.character_class,
+            "class_id": char.class_id,
         }
     })
 

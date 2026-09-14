@@ -54,12 +54,12 @@ zmysłów lub sensorów. Intelekt pozostaje cechą wiedzy, analizy, rozumowania,
 techniki i rozwiązywania problemów. Pakiet może zmieniać nazwy prezentacyjne
 atrybutów, lecz nie ich identyfikatory w bazie ani kontrakcie silnika.
 
-Istniejący kontrakt `dark_fantasy_v1` celowo zapisuje obecny stan czterech cech.
-Percepcja zostanie dodana addytywnie w etapie 5: historyczne postacie otrzymają
-wartość `0`, ich pozostałe statystyki i HP nie zmienią się, a łączny budżet
-punktów nowej postaci pozostanie taki jak wcześniej. Maksimum bazowe pozostanie
-na poziomie 12. Percepcja zostanie następnie uwzględniona w interpretacji akcji,
-ekwipunku, awansach, korekcie MG, API oraz wszystkich widokach postaci.
+Kontrakt `dark_fantasy_v1` zapisuje obecny stan pięciu cech. Percepcja została
+dodana addytywnie w etapie 5: historyczne postacie otrzymują wartość `0`, ich
+pozostałe statystyki i HP nie zmieniają się, a łączny budżet punktów nowej
+postaci pozostaje taki jak wcześniej. Maksimum bazowe nadal wynosi 12. Percepcja
+jest uwzględniona w interpretacji akcji, ekwipunku, awansach, korekcie MG, API
+oraz wszystkich widokach postaci.
 
 ## Docelowy kontrakt pakietu
 
@@ -198,7 +198,7 @@ tryb offline i wrócić online; nie może pojawić się stary JS lub brakujący 
 
 ### Etap 4 - jądro pakietów świata
 
-Status: zakończony 2026-09-14, oczekuje na ręczny odbiór.
+Status: zakończony i odebrany ręcznie 2026-09-14.
 
 - modele Pydantic `WorldPack` i typów składowych;
 - rejestr pakietów oraz walidacja ID, wersji i odwołań;
@@ -231,6 +231,8 @@ oferować wyboru świata ani pola Percepcji.
 
 ### Etap 5 - wersjonowanie kampanii i migracje
 
+Status: zakończony 2026-09-14, oczekuje na ręczny odbiór.
+
 - wdrożenie Alembic;
 - dodanie `GameSession.world_pack_id` i `world_pack_version`;
 - dodanie `Character.class_id` i ogólnego `PlayerAction.ability_id`;
@@ -244,17 +246,35 @@ oferować wyboru świata ani pola Percepcji.
   adapterów kompatybilności;
 - blokada zmiany świata w aktywnej kampanii.
 
+Implementacja dodaje pierwszą rewizję Alembic i uruchamia ją automatycznie przed
+API w kontenerze. Migracja jest addytywna: istniejącym sesjom przypisuje
+`dark_fantasy@1`, mapuje polskie nazwy klas na stabilne ID, kopiuje
+`magic_ability_id` do `ability_id` i nadaje historycznym postaciom Percepcję `0`.
+Stare pola pozostają zapisywane i zwracane równolegle. Percepcja działa w rzutach,
+przedmiotach, kontekście Gemini, kreatorze, wszystkich kartach postaci, ręcznej
+korekcie akcji, awansie i panelu MG. Słowa dotyczące obserwacji, zmysłów,
+tropienia i zasadzek kierują do Percepcji, a wiedza i analiza do Intelektu.
+
 Kryterium zakończenia: historyczna baza otwiera się bez utraty postaci, tur,
 mapy, ilustracji, ekwipunku, czatu i kroniki. Dotychczasowe postacie mają
 Percepcję `0`, lecz nie zmienione pozostałe cechy, HP, XP ani poziom.
 
-Test lokalny: wymagany w dwóch wariantach. Najpierw uruchomić aplikację na kopii
-starszej bazy i sprawdzić kilka istniejących postaci, tur, mapę, czat oraz
-ekwipunek; Percepcja powinna wynosić `0`. Następnie na czystej bazie utworzyć
-postać z punktami Percepcji, sprawdzić limit całej puli, korektę MG, wydanie
-punktu awansu na Percepcję oraz akcje typu „nasłuchuję”, „wypatruję zasadzki” i
-„analizuję dokument”. Pierwsze dwie powinny wskazywać Percepcję, ostatnia
-Intelekt.
+Test lokalny: wymagany w dwóch wariantach. Najpierw skopiować starszy plik SQLite
+pod inną nazwą, ustawić kopię w `DATABASE_URL`, wykonać
+`python -m alembic upgrade head` i dopiero uruchomić aplikację. W
+`/api/session` potwierdzić `world_pack_id="dark_fantasy"`, wersję `1`, właściwe
+`class_id` oraz Percepcję `0`; następnie sprawdzić kilka istniejących postaci,
+tur, mapę, czat, księgi i ekwipunek. HP, XP, poziom i cztery stare cechy muszą być
+niezmienione. Nigdy nie wykonywać odbioru na jedynej kopii aktywnej bazy.
+
+W drugim wariancie uruchomić czystą `manual_review.db`, utworzyć postać z punktami
+Percepcji i sprawdzić niezmieniony limit całej puli oraz wzór HP. Zweryfikować PER
+w wyborze postaci, lobby, karcie i ręcznej korekcie cechy akcji; przez panel MG
+zmienić Percepcję, a po przyznaniu punktu awansu wydać go na PER. Złożyć kolejno
+akcje „nasłuchuję za drzwiami”, „wypatruję zasadzki” i „analizuję dokument”.
+Pierwsze dwie mają wskazywać Percepcję, ostatnia Intelekt. Dla Czarodzieja użyć
+zdolności i po odświeżeniu sprawdzić, że akcja zawiera zgodne `ability_id` oraz
+`magic_ability_id`. Interfejs nadal nie powinien oferować zmiany świata.
 
 ### Etap 6 - generalizacja zawartości
 

@@ -170,7 +170,7 @@ async def interpret_action(payload: InterpretActionRequest, db: AsyncSession = D
     if not character:
         raise HTTPException(status_code=404, detail="Postać nie istnieje")
 
-    magic_ability = get_magic_ability(character.character_class, payload.magic_ability_id)
+    magic_ability = get_magic_ability(character.character_class, payload.selected_ability_id)
     if magic_ability and character.level < magic_ability["required_level"]:
         magic_ability = None
     return interpret_player_action(
@@ -205,7 +205,7 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
         character.character_class,
         character.level,
         action_text,
-        payload.magic_ability_id,
+        payload.selected_ability_id,
     )
     if magic_action_error:
         raise HTTPException(status_code=400, detail=magic_action_error)
@@ -301,6 +301,7 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
     if existing_action:
         existing_action.action_text = action_text
         existing_action.magic_ability_id = magic_ability["id"] if magic_ability else None
+        existing_action.ability_id = magic_ability["id"] if magic_ability else None
         existing_action.intent = resolved_intent
         existing_action.target_ref = action_target_ref
         existing_action.tested_stat = resolved_stat
@@ -312,6 +313,7 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
             character_id=character.id,
             action_text=action_text,
             magic_ability_id=magic_ability["id"] if magic_ability else None,
+            ability_id=magic_ability["id"] if magic_ability else None,
             intent=resolved_intent,
             target_ref=action_target_ref,
             tested_stat=resolved_stat,
@@ -425,7 +427,8 @@ async def resolve_turn_background(session_id: int, turn_id: int):
 
                     action.intent = infer_action_intent(action.action_text, action.intent)
                     dc, tested_stat_override = action_dc(session, action)
-                    if get_magic_ability(char.character_class, action.magic_ability_id):
+                    action_ability_id = action.ability_id or action.magic_ability_id
+                    if get_magic_ability(char.character_class, action_ability_id):
                         tested_stat_override = get_magic_casting_stat(char.character_class)
                     elif tested_stat_override is None:
                         tested_stat_override = action.tested_stat
@@ -489,7 +492,10 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                     "character_id": char.id,
                     "character_name": char.name,
                     "action_text": action.action_text,
-                    "magic_ability": get_magic_ability(char.character_class, action.magic_ability_id),
+                    "magic_ability": get_magic_ability(
+                        char.character_class,
+                        action.ability_id or action.magic_ability_id,
+                    ),
                     "intent": action.intent,
                     "target_ref": action.target_ref,
                     "tested_stat": action.tested_stat,

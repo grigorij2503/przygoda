@@ -50,6 +50,7 @@ from app.services.runtime import (
     require_gm,
     serialize_proxy_decision,
 )
+from app.services.world_service import get_session_world_pack, resolve_requested_world_pack
 from app.websocket_manager import ws_manager
 
 
@@ -69,6 +70,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
     game_session = res.scalar_one_or_none()
     if not game_session:
         raise HTTPException(status_code=404, detail="Sesja nie została znaleziona")
+    world_pack = get_session_world_pack(game_session)
     session_changed = ensure_boss_encounter(game_session, game_session.characters)
     for character in game_session.characters:
         if character.current_hp <= 0 and getattr(character, "death_state", "alive") == "alive":
@@ -134,6 +136,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
             "player_name": c.player_name,
             "name": c.name,
             "character_class": c.character_class,
+            "class_id": c.class_id,
             "level": c.level,
             "xp": c.xp,
             **xp_progress,
@@ -143,6 +146,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
             "agility": c.agility,
             "intellect": c.intellect,
             "charisma": c.charisma,
+            "perception": c.perception,
             "unspent_stat_points": c.unspent_stat_points or 0,
             "is_alive": c.is_alive,
             "death_state": getattr(c, "death_state", "alive") or "alive",
@@ -226,10 +230,11 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
                     "character_id": a.character_id,
                     "character_name": characters_by_id.get(a.character_id).name if characters_by_id.get(a.character_id) else "Nieznany",
                     "action_text": a.action_text,
-                    "magic_ability_id": a.magic_ability_id,
+                    "magic_ability_id": a.magic_ability_id or a.ability_id,
+                    "ability_id": a.ability_id or a.magic_ability_id,
                     "magic_ability": get_magic_ability(
                         characters_by_id.get(a.character_id).character_class,
-                        a.magic_ability_id,
+                        a.ability_id or a.magic_ability_id,
                     ) if characters_by_id.get(a.character_id) else None,
                     "intent": a.intent,
                     "target_ref": a.target_ref,
@@ -257,6 +262,16 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
     return {
         "session_id": game_session.id,
         "room_code": game_session.room_code,
+        "world_pack_id": world_pack.id,
+        "world_pack_version": world_pack.version,
+        "world_pack": {
+            "id": world_pack.id,
+            "version": world_pack.version,
+            "key": world_pack.key,
+            "display_name": world_pack.display_name,
+            "ruleset_id": world_pack.ruleset_id,
+            "theme_id": world_pack.theme_id,
+        },
         "title": game_session.title,
         "setting_theme": game_session.setting_theme,
         "campaign_intro": game_session.campaign_intro,
@@ -411,6 +426,14 @@ async def setup_scenario(
     session = (await db.execute(stmt)).scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Sesja nie została znaleziona")
+
+    world_pack = resolve_requested_world_pack(
+        session,
+        payload.world_pack_id,
+        payload.world_pack_version,
+    )
+    session.world_pack_id = world_pack.id
+    session.world_pack_version = world_pack.version
 
     session.title = f"Wyprawa: {payload.scenario_type}"
     session.setting_theme = payload.tone or "Dark Fantasy"

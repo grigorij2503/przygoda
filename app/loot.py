@@ -63,6 +63,12 @@ LOOT_TEMPLATES = {
         ("armor", "Płaszcz Chorążego", "Wyprostowana sylwetka przyciąga wzrok sprzymierzeńców.", 1),
         ("misc", "Relikwiarz Przysięgi", "Przypomina słuchaczom, że wypowiedziane obietnice mają wagę.", 1),
     ),
+    "perception": (
+        ("accessory", "Sokole Szkło", "Wyostrza obraz i pomaga wypatrzyć ruch w półmroku.", 1),
+        ("armor", "Kaptur Czujnego Strażnika", "Tłumi rozproszenia i ułatwia nasłuchiwanie zagrożeń.", 1),
+        ("misc", "Kompas Szeptów", "Drży, gdy w pobliżu porusza się coś ukrytego.", 1),
+        ("accessory", "Monokl Tropiciela", "Pomaga odróżnić świeże ślady od starego kurzu.", 1),
+    ),
 }
 
 
@@ -407,6 +413,7 @@ def _build_crafted_item(character: Character, sources: list[InventoryItem]) -> I
         "agility": "zręczność",
         "intellect": "intelekt",
         "charisma": "charyzmę",
+        "perception": "percepcję",
         "hp_max": "żywotność",
         "none": "skuteczność",
     }

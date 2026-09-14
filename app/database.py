@@ -31,7 +31,7 @@ from sqlalchemy import text
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # Bezpieczna automatyczna migracja nowych kolumn
+        # Tymczasowy fallback zgodności dla uruchomień bez polecenia Alembic.
         new_columns = [
             ("game_sessions", "active_boss_name", "VARCHAR(100)"),
             ("game_sessions", "active_boss_title", "VARCHAR(150)"),
@@ -52,7 +52,11 @@ async def init_db():
             ("game_sessions", "pending_naming_character_id", "INTEGER"),
             ("game_sessions", "pending_naming_character_name", "VARCHAR(100)"),
             ("game_sessions", "status", "VARCHAR(50)"),
+            ("game_sessions", "world_pack_id", "VARCHAR(80) NOT NULL DEFAULT 'dark_fantasy'"),
+            ("game_sessions", "world_pack_version", "INTEGER NOT NULL DEFAULT 1"),
             ("characters", "is_ready", "BOOLEAN"),
+            ("characters", "class_id", "VARCHAR(80) NOT NULL DEFAULT 'cleric'"),
+            ("characters", "perception", "INTEGER NOT NULL DEFAULT 0"),
             ("characters", "personal_note", "TEXT NOT NULL DEFAULT ''"),
             ("characters", "unspent_stat_points", "INTEGER NOT NULL DEFAULT 0"),
             ("characters", "status_effects", "JSON"),
@@ -65,6 +69,7 @@ async def init_db():
             ("turns", "combat_events", "JSON"),
             ("player_actions", "intent", "VARCHAR(30)"),
             ("player_actions", "magic_ability_id", "VARCHAR(80)"),
+            ("player_actions", "ability_id", "VARCHAR(80)"),
             ("player_actions", "target_ref", "VARCHAR(100)"),
             ("player_actions", "status_modifier", "INTEGER NOT NULL DEFAULT 0"),
             ("player_actions", "damage_dealt", "INTEGER NOT NULL DEFAULT 0"),
@@ -80,6 +85,39 @@ async def init_db():
                 await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type};"))
             except Exception:
                 pass
+        # Ten fallback utrzymuje start przez samo `uvicorn` dla starszej bazy.
+        # Alembic pozostaje źródłem wersji schematu i jest uruchamiany w Dockerze.
+        await conn.execute(text(
+            "UPDATE game_sessions SET world_pack_id = 'dark_fantasy' "
+            "WHERE world_pack_id IS NULL OR world_pack_id = ''"
+        ))
+        await conn.execute(text(
+            "UPDATE game_sessions SET world_pack_version = 1 "
+            "WHERE world_pack_version IS NULL OR world_pack_version < 1"
+        ))
+        await conn.execute(text(
+            """
+            UPDATE characters
+            SET class_id = CASE
+                WHEN lower(character_class) LIKE '%woj%' OR lower(character_class) LIKE '%rycerz%' THEN 'warrior'
+                WHEN character_class LIKE '%Łot%' OR character_class LIKE '%łot%'
+                  OR lower(character_class) LIKE '%zabójc%' OR lower(character_class) LIKE '%zabojc%'
+                  OR character_class LIKE '%Złodziej%' OR character_class LIKE '%złodziej%'
+                  OR lower(character_class) LIKE '%zlodziej%' THEN 'rogue'
+                WHEN lower(character_class) LIKE '%mag%' OR lower(character_class) LIKE '%czaro%' THEN 'wizard'
+                ELSE 'cleric'
+            END
+            WHERE (class_id IS NULL OR class_id = '' OR class_id = 'cleric')
+              AND session_id IN (
+                  SELECT id FROM game_sessions
+                  WHERE world_pack_id = 'dark_fantasy' AND world_pack_version = 1
+              )
+            """
+        ))
+        await conn.execute(text(
+            "UPDATE player_actions SET ability_id = magic_ability_id "
+            "WHERE ability_id IS NULL AND magic_ability_id IS NOT NULL"
+        ))
         try:
             await conn.execute(text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS uq_player_action_turn_character "

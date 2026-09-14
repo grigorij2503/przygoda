@@ -1,6 +1,9 @@
 from datetime import datetime
 from typing import List, Optional, Literal
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+StatId = Literal["strength", "agility", "intellect", "charisma", "perception"]
 
 # --- Auth & Session ---
 class VerifyPasswordRequest(BaseModel):
@@ -52,16 +55,18 @@ class CreateCharacterRequest(BaseModel):
     player_name: str
     name: str
     character_class: str = "Wojownik"
+    class_id: Optional[str] = Field(default=None, max_length=80)
     strength: int = Field(ge=0, le=4, default=2)
     agility: int = Field(ge=0, le=4, default=1)
     intellect: int = Field(ge=0, le=4, default=1)
     charisma: int = Field(ge=0, le=4, default=0)
+    perception: int = Field(ge=0, le=4, default=0)
 
 class UpdatePersonalNoteRequest(BaseModel):
     content: str = Field(default="", max_length=20000)
 
 class SpendStatPointRequest(BaseModel):
-    stat: Literal["strength", "agility", "intellect", "charisma"]
+    stat: StatId
 
 class AdminUpdateCharacterStatsRequest(BaseModel):
     room_code: str = Field(min_length=1, max_length=50)
@@ -69,6 +74,7 @@ class AdminUpdateCharacterStatsRequest(BaseModel):
     agility: int = Field(ge=0, le=12)
     intellect: int = Field(ge=0, le=12)
     charisma: int = Field(ge=0, le=12)
+    perception: Optional[int] = Field(default=None, ge=0, le=12)
 
 class InventoryItemDto(BaseModel):
     id: int
@@ -89,6 +95,7 @@ class CharacterDto(BaseModel):
     player_name: str
     name: str
     character_class: str
+    class_id: str
     level: int
     xp: int
     current_hp: int
@@ -97,6 +104,7 @@ class CharacterDto(BaseModel):
     agility: int
     intellect: int
     charisma: int
+    perception: int
     unspent_stat_points: int = 0
     is_alive: bool
     death_state: str = "alive"
@@ -116,21 +124,43 @@ class SubmitActionRequest(BaseModel):
     character_id: int
     action_text: str
     magic_ability_id: Optional[str] = Field(default=None, max_length=80)
+    ability_id: Optional[str] = Field(default=None, max_length=80)
     intent: Optional[Literal["attack", "defend", "interact", "support", "other"]] = None
-    tested_stat: Optional[Literal["strength", "agility", "intellect", "charisma"]] = None
+    tested_stat: Optional[StatId] = None
     target_ref: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_ability_alias(self) -> "SubmitActionRequest":
+        if self.ability_id and self.magic_ability_id and self.ability_id != self.magic_ability_id:
+            raise ValueError("ability_id and magic_ability_id must identify the same ability")
+        return self
+
+    @property
+    def selected_ability_id(self) -> str | None:
+        return self.ability_id or self.magic_ability_id
 
 class InterpretActionRequest(BaseModel):
     character_id: int
     action_text: str = Field(min_length=1, max_length=2000)
     magic_ability_id: Optional[str] = Field(default=None, max_length=80)
+    ability_id: Optional[str] = Field(default=None, max_length=80)
     intent: Optional[Literal["attack", "defend", "interact", "support", "other"]] = None
-    tested_stat: Optional[Literal["strength", "agility", "intellect", "charisma"]] = None
+    tested_stat: Optional[StatId] = None
     target_ref: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_ability_alias(self) -> "InterpretActionRequest":
+        if self.ability_id and self.magic_ability_id and self.ability_id != self.magic_ability_id:
+            raise ValueError("ability_id and magic_ability_id must identify the same ability")
+        return self
+
+    @property
+    def selected_ability_id(self) -> str | None:
+        return self.ability_id or self.magic_ability_id
 
 class ActionInterpretationResponse(BaseModel):
     intent: Literal["attack", "defend", "interact", "support", "other"]
-    tested_stat: Literal["strength", "agility", "intellect", "charisma"]
+    tested_stat: StatId
     intent_confidence: float
     stat_confidence: float
     reason: str
@@ -145,6 +175,7 @@ class PlayerActionDto(BaseModel):
     character_name: str
     action_text: str
     magic_ability_id: Optional[str] = None
+    ability_id: Optional[str] = None
     magic_ability: Optional[dict] = None
     intent: Optional[str] = None
     target_ref: Optional[str] = None
@@ -194,7 +225,7 @@ class NewItemSchema(BaseModel):
         )
     )
     item_type: Literal["weapon", "shield", "armor", "accessory", "consumable", "misc"]
-    target_stat: Literal["strength", "agility", "intellect", "charisma", "hp_max", "none"]
+    target_stat: Literal["strength", "agility", "intellect", "charisma", "perception", "hp_max", "none"]
     stat_bonus: int = Field(description="Bonus do statystyki lub wartość leczenia dla consumable")
     hands_required: int = Field(
         default=1,
@@ -275,8 +306,16 @@ class NamedLoreEntityDto(BaseModel):
 
 class SetupScenarioRequest(BaseModel):
     room_code: str = "kampania-1"
+    world_pack_id: Optional[str] = Field(default=None, max_length=80)
+    world_pack_version: Optional[int] = Field(default=None, ge=1)
     scenario_type: str = "Krasnoludzka Twierdza opanowana przez demony ognia"
     tone: Optional[str] = "Dark Fantasy, brutalne i tajemnicze"
+
+    @model_validator(mode="after")
+    def validate_world_reference(self) -> "SetupScenarioRequest":
+        if (self.world_pack_id is None) != (self.world_pack_version is None):
+            raise ValueError("world_pack_id and world_pack_version must be provided together")
+        return self
 
 class PrologueRequest(BaseModel):
     room_code: str = "kampania-1"
