@@ -27,6 +27,7 @@ class GameSession(Base):
     last_loot_character_id = Column(Integer, nullable=True)
     looted_location_ids = Column(JSON, default=list)
     crafting_available_until_turn = Column(Integer, nullable=False, default=0)
+    last_image_generated_at = Column(DateTime, nullable=True)
 
     pending_naming_category = Column(String(50), nullable=True)  # boss, location, weapon, attack
     pending_naming_prompt = Column(Text, nullable=True)

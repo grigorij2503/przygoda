@@ -690,10 +690,14 @@
 
                   <!-- Przycisk generowania ilustracji Imagen 3 -->
                   <div x-show="t.status === 'completed'">
-                  <template x-if="!t.image_url && !t.is_generating_image">
+                  <template x-if="!t.image_url && !t.is_generating_image && canGenerateImage()">
                     <button @click="generateImage(t.id)" class="text-xs font-fantasy bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-500/50 text-indigo-300 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-md">
                       <span>🎨</span> <span class="hidden sm:inline">Generuj ilustrację sceny</span>
                     </button>
+                  </template>
+                  <template x-if="!t.image_url && !t.is_generating_image && !canGenerateImage()">
+                    <span class="text-xs font-fantasy text-slate-400"
+                          x-text="imageGenerationAvailabilityLabel()"></span>
                   </template>
                   <template x-if="t.is_generating_image">
                     <div class="text-xs font-fantasy text-indigo-400 flex items-center gap-2 animate-pulse">

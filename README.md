@@ -25,6 +25,7 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
    - Po określonym czasie drużyna może zagłosować nad akcją zastępczą nieaktywnej postaci; gracz może ją nadpisać przed rozstrzygnięciem.
 4. **Ilustracje na Żądanie (Imagen 3):**
    - Przycisk *„🎨 Generuj ilustrację z tej tury”* przy każdej ukończonej turze.
+   - Każda kampania może wygenerować jedną ilustrację w ciągu dnia kalendarzowego; trwały, atomowo egzekwowany limit odnawia się o północy w strefie `Europe/Warsaw` i jest widoczny w interfejsie jako czas pozostały do kolejnej generacji.
    - Generowanie panoramicznych grafik 16:9 z podglądem pełnoekranowym (Lightbox).
    - Gotowy fallback na grafiki runiczne w trybie testowym bez klucza API.
 5. **Karta Postaci w Czasie Rzeczywistym:**
@@ -74,7 +75,7 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
 │   ├── __init__.py
 │   ├── config.py              # Konfiguracja Pydantic V2 i zmienne .env
 │   ├── database.py            # Asynchroniczny silnik SQLAlchemy (SQLite / aiosqlite)
-│   ├── models.py              # Modele ORM sesji, postaci, tur, nazwanych elementów świata, czatu, mapy, push i głosowań
+│   ├── models.py              # Modele ORM sesji (w tym limit ilustracji), postaci, tur, nazwanych elementów świata, czatu, mapy, push i głosowań
 │   ├── schemas.py             # Schematy Pydantic i Structured Output JSON dla Gemini
 │   ├── dice.py                # Serwerowe rzuty d20 i dedukcja atrybutów
 │   ├── combat.py              # Intencje, wsparcie celowane, agonia/śmierć, bossowie i statusy
@@ -107,7 +108,7 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
 ├── data/                      # Katalog na plik bazy SQLite (w Dockerze)
 ├── Dockerfile                 # Zoptymalizowany obraz produkcyjny Python 3.12-slim
 ├── docker-compose.yml         # Konfiguracja uruchomieniowa kontenera
-├── requirements.txt           # Zależności Python
+├── requirements.txt           # Zależności Python, w tym dane stref czasowych dla limitu ilustracji
 ├── .env.example               # Wzór pliku środowiskowego
 └── README.md                  # Dokumentacja techniczna
 ```

@@ -2025,12 +2025,30 @@ document.addEventListener('alpine:init', () => {
           if (this.session) {
             const t = this.session.turns.find(x => x.id === msg.turn_id);
             if (t) t.is_generating_image = true;
+            this.session.image_generation = {
+              ...(this.session.image_generation || {}),
+              can_generate: false,
+              next_available_at: msg.next_available_at
+            };
           }
           break;
 
         case 'IMAGE_READY':
           this.addToast(`Ilustracja do Tury #${msg.turn_id} jest gotowa!`, 'success');
           await this.fetchSession();
+          break;
+
+        case 'IMAGE_GENERATION_FAILED':
+          if (this.session) {
+            const t = this.session.turns.find(x => x.id === msg.turn_id);
+            if (t) t.is_generating_image = false;
+            this.session.image_generation = {
+              ...(this.session.image_generation || {}),
+              can_generate: true,
+              last_generated_at: null,
+              next_available_at: null
+            };
+          }
           break;
 
         case 'CHARACTER_CREATED':
@@ -2737,6 +2755,24 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
+    canGenerateImage() {
+      const limit = this.session?.image_generation;
+      if (!limit || limit.can_generate) return true;
+      const nextAvailable = Date.parse(limit.next_available_at);
+      return Number.isFinite(nextAvailable) && nextAvailable <= this.proxyNow;
+    },
+
+    imageGenerationAvailabilityLabel() {
+      const nextAvailable = Date.parse(this.session?.image_generation?.next_available_at);
+      if (!Number.isFinite(nextAvailable)) return 'Dzienny limit ilustracji został wykorzystany';
+      const remainingMinutes = Math.max(1, Math.ceil((nextAvailable - this.proxyNow) / 60000));
+      const hours = Math.floor(remainingMinutes / 60);
+      const minutes = remainingMinutes % 60;
+      if (!hours) return `Ilustracja dostępna za ${minutes} min`;
+      if (!minutes) return `Ilustracja dostępna za ${hours} godz.`;
+      return `Ilustracja dostępna za ${hours} godz. ${minutes} min`;
+    },
+
     // --- Generowanie Obrazu na Żądanie (Imagen 3) ---
     async generateImage(turnId) {
       try {
@@ -2751,12 +2787,23 @@ document.addEventListener('alpine:init', () => {
         });
         if (!res.ok) {
           const err = await res.json();
-          throw new Error(err.detail || 'Błąd generowania obrazu');
+          if (res.status === 429 && err.detail?.next_available_at && this.session) {
+            this.session.image_generation = {
+              ...(this.session.image_generation || {}),
+              can_generate: false,
+              next_available_at: err.detail.next_available_at
+            };
+          }
+          throw new Error(err.detail?.message || err.detail || 'Błąd generowania obrazu');
         }
         const data = await res.json();
         if (turn) {
           turn.image_url = data.image_url;
           turn.is_generating_image = false;
+        }
+        if (this.session?.image_generation && data.next_available_at) {
+          this.session.image_generation.can_generate = false;
+          this.session.image_generation.next_available_at = data.next_available_at;
         }
         this.addToast('Ilustracja wygenerowana!', 'success');
       } catch (err) {

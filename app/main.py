@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo
 
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -121,6 +122,7 @@ MAX_BASE_ATTRIBUTE = 12
 CHAT_HISTORY_LIMIT = 50
 PROXY_ACTION_WAIT = timedelta(hours=max(0.0, settings.PROXY_ACTION_WAIT_HOURS))
 PROXY_ACTION_VOTE_WINDOW = timedelta(hours=max(0.05, settings.PROXY_ACTION_VOTE_HOURS))
+IMAGE_GENERATION_TIMEZONE = ZoneInfo("Europe/Warsaw")
 GM_SESSION_COOKIE = "ttrpg_gm_session"
 GM_SESSION_TTL_SECONDS = 8 * 60 * 60
 GM_UNLOCK_MAX_ATTEMPTS = 5
@@ -157,6 +159,17 @@ def as_utc(value: datetime | None) -> datetime | None:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
+
+
+def image_generation_day_bounds(now: datetime) -> tuple[datetime, datetime]:
+    """Zwraca granice bieżącego dnia w Polsce jako znaczniki UTC."""
+    local_now = (as_utc(now) or now).astimezone(IMAGE_GENERATION_TIMEZONE)
+    local_day_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    local_next_day_start = local_day_start + timedelta(days=1)
+    return (
+        local_day_start.astimezone(timezone.utc),
+        local_next_day_start.astimezone(timezone.utc),
+    )
 
 
 def build_proxy_action_options(session: GameSession, target: Character) -> list[dict]:
@@ -1036,6 +1049,12 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
         (as_utc(current_turn.created_at) or now) + PROXY_ACTION_WAIT
         if current_turn else None
     )
+    last_image_generated_at = as_utc(game_session.last_image_generated_at)
+    image_day_start, next_image_day_start = image_generation_day_bounds(now)
+    image_generated_today = bool(
+        last_image_generated_at and last_image_generated_at >= image_day_start
+    )
+    next_image_available_at = next_image_day_start if image_generated_today else None
 
     characters_dto = []
     for c in game_session.characters:
@@ -1176,6 +1195,15 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
         "current_turn_number": game_session.current_turn_number,
         "is_turn_resolving": game_session.is_turn_resolving,
         "server_time": now.isoformat(),
+        "image_generation": {
+            "can_generate": not image_generated_today,
+            "last_generated_at": (
+                last_image_generated_at.isoformat() if last_image_generated_at else None
+            ),
+            "next_available_at": (
+                next_image_available_at.isoformat() if next_image_available_at else None
+            ),
+        },
         "proxy_action_config": {
             "wait_hours": settings.PROXY_ACTION_WAIT_HOURS,
             "vote_hours": settings.PROXY_ACTION_VOTE_HOURS,
@@ -2752,14 +2780,44 @@ async def generate_turn_image(payload: GenerateImageRequest, db: AsyncSession = 
     if turn.is_generating_image:
         return {"success": True, "message": "Generowanie już trwa"}
 
+    reservation_time = datetime.now(timezone.utc)
+    image_day_start, next_image_day_start = image_generation_day_bounds(reservation_time)
+    reservation = await db.execute(
+        update(GameSession)
+        .where(
+            GameSession.id == turn.session_id,
+            (
+                GameSession.last_image_generated_at.is_(None)
+                | (GameSession.last_image_generated_at < image_day_start)
+            ),
+        )
+        .values(last_image_generated_at=reservation_time)
+    )
+    if reservation.rowcount != 1:
+        next_available = next_image_day_start
+        retry_after = max(
+            1,
+            int((next_available - reservation_time).total_seconds()) + 1,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "message": "W tej kampanii można wygenerować tylko jedną ilustrację dziennie.",
+                "next_available_at": next_available.isoformat(),
+            },
+            headers={"Retry-After": str(retry_after)},
+        )
+
     prompt = turn.image_prompt or "Dark fantasy painting of dungeon adventurers"
     turn.is_generating_image = True
     await db.commit()
+    reserved_until = next_image_day_start
 
     # Powiadom o rozpoczęciu generowania obrazu
     await ws_manager.broadcast_to_session(turn.session_id, {
         "type": "IMAGE_GENERATING",
-        "turn_id": turn.id
+        "turn_id": turn.id,
+        "next_available_at": reserved_until.isoformat(),
     })
 
     # Wygeneruj obraz asynchronicznie
@@ -2768,17 +2826,35 @@ async def generate_turn_image(payload: GenerateImageRequest, db: AsyncSession = 
         turn.image_url = image_url
         turn.is_generating_image = False
         await db.commit()
+        next_available = next_image_day_start
 
         # Powiadom graczy, że obraz jest gotowy
         await ws_manager.broadcast_to_session(turn.session_id, {
             "type": "IMAGE_READY",
             "turn_id": turn.id,
-            "image_url": image_url
+            "image_url": image_url,
+            "next_available_at": next_available.isoformat(),
         })
-        return {"success": True, "image_url": image_url}
+        return {
+            "success": True,
+            "image_url": image_url,
+            "next_available_at": next_available.isoformat(),
+        }
     except Exception as e:
         turn.is_generating_image = False
+        await db.execute(
+            update(GameSession)
+            .where(
+                GameSession.id == turn.session_id,
+                GameSession.last_image_generated_at == reservation_time,
+            )
+            .values(last_image_generated_at=None)
+        )
         await db.commit()
+        await ws_manager.broadcast_to_session(turn.session_id, {
+            "type": "IMAGE_GENERATION_FAILED",
+            "turn_id": turn.id,
+        })
         raise HTTPException(status_code=500, detail=f"Błąd generowania obrazu: {e}")
 
 # --- WebSocket Endpoint ---

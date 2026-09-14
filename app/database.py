@@ -46,6 +46,7 @@ async def init_db():
             ("game_sessions", "last_loot_character_id", "INTEGER"),
             ("game_sessions", "looted_location_ids", "JSON"),
             ("game_sessions", "crafting_available_until_turn", "INTEGER NOT NULL DEFAULT 0"),
+            ("game_sessions", "last_image_generated_at", "DATETIME"),
             ("game_sessions", "pending_naming_category", "VARCHAR(50)"),
             ("game_sessions", "pending_naming_prompt", "TEXT"),
             ("game_sessions", "pending_naming_character_id", "INTEGER"),
