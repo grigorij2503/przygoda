@@ -18,17 +18,22 @@ powinna pochodzić z wersjonowanego `WorldPack`.
 
 ## Backend i mechanika
 
+Po etapie 2 `app/main.py` nie zawiera już zależności od konkretnego świata. Składa
+aplikację i rejestruje routery, natomiast istniejące hardkody zostały przeniesione
+bez zmiany zachowania do poniższych serwisów. Ich ekstrakcja do `WorldPack`
+pozostaje zakresem etapów 4-6.
+
 | Plik / obszar | Zależności od Dark Fantasy | Kierunek ekstrakcji |
 |---|---|---|
-| `app/main.py` lifespan | krypta, szkielety, miecze, fantasy image prompt | domyślna kampania z `dark_fantasy@1` |
-| `app/main.py` proxy actions | boss, atak i obrona opisane fantasy | neutralne szablony lub szybkie akcje pakietu |
-| `app/main.py` item claims | miecz, tarcza, topór, łuk, kostur itd. | `item_vocabulary` pakietu |
-| `app/main.py` character creation | klasy rozpoznawane po fragmentach nazw i startery | `classes[].starter_items` |
-| `app/main.py` session DTO | `magic_book` i `active_boss` | adapter plus `ability_book` i terminologia świata |
-| `app/main.py` reset/setup | Dark Fantasy i karczma | wybór i inicjalizacja pakietu |
-| `app/main.py` naming | broń jako domyślna nagroda | profil kroniki i przedmiotów |
-| `app/main.py` turn resolution | magic ability i boss event types | ogólna zdolność i role encounter |
-| `app/main.py` images | fallback Dark Fantasy | `image_art_direction` |
+| `app/services/runtime.py` lifespan | krypta, szkielety, miecze, fantasy image prompt | domyślna kampania z `dark_fantasy@1` |
+| `app/services/runtime.py` proxy actions | boss, atak i obrona opisane fantasy | neutralne szablony lub szybkie akcje pakietu |
+| `app/services/runtime.py` item claims | miecz, tarcza, topór, łuk, kostur itd. | `item_vocabulary` pakietu |
+| `app/services/character_service.py` tworzenie postaci | klasy rozpoznawane po fragmentach nazw i startery | `classes[].starter_items` |
+| `app/services/session_service.py` DTO sesji | `magic_book` i `active_boss` | adapter plus `ability_book` i terminologia świata |
+| `app/services/session_service.py` reset/setup | Dark Fantasy i karczma | wybór i inicjalizacja pakietu |
+| `app/services/session_service.py` naming | broń jako domyślna nagroda | profil kroniki i przedmiotów |
+| `app/services/turn_service.py` rozstrzyganie | magic ability i boss event types | ogólna zdolność i role encounter |
+| `app/services/image_service.py` ilustracje | fallback Dark Fantasy | `image_art_direction` |
 | `app/magic.py` | Czarodziej, Kleryk, księgi i polskie aliasy magii | ogólny katalog zdolności pakietu |
 | `app/combat.py` | boss, fantasy statusy, specjalne Wskrzeszenie | silnik encounter oraz rejestr efektów zdolności |
 | `app/dice.py` | słowa miecz, topór, łuk, magia, modlitwa | wspólny rdzeń plus słowniki pakietu |

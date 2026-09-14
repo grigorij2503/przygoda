@@ -21,6 +21,16 @@ from app.models import CampaignMap, Character, GameSession
 CONTRACT_PATH = Path(__file__).parent / "fixtures" / "dark_fantasy_v1_contract.json"
 
 
+def iter_registered_routes(routes):
+    """Flatten FastAPI's lazy included routers without depending on private types."""
+    for route in routes:
+        included_router = getattr(route, "original_router", None)
+        if included_router is not None:
+            yield from iter_registered_routes(included_router.routes)
+        else:
+            yield route
+
+
 @pytest.fixture(scope="module")
 def dark_fantasy_contract() -> dict:
     return json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
@@ -65,7 +75,7 @@ def test_public_route_table_matches_current_contract(dark_fantasy_contract):
     actual_websocket_routes = []
     static_public_paths = {"/", "/favicon.ico", "/manifest.json", "/sw.js"}
 
-    for route in app.routes:
+    for route in iter_registered_routes(app.routes):
         if (
             isinstance(route, APIRoute)
             and (route.path.startswith("/api/") or route.path in static_public_paths)

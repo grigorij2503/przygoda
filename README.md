@@ -88,7 +88,16 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
 │   ├── push_service.py        # Wysyłanie powiadomień Web Push
 │   ├── generate_vapid_keys.py # Generator kluczy VAPID
 │   ├── websocket_manager.py   # Menedżer WebSockets i broadcast zdarzeń
-│   ├── main.py                # Aplikacja FastAPI, routing REST, cykl tury, WebSockets
+│   ├── main.py                # Składanie FastAPI, middleware, mounty i rejestracja routerów
+│   ├── api/
+│   │   └── routers/           # Routery UI, auth, push, admin, sesji, postaci, tur, akcji, ilustracji i czatu
+│   ├── services/
+│   │   ├── runtime.py         # Wspólne reguły pomocnicze, inicjalizacja i lifespan
+│   │   ├── session_service.py # Odczyt, konfiguracja, reset i prolog kampanii
+│   │   ├── character_service.py # Postacie, gotowość, rozwój, notatki i ekwipunek
+│   │   ├── turn_service.py    # Interpretacja akcji i rozstrzyganie tur
+│   │   ├── chat_service.py    # Trwały czat i obsługa WebSocket
+│   │   └── image_service.py   # Generowanie ilustracji oraz limit kampanii
 │   ├── static/
 │   │   ├── css/style.css      # Style Dark Fantasy, dostępność i responsywny interfejs
 │   │   ├── js/app.js          # Alpine.js, WebSockets, kategoryzowana kronika, mapa i obsługa modali
@@ -292,6 +301,7 @@ python -m pytest tests/ -v
 Zakres testów:
 - `tests/test_current_world_contract.py`:
   - Chroni publiczną tabelę tras HTTP i WebSocket oraz nazwy zdarzeń czasu rzeczywistego przed przypadkową zmianą podczas modularizacji.
+  - Rozwija routery dołączane leniwie przez FastAPI, dzięki czemu porównuje faktyczne endpointy z niezmienioną fixture również po podziale backendu.
   - Utrwala obecne klasy, startowy ekwipunek, księgi Czarodzieja i Kleryka, profil mapy Dark Fantasy, kształt odpowiedzi sesji i kluczowe elementy renderowanego UI.
   - Korzysta z fixture `tests/fixtures/dark_fantasy_v1_contract.json`, która jest punktem odniesienia dla przyszłego pakietu `dark_fantasy@1`.
 - `tests/test_combat.py`:
@@ -319,7 +329,11 @@ Zakres testów:
 
 Rozwój w kierunku kampanii cyberpunkowych, pirackich, pustynnych, historyczno-okultystycznych, słowiańskich, wikińskich, westernowych, space-grimdark, infernalnych i pastoralnych jest podzielony na niezależnie odbierane etapy. Pełny plan znajduje się w [`docs/WORLD_PACK_ROADMAP.md`](docs/WORLD_PACK_ROADMAP.md), decyzja architektoniczna w [`docs/adr/0001-versioned-world-packs.md`](docs/adr/0001-versioned-world-packs.md), a aktualne sprzężenia fantasy w [`docs/WORLD_DEPENDENCY_INVENTORY.md`](docs/WORLD_DEPENDENCY_INVENTORY.md).
 
-Etap 1 został zakończony jako warstwa bezpieczeństwa i dokumentacja. Nie dodaje jeszcze wyboru świata ani nie zmienia zachowania aplikacji. Utrwala aktualną kampanię jako kontrakt `dark_fantasy_v1`, aby kolejne etapy mogły najpierw podzielić backend i frontend, a następnie przenieść zawartość do wersjonowanych pakietów.
+Etapy 1 i 2 są zakończone. Kontrakt `dark_fantasy_v1` utrwala obecną rozgrywkę,
+a backend został rozdzielony na routery i serwisy domenowe. `app/main.py` odpowiada
+teraz wyłącznie za złożenie aplikacji; wybór świata i zachowanie runtime nadal
+pozostają bez zmian. Następny etap, uruchamiany dopiero po ręcznym odbiorze, dzieli
+Alpine, Jinja i CSS.
 
 Docelowy ruleset będzie używać pięciu kanonicznych atrybutów: Siły, Zręczności, Intelektu, Charyzmy i Percepcji. Percepcja zostanie dodana addytywnie w etapie 5; istniejące postacie otrzymają wartość `0` bez zmiany pozostałych cech, HP, XP i poziomu. Roadmapa zawiera przy każdym etapie osobną checklistę ręcznego odbioru po lokalnym zbudowaniu aplikacji oraz instrukcję użycia izolowanej bazy `manual_review.db`.
 

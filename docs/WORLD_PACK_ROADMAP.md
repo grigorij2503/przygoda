@@ -140,13 +140,18 @@ stół, mapa, ekwipunek, księga zdolności i czat powinny wyglądać identyczni
 
 ### Etap 2 - modularizacja backendu
 
-Status: oczekuje na akceptację rozpoczęcia.
+Status: zakończony 2026-09-14.
 
 - utworzenie routerów: auth, admin, sessions, characters, actions, turns, chat,
   images i push;
 - utworzenie serwisów sesji, postaci, tur, czatu i ilustracji;
-- pozostawienie w `main.py` składania aplikacji, lifespan i rejestracji routerów;
+- pozostawienie w `main.py` składania aplikacji oraz konfiguracji lifespan i
+  rejestracji routerów;
 - zachowanie adresów, kodów HTTP, formatów odpowiedzi i zdarzeń WebSocket.
+
+Implementacja zachowuje 59 dotychczasowych funkcji bez zmiany ich ciał. Fixture
+`dark_fantasy_v1_contract.json` nie została zmieniona; test tabeli tras obsługuje
+routery dołączane leniwie przez nowsze wersje FastAPI.
 
 Kryterium zakończenia: publiczna tabela tras i payloady są zgodne z fixture
 etapu 1, a `main.py` nie zawiera logiki poszczególnych obszarów funkcjonalnych.
@@ -157,6 +162,8 @@ wysłać wiadomość czatu, otworzyć mapę, notatkę i ekwipunek. Po odświeże
 ma pozostać zapisany, a interfejs nie może zgłaszać błędu tury ani rozłączenia.
 
 ### Etap 3 - modularizacja Alpine, Jinja i CSS
+
+Status: oczekuje na akceptację rozpoczęcia.
 
 - podział HTML na bramę, lobby, stół, historię, panel akcji, postać, ekwipunek,
   czat, mapę i modale;

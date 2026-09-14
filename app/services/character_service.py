@@ -1,0 +1,319 @@
+from fastapi import Depends, HTTPException
+from sqlalchemy import delete, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_db
+from app.inventory import EQUIPMENT_SLOT_LIMITS, equipment_slot_group, hands_used
+from app.models import Character, GameSession, InventoryItem, WebPushSubscription
+from app.schemas import (
+    CreateCharacterRequest,
+    SpendStatPointRequest,
+    UpdatePersonalNoteRequest,
+)
+from app.services.runtime import MAX_BASE_ATTRIBUTE
+from app.websocket_manager import ws_manager
+
+
+async def toggle_character_ready(character_id: int, db: AsyncSession = Depends(get_db)):
+    stmt = select(Character).where(Character.id == character_id)
+    char = (await db.execute(stmt)).scalar_one_or_none()
+    if not char:
+        raise HTTPException(status_code=404, detail="Postać nie została znaleziona")
+
+    char.is_ready = not bool(char.is_ready)
+    await db.commit()
+
+    await ws_manager.broadcast_to_session(char.session_id, {
+        "type": "CHARACTER_READY_TOGGLED",
+        "character_id": char.id,
+        "character_name": char.name,
+        "is_ready": char.is_ready
+    })
+
+    return {"success": True, "character_id": char.id, "is_ready": char.is_ready}
+
+async def create_character(
+    payload: CreateCharacterRequest,
+    room_code: str = "kampania-1",
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(GameSession).where(GameSession.room_code == room_code)
+    res = await db.execute(stmt)
+    session = res.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Sesja nie istnieje")
+
+    # Walidacja sumy punktów (np. 4 punkty do rozdania)
+    total_stats = payload.strength + payload.agility + payload.intellect + payload.charisma
+    if total_stats > 5:
+        raise HTTPException(status_code=400, detail="Maksymalna suma punktów atrybutów to 4 lub 5")
+
+    max_hp = 20 + (payload.strength * 5)
+    char = Character(
+        session_id=session.id,
+        player_name=payload.player_name.strip(),
+        name=payload.name.strip(),
+        character_class=payload.character_class.strip(),
+        level=1,
+        xp=0,
+        current_hp=max_hp,
+        max_hp=max_hp,
+        strength=payload.strength,
+        agility=payload.agility,
+        intellect=payload.intellect,
+        charisma=payload.charisma,
+        is_alive=True,
+        death_state="alive",
+        death_failures=0,
+        is_ready=False,
+    )
+    db.add(char)
+    await db.commit()
+    await db.refresh(char)
+
+    # Przyznaj startowy ekwipunek na podstawie klasy
+    starter_items = []
+    cls_lower = payload.character_class.lower()
+    if "woj" in cls_lower or "rycerz" in cls_lower:
+        starter_items.append(InventoryItem(character_id=char.id, name="Krasnoludzki Miecz", description="Pewnie leży w dłoni i dodaje siły każdemu cięciu", item_type="weapon", target_stat="strength", stat_bonus=1, is_equipped=True))
+        starter_items.append(InventoryItem(character_id=char.id, name="Skórzana Zbroja", description="Chroni przed tym, co miało tylko drasnąć", item_type="armor", target_stat="strength", stat_bonus=1, is_equipped=True))
+    elif "łot" in cls_lower or "zabójc" in cls_lower or "złodziej" in cls_lower:
+        starter_items.append(InventoryItem(character_id=char.id, name="Zatruty Sztylet", description="Ciche ostrze do szybkich i precyzyjnych ataków", item_type="weapon", target_stat="agility", stat_bonus=1, is_equipped=True))
+        starter_items.append(InventoryItem(character_id=char.id, name="Wytrychy Mistrza", description="Otwierają zamki, które miały pozostać zamknięte", item_type="accessory", target_stat="agility", stat_bonus=1, is_equipped=True))
+    elif "mag" in cls_lower or "czaro" in cls_lower:
+        starter_items.append(InventoryItem(character_id=char.id, name="Runiczny Kostur", description="Skupia magię i pomaga odczytać najciemniejsze runy", item_type="weapon", target_stat="intellect", stat_bonus=1, hands_required=2, is_equipped=True))
+        starter_items.append(InventoryItem(character_id=char.id, name="Amulet Ognia", description="Podsyca zaklęcia i odwagę właściciela", item_type="accessory", target_stat="intellect", stat_bonus=1, is_equipped=True))
+    else:  # Kleryk / klasa zgodna z tym archetypem
+        starter_items.append(InventoryItem(character_id=char.id, name="Srebrzysta Buława", description="Dodaje powagi modlitwom i ciężaru uderzeniom", item_type="weapon", target_stat="strength", stat_bonus=1, is_equipped=True))
+        starter_items.append(InventoryItem(character_id=char.id, name="Sygnet Wiary", description="Wzmacnia głos kleryka podczas modlitw i świętych obrzędów", item_type="accessory", target_stat="charisma", stat_bonus=1, is_equipped=True))
+
+    # Każdy dostaje miksturę leczenia
+    starter_items.append(InventoryItem(character_id=char.id, name="Mikstura Lecznicza", description="Odnawia 10 punktów życia", item_type="consumable", target_stat="none", stat_bonus=10, is_equipped=False))
+
+    for it in starter_items:
+        db.add(it)
+    await db.commit()
+
+    # Powiadom innych graczy przez WebSocket
+    await ws_manager.broadcast_to_session(session.id, {
+        "type": "CHARACTER_CREATED",
+        "character": {
+            "id": char.id,
+            "name": char.name,
+            "player_name": char.player_name,
+            "character_class": char.character_class,
+        }
+    })
+
+    return {"success": True, "character_id": char.id}
+
+async def spend_stat_point(
+    char_id: int,
+    payload: SpendStatPointRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(Character).where(Character.id == char_id)
+    char = (await db.execute(stmt)).scalar_one_or_none()
+    if not char:
+        raise HTTPException(status_code=404, detail="Postać nie istnieje")
+
+    stat_column = getattr(Character, payload.stat)
+    if getattr(char, payload.stat) >= MAX_BASE_ATTRIBUTE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Atrybut osiągnął maksymalną wartość +{MAX_BASE_ATTRIBUTE}",
+        )
+
+    update_stmt = (
+        update(Character)
+        .where(
+            Character.id == char_id,
+            Character.unspent_stat_points > 0,
+            stat_column < MAX_BASE_ATTRIBUTE,
+        )
+        .values({
+            stat_column: stat_column + 1,
+            Character.unspent_stat_points: Character.unspent_stat_points - 1,
+        })
+    )
+    result = await db.execute(update_stmt)
+    if result.rowcount != 1:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail="Postać nie ma punktów atrybutów do rozdania")
+
+    await db.commit()
+    await db.refresh(char)
+
+    await ws_manager.broadcast_to_session(char.session_id, {
+        "type": "STAT_POINT_SPENT",
+        "character_id": char.id,
+        "character_name": char.name,
+        "stat": payload.stat,
+        "stat_value": getattr(char, payload.stat),
+        "unspent_stat_points": char.unspent_stat_points,
+    })
+
+    return {
+        "success": True,
+        "stat": payload.stat,
+        "stat_value": getattr(char, payload.stat),
+        "unspent_stat_points": char.unspent_stat_points,
+    }
+
+async def delete_character(char_id: int, db: AsyncSession = Depends(get_db)):
+    stmt = select(Character).where(Character.id == char_id)
+    res = await db.execute(stmt)
+    char = res.scalar_one_or_none()
+    if not char:
+        raise HTTPException(status_code=404, detail="Postać nie istnieje")
+
+    session_id = char.session_id
+    char_name = char.name
+
+    # Usuń dane zależne również w SQLite bez włączonego ON DELETE CASCADE.
+    await db.execute(delete(InventoryItem).where(InventoryItem.character_id == char_id))
+    await db.execute(
+        delete(WebPushSubscription).where(WebPushSubscription.character_id == char_id)
+    )
+
+    # Usuń postać
+    await db.delete(char)
+    await db.commit()
+
+    # Powiadom innych graczy
+    await ws_manager.broadcast_to_session(session_id, {
+        "type": "CHARACTER_DELETED",
+        "character_id": char_id,
+        "character_name": char_name,
+    })
+
+    return {"success": True, "message": f"Postać {char_name} została usunięta"}
+
+async def get_personal_note(char_id: int, db: AsyncSession = Depends(get_db)):
+    stmt = select(Character).where(Character.id == char_id)
+    res = await db.execute(stmt)
+    char = res.scalar_one_or_none()
+    if not char:
+        raise HTTPException(status_code=404, detail="Postać nie istnieje")
+
+    return {"content": char.personal_note or ""}
+
+async def update_personal_note(
+    char_id: int,
+    payload: UpdatePersonalNoteRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(Character).where(Character.id == char_id)
+    res = await db.execute(stmt)
+    char = res.scalar_one_or_none()
+    if not char:
+        raise HTTPException(status_code=404, detail="Postać nie istnieje")
+
+    char.personal_note = payload.content
+    await db.commit()
+    return {"success": True, "content": char.personal_note}
+
+async def toggle_equip_item(char_id: int, item_id: int, db: AsyncSession = Depends(get_db)):
+    stmt = select(InventoryItem).where(InventoryItem.id == item_id, InventoryItem.character_id == char_id)
+    res = await db.execute(stmt)
+    item = res.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status_code=404, detail="Przedmiot nie znaleziony")
+
+    slot_group = equipment_slot_group(item.item_type)
+    if slot_group is None:
+        raise HTTPException(status_code=400, detail="Przedmiotów zużywalnych nie zakłada się w slotach")
+
+    replaced_item_names = []
+    if item.is_equipped:
+        item.is_equipped = False
+    else:
+        equipped_items = (
+            await db.execute(
+                select(InventoryItem).where(
+                    InventoryItem.character_id == char_id,
+                    InventoryItem.is_equipped.is_(True),
+                )
+            )
+        ).scalars().all()
+
+        items_in_slot = [
+            equipped
+            for equipped in equipped_items
+            if equipment_slot_group(equipped.item_type) == slot_group
+        ]
+        if slot_group == "active" and len(items_in_slot) >= EQUIPMENT_SLOT_LIMITS[slot_group]:
+            raise HTTPException(
+                status_code=400,
+                detail="Wszystkie 5 slotów aktywnych przedmiotów jest zajętych. Najpierw zdejmij jeden z nich.",
+            )
+
+        if slot_group == "armor":
+            for equipped in items_in_slot:
+                equipped.is_equipped = False
+                replaced_item_names.append(equipped.name)
+
+        if slot_group == "hands":
+            required_hands = hands_used(item)
+            two_handed_items = [equipped for equipped in items_in_slot if hands_used(equipped) == 2]
+            equipped_shields = [equipped for equipped in items_in_slot if equipped.item_type == "shield"]
+
+            if required_hands == 2:
+                for equipped in items_in_slot:
+                    equipped.is_equipped = False
+                    replaced_item_names.append(equipped.name)
+            elif two_handed_items:
+                for equipped in two_handed_items:
+                    equipped.is_equipped = False
+                    replaced_item_names.append(equipped.name)
+            elif item.item_type == "shield" and equipped_shields:
+                for equipped in equipped_shields:
+                    equipped.is_equipped = False
+                    replaced_item_names.append(equipped.name)
+            elif sum(hands_used(equipped) for equipped in items_in_slot) >= EQUIPMENT_SLOT_LIMITS[slot_group]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Obie dłonie są zajęte. Najpierw odłóż jedną z broni albo tarczę.",
+                )
+
+        item.is_equipped = True
+
+    await db.commit()
+    return {
+        "success": True,
+        "item_name": item.name,
+        "is_equipped": item.is_equipped,
+        "slot_group": slot_group,
+        "replaced_item_names": replaced_item_names,
+    }
+
+async def use_consumable_item(char_id: int, item_id: int, db: AsyncSession = Depends(get_db)):
+    c_stmt = select(Character).where(Character.id == char_id)
+    c_res = await db.execute(c_stmt)
+    char = c_res.scalar_one_or_none()
+
+    i_stmt = select(InventoryItem).where(InventoryItem.id == item_id, InventoryItem.character_id == char_id)
+    i_res = await db.execute(i_stmt)
+    item = i_res.scalar_one_or_none()
+
+    if not char or not item:
+        raise HTTPException(status_code=404, detail="Nie znaleziono postaci lub przedmiotu")
+
+    if item.item_type != "consumable":
+        raise HTTPException(status_code=400, detail="Ten przedmiot nie jest zdatny do spożycia/użycia")
+    if not char.is_alive:
+        raise HTTPException(status_code=400, detail="Nieprzytomna lub martwa postać nie może używać przedmiotów.")
+
+    # Ulecz
+    heal_amount = item.stat_bonus or 10
+    char.current_hp = min(char.max_hp, char.current_hp + heal_amount)
+
+    # Zmniejsz ilość lub usuń
+    if item.quantity > 1:
+        item.quantity -= 1
+    else:
+        await db.delete(item)
+
+    await db.commit()
+    return {"success": True, "new_hp": char.current_hp, "healed_by": heal_amount}
+
