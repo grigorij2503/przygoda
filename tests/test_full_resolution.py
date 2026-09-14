@@ -45,10 +45,11 @@ async def test_full_turn_resolution_and_level_up():
                 pytest.skip("Brak aktywnej tury – uruchom testy w izolacji lub zresetuj DB")
 
             # Złóż akcję
-            await ac.post("/api/actions", json={
+            action_res = await ac.post("/api/actions", json={
                 "character_id": char_id,
-                "action_text": "Zasłaniam się tarczą i tnę mieczem wroga."
+                "action_text": "Tnę mieczem wroga i utrzymuję mocną pozycję."
             })
+            assert action_res.status_code == 200
 
             # Bezpośrednio wywołaj resolve_turn_background
             await resolve_turn_background(session_id, current_turn.id)

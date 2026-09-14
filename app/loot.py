@@ -212,8 +212,9 @@ def resolve_inventory_mechanics(
         crafted = _build_crafted_item(character, sources)
         resolution.new_items.append(crafted)
         for source in sources:
-            if source.quantity > 1:
-                source.quantity -= 1
+            source_quantity = int(source.quantity or 1)
+            if source_quantity > 1:
+                source.quantity = source_quantity - 1
             else:
                 resolution.consumed_items.append(source)
         resolution.events.append({

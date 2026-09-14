@@ -35,6 +35,9 @@ async def setup_app_lifespan():
                     db.add(turn1)
                 else:
                     turn1.status = "waiting_for_actions"
+                    turn1.resolved_at = None
+                    turn1.mechanics_resolved_at = None
+                    turn1.combat_events = []
                 await db.commit()
             break
         yield

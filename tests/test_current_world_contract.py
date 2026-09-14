@@ -141,7 +141,10 @@ def test_current_map_profile_matches_contract(dark_fantasy_contract):
     assert GENERATOR_VERSION == map_contract["generator_version"]
     assert layout["start_node_id"] == map_contract["start_node_id"]
     assert layout["nodes"][0]["name"] == map_contract["start_name"]
-    assert layout["nodes"][-1]["name"] == map_contract["finale_name"]
+    final_node = next(
+        node for node in layout["nodes"] if node["id"] == layout["final_node_id"]
+    )
+    assert final_node["name"] == map_contract["finale_name"]
 
     campaign_map = CampaignMap(
         seed=3078,

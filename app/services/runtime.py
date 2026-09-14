@@ -151,6 +151,7 @@ ITEM_CLAIM_VERBS = (
     "strzal", "cios", "celuj", "tnij", "tne", "siek", "pchn", "kluj",
     "rzuc", "uderz", "rani", "zabij", "dobij",
 )
+POLISH_CHAR_TRANSLATION = str.maketrans("ąćęłńóśźż", "acelnoszz")
 
 
 def as_utc(value: datetime | None) -> datetime | None:
@@ -581,6 +582,7 @@ def get_xp_progress(level: int, xp: int) -> dict:
 
 def normalize_game_text(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", (value or "").casefold())
+    normalized = normalized.translate(POLISH_CHAR_TRANSLATION)
     return "".join(character for character in normalized if not unicodedata.combining(character))
 
 

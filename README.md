@@ -59,6 +59,7 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
     - Łup z przeszukiwania lokacji i wspólna nagroda po pokonaniu bossa.
     - Typy, rzadkość, obrażenia, zajęte ręce i limity wyposażenia są egzekwowane przez backend.
     - Crafting zużywa trzy zgodne przedmioty i jest dostępny przez jedną turę po pokonaniu bossa.
+    - Deklaracja użycia konkretnego wyposażenia jest walidowana również dla polskich znaków, np. „łuk”; niezapisane jeszcze przedmioty zachowują domyślną ilość jednej sztuki podczas rozliczania craftingu.
 12. **Narzędzia Społecznościowe i MG:**
     - Trwały czat drużyny, wzmianki, osobiste notatki oraz wspólne nadawanie nazw elementom świata.
     - Kronika Świata automatycznie porządkuje nazwane odkrycia w działach: bossowie, miejsca, napotkani NPC, oręż i artefakty oraz ataki drużynowe; Gemini może wskazać napotkanego NPC do nazwania przez gracza.
@@ -309,8 +310,9 @@ Zakres testów:
   - Utrwala obecne klasy, startowy ekwipunek, księgi Czarodzieja i Kleryka, profil mapy Dark Fantasy, kształt odpowiedzi sesji i kluczowe elementy renderowanego UI.
   - Korzysta z fixture `tests/fixtures/dark_fantasy_v1_contract.json`, która jest punktem odniesienia dla przyszłego pakietu `dark_fantasy@1`.
   - Sprawdza kluczowe markery UI już po złożeniu wszystkich partiali Jinja.
+  - Lokalizuje finał mapy przez stabilne `final_node_id`, niezależnie od kolejności dopisanych odnóg.
 - `tests/test_combat.py`:
-  - Rozpoznawanie dominującej intencji, w tym zdań zawierających mylące przysłowia lub wzmianki o innym typie akcji, skalowanie bossów, obrażenia, efekty statusu oraz walidacja używanego ekwipunku.
+  - Rozpoznawanie dominującej intencji, w tym zdań zawierających mylące przysłowia lub wzmianki o innym typie akcji, skalowanie bossów, obrażenia, efekty statusu oraz walidacja używanego ekwipunku z polskimi znakami.
 - `tests/test_dice.py`:
   - Dedukcja atrybutów z treści deklaracji gracza (Siła, Zręczność, Rozum, Charyzma), z ignorowaniem słabych ozdobników narracyjnych przy fizycznym ataku.
   - Obliczanie modyfikatorów z aktywnego ekwipunku.
@@ -323,11 +325,12 @@ Zakres testów:
 - `tests/test_lobby_flow.py`:
   - Konfiguracja lobby, gotowość graczy oraz kontrola dostępu do narzędzi MG.
 - `tests/test_loot.py`:
-  - Przyznawanie łupu, jednorazowe przeszukiwanie lokacji i zasady craftingu.
+  - Przyznawanie łupu, jednorazowe przeszukiwanie lokacji i zasady craftingu, także dla niezapisanych obiektów ORM z domyślną ilością.
 - `tests/test_turn_flow.py`:
   - Pobieranie strony głównej i weryfikacja hasła do pokoju.
   - Tworzenie postaci i przydzielanie startowego ekwipunku.
   - Składanie akcji tury i sprawdzanie stanu gotowości drużyny.
+  - Izolowanie ponownego użycia tury 1 przez wyczyszczenie znaczników wcześniejszego rozstrzygnięcia.
 - `tests/test_websocket_chat.py`:
   - Wymiana wiadomości czatu przez WebSocket.
 

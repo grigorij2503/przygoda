@@ -181,6 +181,12 @@ Lokalne stany podpowiedzi i informacji o atrybutach są nazwanymi komponentami
 kaskada CSS została przeniesiona bez zmiany kolejności do modułów ładowanych
 przez jeden arkusz wejściowy. Cache PWA `v30` zawiera wszystkie nowe zasoby.
 
+Odbiór lokalny ujawnił również wcześniejsze niespójności niezależne od podziału
+frontendu: transliterację litery `ł` w deklaracjach wyposażenia, obsługę
+domyślnego `quantity` przed zapisem ORM oraz założenia testów o pozycji finału
+mapy i ponownym użyciu rozstrzygniętej tury. Zostały skorygowane bez zmiany
+kontraktu publicznego ani zawartości fixture Dark Fantasy.
+
 Kryterium zakończenia: zachowane selektory, formularze, synchronizacja,
 responsywność, dostępność i zachowanie PWA.
 
