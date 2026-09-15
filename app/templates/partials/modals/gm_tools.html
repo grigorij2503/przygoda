@@ -2,7 +2,7 @@
   <div x-show="showIntroModal" role="dialog" aria-modal="true" aria-labelledby="gm-tools-dialog-title" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
     <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-xl w-full border border-amber-900/50 shadow-2xl max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between mb-4">
-        <h3 id="gm-tools-dialog-title" class="text-2xl font-fantasy font-bold text-amber-300 flex items-center gap-2">
+        <h3 id="gm-tools-dialog-title" class="ui-heading text-2xl font-fantasy font-bold text-amber-300 flex items-center gap-2">
           <span>⚙️</span> NARZĘDZIA MISTRZA GRY
         </h3>
         <button @click="showIntroModal = false; resetConfirmation = ''" class="text-gray-400 hover:text-white text-lg" aria-label="Zamknij narzędzia Mistrza Gry">✕</button>
@@ -27,13 +27,7 @@
             </div>
 
             <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
-              <template x-for="stat in [
-                {key: 'strength', label: 'STR'},
-                {key: 'agility', label: 'AGI'},
-                {key: 'intellect', label: 'INT'},
-                {key: 'charisma', label: 'CHA'},
-                {key: 'perception', label: 'PER'}
-              ]" :key="stat.key">
+              <template x-for="stat in worldAttributes.map(attribute => ({key: attribute.id, label: attribute.abbreviation}))" :key="stat.key">
                 <label class="bg-slate-900 p-2 rounded-lg border border-slate-800 text-center">
                   <span class="block text-[10px] font-semibold text-gray-400 mb-1" x-text="stat.label"></span>
                   <input type="number" min="0" :max="maxBaseStat" step="1" x-model.number="gmStatForm[stat.key]"
@@ -59,18 +53,38 @@
 
         <div class="p-4 rounded-xl bg-rose-950/40 border border-rose-800/60">
           <p class="text-sm font-bold text-rose-300 mb-1">⚠️ Restart kampanii</p>
-          <p class="text-xs text-rose-200/80">Wybranie nowego scenariusza usunie wszystkie postacie, tury i bieżący postęp. Tej operacji nie można cofnąć.</p>
+          <p class="text-xs text-rose-200/80">Wybranie świata lub scenariusza dla nowej zbiórki usunie wszystkie postacie, tury i bieżący postęp. Tej operacji nie można cofnąć.</p>
+        </div>
+
+        <div>
+          <label for="world-choice" class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Świat następnej kampanii</label>
+          <select id="world-choice" x-model="selectedWorldKey" @change="selectWorldForNextCampaign()"
+                  :disabled="isLoadingWorldCatalog || worldCatalog.length === 0"
+                  class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none disabled:opacity-50">
+            <template x-for="world in worldCatalog" :key="world.key">
+              <option :value="world.key" x-text="`${world.display_name} • v${world.version}`"></option>
+            </template>
+          </select>
+          <p class="mt-1 text-xs text-gray-400">Zmiana nastąpi dopiero po potwierdzeniu restartu i przed otwarciem lobby. Obecnie opublikowany jest tylko świat Dark Fantasy.</p>
+          <p x-show="worldCatalogError" x-text="worldCatalogError" class="mt-1 text-xs text-rose-300" role="alert"></p>
         </div>
 
         <div>
           <label for="scenario-choice" class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Wybierz motyw / scenerię</label>
           <select id="scenario-choice" x-model="scenarioChoice" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none">
-            <option value="Krasnoludzka Twierdza opanowana przez demony ognia">Krasnoludzka Twierdza opanowana przez demony ognia</option>
-            <option value="Krypta Pradawnego Króla Lichów">Krypta Pradawnego Króla Lichów</option>
-            <option value="Nawiedzony Przeklęty Las Cieni">Nawiedzony Przeklęty Las Cieni</option>
-            <option value="Wieża Plugawego Nekromanty na Krwawym Wzgórzu">Wieża Plugawego Nekromanty na Krwawym Wzgórzu</option>
-            <option value="Wrak Widmowego Galeonu na Północnych Lodowcach">Wrak Widmowego Galeonu na Północnych Lodowcach</option>
+            <template x-for="scenario in selectedWorldScenarioOptions" :key="scenario">
+              <option :value="scenario" x-text="scenario"></option>
+            </template>
           </select>
+        </div>
+
+        <div class="p-3 rounded-xl ui-preview-controls">
+          <p class="text-xs font-semibold mb-2">Podgląd motywu (tylko na tym urządzeniu)</p>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" @click="showNeonThemePreview()" class="ui-button-secondary rounded-lg px-3 py-2 text-xs">Neon — podgląd</button>
+            <button type="button" @click="restoreCampaignTheme()" class="ui-button-secondary rounded-lg px-3 py-2 text-xs">Motyw kampanii</button>
+          </div>
+          <p class="mt-2 text-xs text-gray-400">Podgląd nie publikuje świata cyberpunkowego ani nie zmienia wyglądu u innych graczy.</p>
         </div>
 
         <div>
@@ -80,7 +94,7 @@
         </div>
 
         <div>
-          <button @click="setupScenarioLobby()" :disabled="isGeneratingIntro || resetConfirmation !== 'RESETUJ'"
+          <button @click="setupScenarioLobby()" :disabled="isGeneratingIntro || resetConfirmation !== 'RESETUJ' || !selectedWorldSummary"
                   class="w-full py-3.5 bg-rose-800 hover:bg-rose-700 text-rose-50 font-fantasy font-bold rounded-xl text-xs transition shadow-lg flex items-center justify-center gap-2 disabled:opacity-35 disabled:cursor-not-allowed">
             <span>♻️</span>
             <span x-show="!isGeneratingIntro">RESETUJ KAMPANIĘ I OTWÓRZ NOWĄ ZBIÓRKĘ</span>
@@ -92,9 +106,9 @@
           <p class="text-sm font-bold text-amber-300 mb-1">🧪 Testowe zdarzenia fabularne</p>
           <p class="text-xs text-gray-400 mb-3">Ręcznie uruchamiają mechanizm nadawania nazwy dla losowego żywego bohatera i zmieniają stan kampanii.</p>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <button @click="triggerManualNaming('boss', 'Ogromny trójgłowy demon lawy')"
+            <button @click="triggerManualNaming(enemyProfile.lore_category_id, enemyProfile.manual_trigger_description)"
                     class="px-3 py-2 bg-red-950/60 hover:bg-red-900 border border-red-700/40 text-red-300 rounded-lg transition text-xs">
-              👑 Test: Przyzwij Bossa
+              <span x-text="`${enemyProfile.icon} Test: przyzwij ${enemyProfile.role_label}`"></span>
             </button>
             <button @click="triggerManualNaming('location', 'Zapomniana biblioteka wulkanicznych magów')"
                     class="px-3 py-2 bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-700/40 text-indigo-300 rounded-lg transition text-xs">

@@ -1,25 +1,27 @@
-const CACHE_NAME = 'ttrpg-gemini-v31';
+const CACHE_NAME = 'ttrpg-gemini-v33';
 const PRECACHE_ASSETS = [
   '/',
-  '/static/css/style.css?v=20',
-  '/static/css/modules/tokens.css?v=20',
-  '/static/css/modules/base.css?v=20',
-  '/static/css/modules/components.css?v=20',
-  '/static/css/modules/inventory.css?v=20',
-  '/static/css/modules/map.css?v=20',
-  '/static/css/modules/lore.css?v=20',
-  '/static/css/modules/feedback.css?v=20',
-  '/static/css/modules/responsive.css?v=20',
-  '/static/js/modules/core.js?v=29',
-  '/static/js/modules/pwa-notifications.js?v=29',
-  '/static/js/modules/auth-admin.js?v=29',
-  '/static/js/modules/session-character.js?v=29',
-  '/static/js/modules/story-map-proxy.js?v=29',
-  '/static/js/modules/realtime-chat.js?v=29',
-  '/static/js/modules/campaign-actions.js?v=29',
-  '/static/js/modules/equipment-images.js?v=29',
-  '/static/js/modules/local-components.js?v=29',
-  '/static/js/app.js?v=29',
+  '/static/css/style.css?v=21',
+  '/static/css/modules/tokens.css?v=21',
+  '/static/css/modules/base.css?v=21',
+  '/static/css/modules/components.css?v=21',
+  '/static/css/modules/inventory.css?v=21',
+  '/static/css/modules/map.css?v=21',
+  '/static/css/modules/lore.css?v=21',
+  '/static/css/modules/feedback.css?v=21',
+  '/static/css/modules/responsive.css?v=21',
+  '/static/css/modules/theme.css?v=21',
+  '/static/js/theme-bootstrap.js?v=31',
+  '/static/js/modules/core.js?v=31',
+  '/static/js/modules/pwa-notifications.js?v=31',
+  '/static/js/modules/auth-admin.js?v=31',
+  '/static/js/modules/session-character.js?v=31',
+  '/static/js/modules/story-map-proxy.js?v=31',
+  '/static/js/modules/realtime-chat.js?v=31',
+  '/static/js/modules/campaign-actions.js?v=31',
+  '/static/js/modules/equipment-images.js?v=31',
+  '/static/js/modules/local-components.js?v=31',
+  '/static/js/app.js?v=31',
   '/static/manifest.json',
   '/static/icons/icon.svg',
   '/static/icons/icon-192.png',
@@ -79,7 +81,7 @@ self.addEventListener('push', (event) => {
       payload = { body: event.data?.text() || 'W grze wydarzyło się coś nowego.' };
     }
 
-    const title = payload.title || 'TTRPG Gemini Master';
+    const title = payload.title || 'Przygoda RPG';
     await self.registration.showNotification(title, {
       body: payload.body || 'W grze wydarzyło się coś nowego.',
       icon: '/static/icons/icon-192.png',

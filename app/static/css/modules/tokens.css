@@ -1,13 +1,31 @@
 :root {
-  --bg-primary: #0a0c10;
-  --bg-card: #12151e;
-  --bg-parchment: #1a1e2b;
-  --gold-primary: #e6c35c;
+  --ui-background: #0a0c10;
+  --ui-surface: #12151e;
+  --ui-surface-raised: #1a1e2b;
+  --ui-primary: #e6c35c;
+  --ui-danger: #dc2626;
+  --ui-text: #e2e8f0;
+  --ui-text-muted: #94a3b8;
+  --ui-border: #9c8238;
+  --ui-focus: #fbbf24;
+  --ui-success: #22c55e;
+  --ui-accent: #3b82f6;
+  --ui-hp: #991b1b;
+  --ui-xp: #eab308;
+  --bg-primary: var(--ui-background);
+  --bg-card: var(--ui-surface);
+  --bg-parchment: var(--ui-surface-raised);
+  --gold-primary: var(--ui-primary);
   --gold-dim: #9c8238;
-  --crimson: #991b1b;
-  --crimson-glow: #dc2626;
-  --mana: #3b82f6;
+  --crimson: var(--ui-hp);
+  --crimson-glow: var(--ui-danger);
+  --mana: var(--ui-accent);
   --border-gold: rgba(230, 195, 92, 0.25);
   --border-glow: rgba(230, 195, 92, 0.4);
 }
 
+:root[data-theme]:not([data-theme="dark_fantasy"]) {
+  --gold-dim: var(--ui-border);
+  --border-gold: color-mix(in srgb, var(--ui-border) 45%, transparent);
+  --border-glow: color-mix(in srgb, var(--ui-primary) 55%, transparent);
+}

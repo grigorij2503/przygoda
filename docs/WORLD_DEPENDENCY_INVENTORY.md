@@ -18,11 +18,14 @@ powinna pochodzić z wersjonowanego `WorldPack`.
 
 ## Backend i mechanika
 
-Po etapie 4 `app/main.py` nie zawiera zależności od konkretnego świata. Składa
-aplikację i rejestruje routery, w tym katalog `/api/worlds`. Walidowany
-`app/worlds/registry.py` ładuje `dark_fantasy@1`; startery i początkowa narracja
-zostały już przeniesione do pakietu, a pozostałe hardkody są adapterami do
-usunięcia w etapach 5-6.
+Po etapie 6 `app/main.py` składa aplikację i rejestruje routery bez gałęzi
+zależnych od świata. `dark_fantasy@1` jest nadal jedynym opublikowanym pakietem.
+Klasy, startery, szybkie akcje, księgi zdolności, wskazówki cechy w opisie akcji,
+słowniki wyposażenia i przeszukiwania,
+łup/crafting, profil głównego przeciwnika i statusów, mapa, etykiety kroniki,
+komunikaty lobby, narrator, ilustracje i fallback offline czytają przypięty
+pakiet. Pozostałe nazwy `boss_*`/`magic_*` są adapterami kontraktu historycznej
+kampanii, a kolorystyka i CSS nadal czekają na etap 7.
 
 | Plik / obszar | Zależności od Dark Fantasy | Kierunek ekstrakcji |
 |---|---|---|
@@ -46,9 +49,14 @@ usunięcia w etapach 5-6.
 
 ## Frontend
 
-Po etapie 3 zależności pozostają funkcjonalnie takie same, ale nie są już
-skupione w trzech dużych plikach. Poniższe ścieżki wskazują nowe miejsca
-ekstrakcji do pakietów świata w etapach 4-7.
+Po etapie 6 frontend bierze katalog klas, pięć etykiet cech, startery, szybkie
+akcje, księgi, kronikę, profil przeciwnika i opcje scenariusza z `world_pack`
+w `/api/session`. Poniższe historyczne zależności wskazują także pozostały
+zakres etapu 7: warstwę wizualną i neutralną tożsamość PWA. Etap 7 dodał
+serwerowe `data-theme`/meta koloru, trzynaście kontrolowanych tokenów,
+`theme-bootstrap.js`, semantyczne nadpisania w `theme.css`, neutralny manifest
+oraz wybór świata przy potwierdzonym restarcie MG. Nadal tylko Dark Fantasy jest
+grywalne; Neon jest lokalnym podglądem, a nie drugim pakietem produkcyjnym.
 
 | Miejsce | Zależności od Dark Fantasy | Kierunek ekstrakcji |
 |---|---|---|
@@ -61,9 +69,9 @@ ekstrakcji do pakietów świata w etapach 4-7.
 | `story-map-proxy.js` i partial mapy | ikony pomieszczeń podziemi | ikony bezpiecznie wybierane przez profil mapy |
 | `partials/modals/character_creation.html` | cztery klasy i dokładne startery | renderowanie katalogu klas z API |
 | partiale Jinja | bohater, magia, boss, wyprawa | `terminology` i neutralne komponenty |
-| `css/modules/` | Cinzel, złoto, runy, `fantasy-card` | semantyczne tokeny i `theme_id` |
-| manifest i meta | jedna ciemna tożsamość PWA | neutralny manifest, dynamiczny meta kolor strony |
-| `app/static/sw.js` | ręczna lista modułów CSS/JS Dark Fantasy | cache wszystkich modułów i zasobów motywów |
+| `css/modules/` | Cinzel, złoto, runy, `fantasy-card` | etap 7: semantyczne tokeny i kontrolowane motywy; alias `fantasy-card` jest zachowany dla zgodności DOM |
+| manifest i meta | jedna ciemna tożsamość PWA | etap 7: neutralny manifest, dynamiczny meta kolor strony |
+| `app/static/sw.js` | ręczna lista modułów CSS/JS Dark Fantasy | etap 7: cache dokładnie wersjonowanych modułów i motywu |
 
 ## Kontrakt pozostający w silniku
 

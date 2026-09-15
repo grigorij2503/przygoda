@@ -33,8 +33,8 @@ class DeletePushSubscriptionRequest(BaseModel):
 class CreateSessionRequest(BaseModel):
     room_code: str
     password: str = ""
-    title: Optional[str] = "Wyprawa do Przeklętej Twierdzy"
-    setting_theme: Optional[str] = "Mroczne Podziemia"
+    title: Optional[str] = None
+    setting_theme: Optional[str] = None
     campaign_intro: Optional[str] = ""
 
 class GenerateIntroRequest(BaseModel):
@@ -42,7 +42,15 @@ class GenerateIntroRequest(BaseModel):
         ...,
         description="Typ scenariusza, np. 'Krypta Pradawnego Króla', 'Nawiedzony Las Cieni', 'Krasnoludzka Twierdza opanowana przez demony'"
     )
-    tone: Optional[str] = "Dark Fantasy, brutalne i tajemnicze"
+    tone: Optional[str] = None
+    world_pack_id: Optional[str] = Field(default=None, max_length=80)
+    world_pack_version: Optional[int] = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def validate_world_reference(self) -> "GenerateIntroRequest":
+        if (self.world_pack_id is None) != (self.world_pack_version is None):
+            raise ValueError("world_pack_id and world_pack_version must be provided together")
+        return self
 
 class GenerateIntroResponse(BaseModel):
     title: str
@@ -54,7 +62,7 @@ class GenerateIntroResponse(BaseModel):
 class CreateCharacterRequest(BaseModel):
     player_name: str
     name: str
-    character_class: str = "Wojownik"
+    character_class: str = ""
     class_id: Optional[str] = Field(default=None, max_length=80)
     strength: int = Field(ge=0, le=4, default=2)
     agility: int = Field(ge=0, le=4, default=1)
@@ -111,7 +119,9 @@ class CharacterDto(BaseModel):
     death_failures: int = 0
     is_ready: bool = False
     status_effects: List[dict] = []
+    ability_book: Optional[dict] = None
     magic_book: Optional[dict] = None
+    quick_actions: List[dict] = []
     inventory: List[InventoryItemDto] = []
 
     model_config = ConfigDict(from_attributes=True)
@@ -176,6 +186,7 @@ class PlayerActionDto(BaseModel):
     action_text: str
     magic_ability_id: Optional[str] = None
     ability_id: Optional[str] = None
+    ability: Optional[dict] = None
     magic_ability: Optional[dict] = None
     intent: Optional[str] = None
     target_ref: Optional[str] = None
@@ -268,7 +279,7 @@ class MapLocationUpdateSchema(BaseModel):
 class GeminiTurnResolutionSchema(BaseModel):
     gm_story_narration: str = Field(description="Główna, nastrojowa narracja Mistrza Gry łącząca akcje wszystkich graczy i ich rzuty kośćmi")
     player_consequences: List[PlayerConsequenceSchema] = Field(description="Szczegółowe skutki mechaniczne i fabularne dla każdego gracza")
-    scene_image_prompt: str = Field(description="Precyzyjny prompt w języku angielskim dla modelu Imagen 3 przedstawiający scenę tury (Dark Fantasy oil painting)")
+    scene_image_prompt: str = Field(description="Precyzyjny prompt w języku angielskim dla modelu obrazu, zgodny z kierunkiem artystycznym aktywnego świata")
     next_turn_prompt: str = Field(description="Sytuacja wyjściowa i wyzwanie na otwarcie kolejnej tury")
     suggested_actions: List[str] = Field(
         default_factory=list,
@@ -308,8 +319,8 @@ class SetupScenarioRequest(BaseModel):
     room_code: str = "kampania-1"
     world_pack_id: Optional[str] = Field(default=None, max_length=80)
     world_pack_version: Optional[int] = Field(default=None, ge=1)
-    scenario_type: str = "Krasnoludzka Twierdza opanowana przez demony ognia"
-    tone: Optional[str] = "Dark Fantasy, brutalne i tajemnicze"
+    scenario_type: str = ""
+    tone: Optional[str] = None
 
     @model_validator(mode="after")
     def validate_world_reference(self) -> "SetupScenarioRequest":
@@ -319,8 +330,8 @@ class SetupScenarioRequest(BaseModel):
 
 class PrologueRequest(BaseModel):
     room_code: str = "kampania-1"
-    scenario_type: str = "Krasnoludzka Twierdza opanowana przez demony ognia"
-    tone: Optional[str] = "Dark Fantasy, brutalne i tajemnicze"
+    scenario_type: str = ""
+    tone: Optional[str] = None
 
 class PrologueResponse(BaseModel):
     title: str

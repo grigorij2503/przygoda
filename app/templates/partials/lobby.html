@@ -8,7 +8,7 @@
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-fantasy tracking-wider mb-2">
             <span>🏰</span> ZBIÓRKA DRUŻYNY • KARCZMA PRZED WYPRAWĄ
           </div>
-          <h2 class="text-3xl font-fantasy font-bold text-amber-300 leading-tight" x-text="session?.title"></h2>
+          <h2 class="ui-heading text-3xl font-fantasy font-bold text-amber-300 leading-tight" x-text="session?.title"></h2>
           <p class="text-gray-400 text-sm mt-1">
             Motyw: <span class="text-amber-400/90 font-mono" x-text="session?.setting_theme"></span>
           </p>
@@ -32,7 +32,7 @@
       <div class="p-5 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
         <div class="flex items-center gap-4">
           <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-2xl shrink-0">
-            <span x-text="currentCharacter ? (currentCharacter.character_class === 'Wojownik' ? '⚔️' : currentCharacter.character_class === 'Czarodziej' ? '✨' : currentCharacter.character_class === 'Kleryk' ? '☀️' : currentCharacter.character_class === 'Łotrzyk' ? '🏹' : '🛡️') : '👤'"></span>
+            <span x-text="currentCharacter ? classIcon(currentCharacter) : '👤'"></span>
           </div>
           <div>
             <template x-if="currentCharacter">
@@ -175,7 +175,7 @@
                 :class="allLobbyCharactersReady 
                   ? 'bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-400 text-slate-950 shadow-amber-900/50 cursor-pointer' 
                   : 'bg-slate-900 border border-slate-800 text-gray-500'">
-          <span x-show="!isGeneratingPrologue">⚔️ ROZPOCZNIJ PRZYGODĘ (GENERUJ PROLOG DLA DRUŻYNY)</span>
+          <span x-show="!isGeneratingPrologue"><span class="ui-theme-icon ui-theme-icon--action" aria-hidden="true">⚔️</span> ROZPOCZNIJ PRZYGODĘ (GENERUJ PROLOG DLA DRUŻYNY)</span>
           <span x-show="isGeneratingPrologue" class="flex items-center gap-2">
             <svg class="animate-spin h-5 w-5 text-slate-950" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
             GEMINI TKA PROLOG DLA ZEBRANEJ DRUŻYNY...

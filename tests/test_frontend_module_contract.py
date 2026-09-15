@@ -3,6 +3,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from jinja2 import Environment, FileSystemLoader
+from app.worlds.registry import WORLD_PACK_REGISTRY
 
 
 ROOT = Path(__file__).parents[1]
@@ -18,8 +19,20 @@ def local_static_path(url: str) -> Path:
 
 def test_index_partials_render_and_referenced_assets_exist():
     environment = Environment(loader=FileSystemLoader(ROOT / "app" / "templates"))
-    rendered = environment.get_template("index.html").render()
+    pack = WORLD_PACK_REGISTRY.default
+    rendered = environment.get_template("index.html").render(
+        theme=pack.theme,
+        theme_style=" ".join(
+            f"--ui-{token.id.replace('_', '-')}: {token.value};"
+            for token in pack.theme.tokens
+        ),
+        theme_background=next(
+            token.value for token in pack.theme.tokens if token.id == "background"
+        ),
+        world_key=pack.key,
+    )
     assert "{% include" not in rendered
+    assert 'data-theme="dark_fantasy"' in rendered
 
     local_assets = set(re.findall(r'(?:src|href)="(/static/[^"]+)', rendered))
     assert local_assets
@@ -32,14 +45,15 @@ def test_stylesheet_imports_exist_and_keep_declared_order():
     local_imports = [url for url in imports if url.startswith("./")]
 
     assert local_imports == [
-        "./modules/tokens.css?v=20",
-        "./modules/base.css?v=20",
-        "./modules/components.css?v=20",
-        "./modules/inventory.css?v=20",
-        "./modules/map.css?v=20",
-        "./modules/lore.css?v=20",
-        "./modules/feedback.css?v=20",
-        "./modules/responsive.css?v=20",
+        "./modules/tokens.css?v=21",
+        "./modules/base.css?v=21",
+        "./modules/components.css?v=21",
+        "./modules/inventory.css?v=21",
+        "./modules/map.css?v=21",
+        "./modules/lore.css?v=21",
+        "./modules/feedback.css?v=21",
+        "./modules/responsive.css?v=21",
+        "./modules/theme.css?v=21",
     ]
     assert all((STYLE_PATH.parent / urlsplit(url).path).is_file() for url in local_imports)
 
@@ -49,15 +63,18 @@ def test_local_frontend_assets_are_precached_and_scripts_load_before_alpine():
     service_worker = SERVICE_WORKER_PATH.read_text(encoding="utf-8")
     local_assets = set(re.findall(r'(?:src|href)="(/static/[^"]+)', index_source))
     local_assets.update(
-        f"/static/css/modules/{path.name}?v=20"
+        f"/static/css/modules/{path.name}?v=21"
         for path in (STATIC_ROOT / "css" / "modules").glob("*.css")
     )
 
     assert all(f"'{url}'" in service_worker for url in local_assets)
-    assert "const CACHE_NAME = 'ttrpg-gemini-v31';" in service_worker
+    assert "const CACHE_NAME = 'ttrpg-gemini-v33';" in service_worker
 
     scripts = re.findall(r'<script[^>]+src="([^"]+)"', index_source)
-    app_index = scripts.index("/static/js/app.js?v=29")
+    app_index = scripts.index("/static/js/app.js?v=31")
+    assert scripts.index("/static/js/theme-bootstrap.js?v=31") < scripts.index(
+        "/static/js/modules/core.js?v=31"
+    )
     alpine_index = scripts.index(
         "https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"
     )

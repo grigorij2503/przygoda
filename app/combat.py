@@ -5,7 +5,10 @@ import unicodedata
 from typing import Iterable
 
 from app.inventory import get_effectively_equipped_items
+from app.magic import get_ability
 from app.models import Character, GameSession, InventoryItem, PlayerAction
+from app.worlds.models import WorldPack
+from app.worlds.registry import get_default_world_pack
 
 
 INTENT_RULES: dict[str, tuple[tuple[str, int, str], ...]] = {
@@ -34,48 +37,8 @@ INTENT_RULES: dict[str, tuple[tuple[str, int, str], ...]] = {
 }
 
 STATUS_CATALOG = {
-    "burning": {
-        "label": "Poparzony",
-        "icon": "🔥",
-        "description": "Otrzymuje obrażenia od ognia na początku kolejnej tury.",
-        "tone": "orange",
-    },
-    "poisoned": {
-        "label": "Zatruty",
-        "icon": "☠️",
-        "description": "Otrzymuje obrażenia i ma karę do testów.",
-        "tone": "green",
-    },
-    "frozen": {
-        "label": "Zamrożony",
-        "icon": "❄️",
-        "description": "Ma obniżoną obronę; następny silny cios rozbija lód.",
-        "tone": "cyan",
-    },
-    "stunned": {
-        "label": "Oszołomiony",
-        "icon": "💫",
-        "description": "Najbliższy atak zadaje więcej obrażeń, a atak bossa jest słabszy.",
-        "tone": "yellow",
-    },
-    "exposed": {
-        "label": "Odsłonięty",
-        "icon": "🎯",
-        "description": "Otrzymuje o 25% więcej obrażeń.",
-        "tone": "rose",
-    },
-    "guarded": {
-        "label": "Osłonięty",
-        "icon": "🛡️",
-        "description": "Redukuje obrażenia następnego ataku.",
-        "tone": "blue",
-    },
-    "enraged": {
-        "label": "Rozwścieczony",
-        "icon": "😡",
-        "description": "Ataki bossa są silniejsze w tej fazie.",
-        "tone": "rose",
-    },
+    status.id: status.model_dump(mode="python")
+    for status in get_default_world_pack().status_presentations
 }
 
 
@@ -145,8 +108,16 @@ def make_status(
     turns: int,
     potency: int = 1,
     source: str = "",
+    world_pack: WorldPack | None = None,
 ) -> dict:
-    definition = STATUS_CATALOG[effect_type]
+    definitions = (
+        {
+            status.id: status.model_dump(mode="python")
+            for status in world_pack.status_presentations
+        }
+        if world_pack else STATUS_CATALOG
+    )
+    definition = definitions[effect_type]
     return {
         "type": effect_type,
         "label": definition["label"],
@@ -221,57 +192,36 @@ def estimate_character_damage(character: Character) -> float:
     return max(6.0, average_success_damage * 0.75)
 
 
-def build_boss_encounter(characters: Iterable[Character], description: str) -> dict:
+def build_enemy_encounter(
+    characters: Iterable[Character],
+    description: str,
+    world_pack: WorldPack | None = None,
+) -> dict:
+    world_pack = world_pack or get_default_world_pack()
+    profile = world_pack.enemy_profile
     party = [character for character in characters if character.is_alive]
     average_level = sum(character.level for character in party) / len(party) if party else 1
     expected_turn_damage = sum(estimate_character_damage(character) for character in party) or 15
     max_hp = max(60, int(math.ceil((expected_turn_damage * 4) / 5) * 5))
     armor = max(1, min(4, int(average_level // 2)))
     defense_dc = 11 + min(4, int(average_level // 2))
-    hazard_dc = defense_dc + 1
     normalized_description = normalize_text(description)
-    if any(word in normalized_description for word in ("lod", "mroz", "szron")):
-        boss_status_effect = "frozen"
-    elif any(word in normalized_description for word in ("jad", "truciz", "toksyn")):
-        boss_status_effect = "poisoned"
-    else:
-        boss_status_effect = "burning"
+    status_effect = next(
+        (
+            cue.status_effect for cue in profile.status_cues
+            if any(normalize_text(marker) in normalized_description for marker in cue.markers)
+        ),
+        profile.default_status_effect,
+    )
     features = [
         {
-            "id": "unstable_pillar",
-            "name": "Niestabilny filar",
-            "icon": "🗿",
-            "description": "Przewrócenie filaru rani i oszałamia bossa.",
-            "required_stat": "strength",
-            "dc": hazard_dc,
+            **feature.model_dump(mode="python"),
+            "dc": defense_dc + feature.dc_offset,
             "state": "active",
-            "damage_percent": 12,
-            "effect": "stunned",
-        },
-        {
-            "id": "runic_seal",
-            "name": "Runiczna pieczęć",
-            "icon": "🔮",
-            "description": "Złamanie pieczęci odsłania słaby punkt przeciwnika.",
-            "required_stat": "intellect",
-            "dc": hazard_dc,
-            "state": "active",
-            "damage_percent": 0,
-            "effect": "exposed",
-        },
-        {
-            "id": "broken_battlement",
-            "name": "Kamienna osłona",
-            "icon": "🧱",
-            "description": "Zajęcie pozycji osłania bohatera przed kolejnym ciosem.",
-            "required_stat": "agility",
-            "dc": defense_dc,
-            "state": "active",
-            "damage_percent": 0,
-            "effect": "guarded",
-            "reusable": True,
-        },
+        }
+        for feature in profile.features
     ]
+    first_attack = next(attack for attack in profile.attacks if attack.phase == 1)
     return {
         "hp": max_hp,
         "max_hp": max_hp,
@@ -281,17 +231,26 @@ def build_boss_encounter(characters: Iterable[Character], description: str) -> d
         "effects": [],
         "features": features,
         "telegraph": {
-            "name": "Miażdżące natarcie",
-            "icon": "⚠️",
-            "description": "Boss szykuje potężny cios w jednego z bohaterów.",
+            "name": first_attack.name,
+            "icon": first_attack.icon,
+            "description": first_attack.description,
             "base_damage": 5 + int(average_level),
-            "status_effect": boss_status_effect,
+            "status_effect": status_effect,
         },
         "description": description,
     }
 
 
-def ensure_boss_encounter(session: GameSession, characters: Iterable[Character]) -> bool:
+def build_boss_encounter(characters: Iterable[Character], description: str) -> dict:
+    """Legacy entry point retained for the published dark_fantasy@1 contract."""
+    return build_enemy_encounter(characters, description)
+
+
+def ensure_enemy_encounter(
+    session: GameSession,
+    characters: Iterable[Character],
+    world_pack: WorldPack | None = None,
+) -> bool:
     """Uzupełnia mechanikę bossów utworzonych przed wprowadzeniem systemu starć."""
     if not session.active_boss_name or session.active_boss_features:
         return False
@@ -302,7 +261,12 @@ def ensure_boss_encounter(session: GameSession, characters: Iterable[Character])
         else previous_max_hp
     )
     health_ratio = previous_hp / previous_max_hp if previous_max_hp > 0 else 1.0
-    encounter = build_boss_encounter(characters, session.active_boss_title or "Boss")
+    world_pack = world_pack or get_default_world_pack()
+    encounter = build_enemy_encounter(
+        characters,
+        session.active_boss_title or world_pack.enemy_profile.role_label,
+        world_pack,
+    )
     session.active_boss_max_hp = encounter["max_hp"]
     session.active_boss_hp = max(0, round(encounter["max_hp"] * health_ratio))
     session.active_boss_armor = encounter["armor"]
@@ -312,6 +276,10 @@ def ensure_boss_encounter(session: GameSession, characters: Iterable[Character])
     session.active_boss_features = encounter["features"]
     session.active_boss_telegraph = encounter["telegraph"]
     return True
+
+
+def ensure_boss_encounter(session: GameSession, characters: Iterable[Character]) -> bool:
+    return ensure_enemy_encounter(session, characters)
 
 
 def infer_action_intent(action_text: str, explicit_intent: str | None = None) -> str:
@@ -373,17 +341,33 @@ def calculate_attack_damage(
     return final_damage, damage_roll, base_damage, reduction
 
 
-def effect_from_attack(action_text: str, outcome_tier: str, source: str) -> dict | None:
+def effect_from_attack(
+    action_text: str,
+    outcome_tier: str,
+    source: str,
+    ability: dict | None = None,
+    world_pack: WorldPack | None = None,
+) -> dict | None:
     if outcome_tier not in {"success", "critical_success"}:
         return None
     normalized = normalize_text(action_text)
+    world_pack = world_pack or get_default_world_pack()
     potency = 2 if outcome_tier == "critical_success" else 1
-    if any(word in normalized for word in ("ogien", "plomien", "podpal", "zar")):
-        return make_status("burning", 2, potency, source)
-    if any(word in normalized for word in ("truj", "truciz", "zatrut", "jad", "toksyn")):
-        return make_status("poisoned", 3, potency, source)
-    if any(word in normalized for word in ("lod", "mroz", "zamraz", "szron")):
-        return make_status("frozen", 2, potency, source)
+    ability_params = ability.get("mechanic_params", {}) if ability else {}
+    status_type = ability_params.get("status_type")
+    if status_type:
+        return make_status(
+            str(status_type),
+            int(ability_params.get("status_duration", 2)),
+            int(ability_params.get("status_potency", potency)),
+            source,
+            world_pack,
+        )
+    for cue in world_pack.attack_status_cues:
+        if any(normalize_text(marker) in normalized for marker in cue.markers):
+            return make_status(
+                cue.status_effect, cue.duration, potency, source, world_pack
+            )
     return None
 
 
@@ -415,6 +399,8 @@ def _resolve_support_action(
     action: PlayerAction,
     characters: list[Character],
     events: list[dict],
+    ability: dict | None = None,
+    world_pack: WorldPack | None = None,
 ) -> None:
     target = None
     if action.target_ref:
@@ -424,7 +410,7 @@ def _resolve_support_action(
             target_id = None
         target = next((item for item in characters if item.id == target_id), None)
 
-    is_resurrection = (action.ability_id or action.magic_ability_id) == "resurrection"
+    is_resurrection = bool(ability and ability.get("mechanic_key") == "revive")
     if not target or target.id == actor.id:
         candidates = [
             item for item in characters
@@ -469,7 +455,13 @@ def _resolve_support_action(
             })
             return
         previous_hp = target.current_hp
-        restored = max(1, round(target.max_hp * (0.5 if outcome == "critical_success" else 0.25)))
+        revive_params = ability.get("mechanic_params", {}) if ability else {}
+        restored_percent = (
+            revive_params.get("critical_percent", 50)
+            if outcome == "critical_success"
+            else revive_params.get("success_percent", 25)
+        )
+        restored = max(1, round(target.max_hp * float(restored_percent) / 100))
         target.current_hp = restored
         target.is_alive = True
         target.death_state = "alive"
@@ -495,7 +487,21 @@ def _resolve_support_action(
         return
 
     multiplier = 1 if outcome == "partial_success" else 2 if outcome == "success" else 3
-    healing = max(2, (2 + actor.intellect) * multiplier)
+    mechanic_key = ability.get("mechanic_key") if ability else None
+    params = ability.get("mechanic_params", {}) if ability else {}
+    if mechanic_key == "heal" and params:
+        tested_stat = str(ability.get("tested_stat") or "intellect")
+        stat_value = int(getattr(actor, tested_stat, 0) or 0)
+        healing = max(
+            2,
+            round(
+                (float(params.get("base_healing", 2))
+                 + stat_value * float(params.get("stat_scale", 1)))
+                * multiplier
+            ),
+        )
+    else:
+        healing = max(2, (2 + actor.intellect) * multiplier)
     previous_hp = target.current_hp
     target.current_hp = min(target.max_hp, max(1, target.current_hp + healing))
     applied = target.current_hp - previous_hp
@@ -508,12 +514,73 @@ def _resolve_support_action(
             effect for effect in status_list(target.status_effects)
             if effect.get("type") not in {"burning", "poisoned", "frozen"}
         ]
+    if mechanic_key == "cleanse":
+        removable = {
+            marker.strip() for marker in str(
+                params.get("status_types", "burning,poisoned,frozen")
+            ).split(",") if marker.strip()
+        }
+        target.status_effects = [
+            effect for effect in status_list(target.status_effects)
+            if effect.get("type") not in removable
+        ]
+        events.append({
+            "type": "ability_cleanse", "actor": actor.name,
+            "target": target.name, "removed_types": sorted(removable),
+        })
+    if mechanic_key == "support":
+        duration = int(params.get("duration", 2))
+        potency = int(params.get("potency", 2))
+        target.status_effects = add_status(
+            status_list(target.status_effects),
+            make_status("guarded", duration, potency, actor.name, world_pack),
+        )
     events.append({
         "type": "revived" if target_state in {"downed", "stable"} else "support",
         "actor": actor.name,
         "target": target.name,
         "healing": applied,
     })
+
+
+def _resolve_utility_ability(
+    session: GameSession | None,
+    actor: Character,
+    action: PlayerAction,
+    ability: dict | None,
+    events: list[dict],
+    world_pack: WorldPack,
+) -> bool:
+    if not ability:
+        return False
+    key = ability.get("mechanic_key")
+    if key not in {"scan", "jam", "move"}:
+        return False
+    if action.outcome_tier not in {"partial_success", "success", "critical_success"}:
+        events.append({
+            "type": "ability_failed", "actor": actor.name,
+            "ability": ability["name"],
+        })
+        return True
+    params = ability.get("mechanic_params", {})
+    if key in {"scan", "jam"} and session and (session.active_boss_hp or 0) > 0:
+        status_type = "exposed" if key == "scan" else "stunned"
+        session.active_boss_effects = add_status(
+            status_list(session.active_boss_effects),
+            make_status(
+                status_type,
+                int(params.get("duration", 2)),
+                int(params.get("potency", 1)),
+                actor.name,
+                world_pack,
+            ),
+        )
+    events.append({
+        "type": f"ability_{key}", "actor": actor.name,
+        "ability": ability["name"],
+        "target": session.active_boss_name if session else None,
+    })
+    return True
 
 
 def _advance_death_states(
@@ -584,6 +651,7 @@ def _resolve_environment_action(
     character: Character,
     action: PlayerAction,
     events: list[dict],
+    world_pack: WorldPack,
 ) -> None:
     features = [dict(feature) for feature in (session.active_boss_features or []) if isinstance(feature, dict)]
     feature = next((item for item in features if item.get("id") == action.target_ref), None)
@@ -611,12 +679,16 @@ def _resolve_environment_action(
     if effect_type == "guarded":
         character.status_effects = add_status(
             status_list(character.status_effects),
-            make_status("guarded", 2, 5, feature.get("name", "Otoczenie")),
+            make_status(
+                "guarded", 2, 5, feature.get("name", "Otoczenie"), world_pack
+            ),
         )
     elif effect_type in STATUS_CATALOG:
         session.active_boss_effects = add_status(
             status_list(session.active_boss_effects),
-            make_status(effect_type, 2, 1, feature.get("name", "Otoczenie")),
+            make_status(
+                effect_type, 2, 1, feature.get("name", "Otoczenie"), world_pack
+            ),
         )
     if not feature.get("reusable"):
         feature["state"] = "used"
@@ -635,6 +707,7 @@ def _resolve_boss_response(
     characters: list[Character],
     actions: list[PlayerAction],
     events: list[dict],
+    world_pack: WorldPack,
 ) -> None:
     if not session.active_boss_hp or session.active_boss_hp <= 0:
         return
@@ -668,22 +741,34 @@ def _resolve_boss_response(
     applied = _apply_hp_delta(target, -damage, target_action)
     applied_effect = None
     if applied < 0 and int(session.active_boss_phase or 1) >= 2:
-        applied_effect = str(telegraph.get("status_effect") or "burning")
+        applied_effect = str(
+            telegraph.get("status_effect") or world_pack.enemy_profile.default_status_effect
+        )
         target.status_effects = add_status(
             status_list(target.status_effects),
-            make_status(applied_effect, 3, 1, session.active_boss_name or "Boss"),
+            make_status(
+                applied_effect, 3, 1,
+                session.active_boss_name or world_pack.enemy_profile.role_label,
+                world_pack,
+            ),
         )
     events.append({
         "type": "boss_attack",
         "boss": session.active_boss_name,
-        "attack": telegraph.get("name", "Atak bossa"),
+        "attack": telegraph.get(
+            "name", world_pack.enemy_profile.attacks[0].name
+        ),
         "target": target.name,
         "damage": abs(applied),
         "effect": applied_effect,
     })
 
 
-def _update_boss_phase(session: GameSession, events: list[dict]) -> None:
+def _update_boss_phase(
+    session: GameSession,
+    events: list[dict],
+    world_pack: WorldPack,
+) -> None:
     if not session.active_boss_max_hp:
         return
     ratio = max(0, session.active_boss_hp or 0) / session.active_boss_max_hp
@@ -693,22 +778,24 @@ def _update_boss_phase(session: GameSession, events: list[dict]) -> None:
     if new_phase > old_phase and session.active_boss_hp:
         session.active_boss_effects = add_status(
             status_list(session.active_boss_effects),
-            make_status("enraged", 99, new_phase - 1, "Przemiana fazy"),
+            make_status(
+                "enraged", 99, new_phase - 1, "Przemiana fazy", world_pack
+            ),
         )
         events.append({"type": "phase_change", "phase": new_phase, "boss": session.active_boss_name})
-    attack_names = {
-        1: ("Miażdżące natarcie", "Boss szykuje potężny cios w jednego z bohaterów."),
-        2: ("Rozdarcie areny", "Boss zamierza uderzyć z większą siłą; osłona ograniczy obrażenia."),
-        3: ("Ostatnia furia", "Desperacki atak bossa będzie znacznie silniejszy."),
-    }
-    name, description = attack_names[new_phase]
+    attack = next(
+        definition for definition in world_pack.enemy_profile.attacks
+        if definition.phase == new_phase
+    )
     current_base = int((session.active_boss_telegraph or {}).get("base_damage", 6))
     session.active_boss_telegraph = {
-        "name": name,
-        "icon": "⚠️",
-        "description": description,
+        "name": attack.name,
+        "icon": attack.icon,
+        "description": attack.description,
         "base_damage": current_base,
-        "status_effect": (session.active_boss_telegraph or {}).get("status_effect", "burning"),
+        "status_effect": (session.active_boss_telegraph or {}).get(
+            "status_effect", world_pack.enemy_profile.default_status_effect
+        ),
     }
 
 
@@ -716,7 +803,10 @@ def resolve_boss_turn(
     session: GameSession,
     characters: list[Character],
     actions: list[PlayerAction],
+    *,
+    world_pack: WorldPack | None = None,
 ) -> list[dict]:
+    world_pack = world_pack or get_default_world_pack()
     events: list[dict] = []
     downed_at_turn_start = {
         character.id for character in characters
@@ -743,6 +833,15 @@ def resolve_boss_turn(
             continue
         intent = infer_action_intent(action.action_text, action.intent)
         action.intent = intent
+        ability = get_ability(
+            world_pack,
+            character.class_id or character.character_class,
+            action.ability_id or action.magic_ability_id,
+        )
+        if _resolve_utility_ability(
+            session, character, action, ability, events, world_pack
+        ):
+            continue
         if intent == "attack" and session.active_boss_hp and session.active_boss_hp > 0:
             boss_effects = status_list(session.active_boss_effects)
             damage, damage_roll, base_damage, reduction = calculate_attack_damage(
@@ -761,14 +860,19 @@ def resolve_boss_turn(
                 action.action_text,
                 action.outcome_tier or "failure",
                 character.name,
+                ability,
+                world_pack,
             )
             used_item = offensive_item(character, action.tested_stat or "strength")
             used_item_name = normalize_text(used_item.name) if used_item else ""
             if not applied_effect and action.outcome_tier in {"success", "critical_success"}:
-                if any(word in used_item_name for word in ("zatrut", "jad", "toksyn")):
-                    applied_effect = make_status("poisoned", 3, 1, character.name)
-                elif any(word in used_item_name for word in ("ogien", "plomien")):
-                    applied_effect = make_status("burning", 2, 1, character.name)
+                for cue in world_pack.attack_status_cues:
+                    if any(normalize_text(marker) in used_item_name for marker in cue.markers):
+                        applied_effect = make_status(
+                            cue.status_effect, cue.duration, 1, character.name,
+                            world_pack,
+                        )
+                        break
             if applied_effect and session.active_boss_hp > 0:
                 session.active_boss_effects = add_status(
                     status_list(session.active_boss_effects),
@@ -786,20 +890,28 @@ def resolve_boss_turn(
                 "effect": applied_effect.get("type") if applied_effect else None,
             })
         elif intent == "interact":
-            _resolve_environment_action(session, character, action, events)
+            _resolve_environment_action(
+                session, character, action, events, world_pack
+            )
         elif intent == "defend" and action.outcome_tier in {"partial_success", "success", "critical_success"}:
-            potency = 3 if action.outcome_tier == "partial_success" else 5 if action.outcome_tier == "success" else 8
+            params = ability.get("mechanic_params", {}) if ability else {}
+            potency = int(params.get("potency", 3 if action.outcome_tier == "partial_success" else 5 if action.outcome_tier == "success" else 8))
+            duration = int(params.get("duration", 2))
             character.status_effects = add_status(
                 status_list(character.status_effects),
-                make_status("guarded", 2, potency, character.name),
+                make_status(
+                    "guarded", duration, potency, character.name, world_pack
+                ),
             )
             events.append({"type": "defence", "actor": character.name, "potency": potency})
         elif intent == "support":
-            _resolve_support_action(character, action, characters, events)
+            _resolve_support_action(
+                character, action, characters, events, ability, world_pack
+            )
 
-    _resolve_boss_response(session, characters, actions, events)
+    _resolve_boss_response(session, characters, actions, events, world_pack)
     _advance_death_states(characters, downed_at_turn_start, events)
-    _update_boss_phase(session, events)
+    _update_boss_phase(session, events, world_pack)
     if session.active_boss_hp == 0:
         events.append({"type": "boss_defeated", "boss": session.active_boss_name})
     return events
@@ -808,8 +920,11 @@ def resolve_boss_turn(
 def resolve_status_turn(
     characters: list[Character],
     actions: list[PlayerAction],
+    *,
+    world_pack: WorldPack | None = None,
 ) -> list[dict]:
     """Rozlicza pozostałe efekty także po zakończeniu walki z bossem."""
+    world_pack = world_pack or get_default_world_pack()
     events: list[dict] = []
     downed_at_turn_start = {
         character.id for character in characters
@@ -822,7 +937,20 @@ def resolve_status_turn(
             _tick_character_effects(character, action, events)
     for action in actions:
         actor = next((item for item in characters if item.id == action.character_id), None)
-        if actor and actor.is_alive and infer_action_intent(action.action_text, action.intent) == "support":
-            _resolve_support_action(actor, action, characters, events)
+        if not actor or not actor.is_alive:
+            continue
+        ability = get_ability(
+            world_pack,
+            actor.class_id or actor.character_class,
+            action.ability_id or action.magic_ability_id,
+        )
+        if _resolve_utility_ability(
+            None, actor, action, ability, events, world_pack
+        ):
+            continue
+        if infer_action_intent(action.action_text, action.intent) == "support":
+            _resolve_support_action(
+                actor, action, characters, events, ability, world_pack
+            )
     _advance_death_states(characters, downed_at_turn_start, events)
     return events

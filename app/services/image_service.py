@@ -9,6 +9,7 @@ from app.gemini_service import generate_scene_image_ai
 from app.models import GameSession, Turn
 from app.schemas import GenerateImageRequest
 from app.services.runtime import image_generation_day_bounds
+from app.services.world_service import get_session_world_pack
 from app.websocket_manager import ws_manager
 
 
@@ -24,6 +25,12 @@ async def generate_turn_image(payload: GenerateImageRequest, db: AsyncSession = 
 
     if turn.is_generating_image:
         return {"success": True, "message": "Generowanie już trwa"}
+
+    session = (
+        await db.execute(select(GameSession).where(GameSession.id == turn.session_id))
+    ).scalar_one()
+    world_pack = get_session_world_pack(session)
+    narrative_profile = world_pack.narrative_profile
 
     reservation_time = datetime.now(timezone.utc)
     image_day_start, next_image_day_start = image_generation_day_bounds(reservation_time)
@@ -53,7 +60,10 @@ async def generate_turn_image(payload: GenerateImageRequest, db: AsyncSession = 
             headers={"Retry-After": str(retry_after)},
         )
 
-    prompt = turn.image_prompt or "Dark fantasy painting of dungeon adventurers"
+    prompt = (
+        f"{narrative_profile.image_art_direction}\n"
+        f"{turn.image_prompt or narrative_profile.initial_image_prompt}"
+    )
     turn.is_generating_image = True
     await db.commit()
     reserved_until = next_image_day_start
@@ -67,7 +77,7 @@ async def generate_turn_image(payload: GenerateImageRequest, db: AsyncSession = 
 
     # Wygeneruj obraz asynchronicznie
     try:
-        image_url = await generate_scene_image_ai(prompt, turn.id)
+        image_url = await generate_scene_image_ai(prompt, turn.id, world_pack=world_pack)
         turn.image_url = image_url
         turn.is_generating_image = False
         await db.commit()

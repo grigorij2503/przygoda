@@ -1,7 +1,7 @@
 {
-  "name": "TTRPG Gemini Master • Wieloosobowy RPG",
-  "short_name": "TTRPG Gemini",
-  "description": "Wieloosobowy turowy RPG prowadzony przez Gemini AI z deterministycznymi rzutami kością i narracją fabularną.",
+  "name": "Przygoda • Wieloosobowy RPG",
+  "short_name": "Przygoda RPG",
+  "description": "Silnik wieloosobowych kampanii fabularnych z wersjonowanymi światami, rzutami d20 i narracją AI.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
@@ -56,7 +56,7 @@
     {
       "name": "Stół Gry",
       "short_name": "Gra",
-      "description": "Przejdź do trwającej sesji gry TTRPG",
+      "description": "Przejdź do trwającej kampanii",
       "url": "/",
       "icons": [
         {

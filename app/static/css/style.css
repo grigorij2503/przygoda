@@ -1,10 +1,11 @@
-/* Dark Fantasy RPG stylesheet entrypoint. Keep imports in cascade order. */
+/* World-neutral RPG stylesheet entrypoint. Keep imports in cascade order. */
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Inter:wght@300;400;500;600;700&display=swap');
-@import url('./modules/tokens.css?v=20');
-@import url('./modules/base.css?v=20');
-@import url('./modules/components.css?v=20');
-@import url('./modules/inventory.css?v=20');
-@import url('./modules/map.css?v=20');
-@import url('./modules/lore.css?v=20');
-@import url('./modules/feedback.css?v=20');
-@import url('./modules/responsive.css?v=20');
+@import url('./modules/tokens.css?v=21');
+@import url('./modules/base.css?v=21');
+@import url('./modules/components.css?v=21');
+@import url('./modules/inventory.css?v=21');
+@import url('./modules/map.css?v=21');
+@import url('./modules/lore.css?v=21');
+@import url('./modules/feedback.css?v=21');
+@import url('./modules/responsive.css?v=21');
+@import url('./modules/theme.css?v=21');

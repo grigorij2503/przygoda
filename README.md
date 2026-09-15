@@ -1,6 +1,6 @@
 # ⚔️ Gemini TTRPG Master (Multiplayer Turn-Based Web Game)
 
-Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**, prowadzonych przez sztuczną inteligencję (**Gemini 3.8 Flash** jako Mistrz Gry). Backend odpowiada za rzuty, zasady walki, rozwój postaci, ekwipunek i stan kampanii, a klienci synchronizują się w czasie rzeczywistym. Aplikacja obsługuje również mapę kampanii, kategoryzowaną Kronikę Świata, bossów, magię, łup, crafting, czat, Web Push i generowanie ilustracji na żądanie (**Imagen 3**).
+Wieloosobowy silnik rozgrywek turowych, obecnie z jedyną opublikowaną kampanią **Dark Fantasy**, prowadzoną przez sztuczną inteligencję (**Gemini 3.8 Flash** jako Mistrz Gry). Backend odpowiada za rzuty, zasady walki, rozwój postaci, ekwipunek i stan kampanii, a klienci synchronizują się w czasie rzeczywistym. Aplikacja obsługuje również mapę kampanii, kategoryzowaną Kronikę Świata, bossów, magię, łup, crafting, czat, Web Push i generowanie ilustracji na żądanie (**Imagen 3**).
 
 ---
 
@@ -68,12 +68,14 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
     - Interfejs działa jako instalowalna PWA z service workerem, zwijanym nagłówkiem sesji i panelem akcji na telefonach oraz ekranach komputerowych do 1799 px, czytelniejszą typografią, semantycznymi modalami, obsługą klawiatury i trybem ograniczonego ruchu.
     - Po powrocie z uśpionej karty, zminimalizowanej przeglądarki lub zablokowanego urządzenia klient odtwarza WebSocket i pobiera aktualny stan tury; po co najmniej dwóch minutach nieobecności pokazuje krótkie powitanie wybranej postaci.
 13. **Jądro Wersjonowanych Światów:**
-    - Deklaratywne, niemutowalne modele Pydantic walidują identyfikatory, wersje, klasy, zdolności, startery, mapę, motyw, terminologię i odwołania pakietu przy imporcie aplikacji.
-    - Rejestr zawiera obecnie wyłącznie `dark_fantasy@1` dla rulesetu `d20_v1`; katalog `GET /api/worlds` udostępnia jego bezpieczne podsumowanie, ale nie pozwala jeszcze zmieniać świata kampanii.
+    - Deklaratywne, niemutowalne modele Pydantic walidują identyfikatory, wersje, klasy, zdolności, startery, mapę, motyw, terminologię, kronikę, profile przeciwnika, tabele łupu, crafting, statusy i odwołania pakietu przy imporcie aplikacji.
+    - Rejestr zawiera obecnie wyłącznie `dark_fantasy@1` dla rulesetu `d20_v1`; katalog `GET /api/worlds` udostępnia jego bezpieczne podsumowanie z motywem i scenariuszami. Narzędzia MG pozwalają wybrać pakiet dla nowego lobby przy potwierdzonym restarcie, ale nie przełączają trwającej rozgrywki w locie.
     - Każda kampania jest trwale przypięta do `world_pack_id` i `world_pack_version`, a postacie i zdolności zapisują stabilne `class_id` i `ability_id`. Dotychczasowe `character_class` oraz `magic_ability_id` pozostają adapterami zgodności.
     - Percepcja (`perception`, `PER`) jest piątą pełnoprawną cechą w bazie, API, kreatorze, karcie, lobby, awansie, korekcie MG, ekwipunku i interpretacji działań. Historyczne postacie otrzymują `0`, bez zmiany pozostałych cech, HP, XP ani poziomu.
-    - Startery nowych postaci i treść początkowej kampanii są pobierane z przypiętego pakietu. Zmiana świata aktywnej kampanii jest blokowana, a nieznana jawna wersja kończy się błędem.
-    - Schemat jest wersjonowany przez Alembic. Kontener wykonuje `alembic upgrade head` przed uruchomieniem serwera; bezpośredni start przez `uvicorn` zachowuje tymczasowy fallback dla starszych lokalnych baz.
+    - Klasy, startery, szybkie akcje, ogólne księgi zdolności (`ability_book`), wskazówki cechy dla słownictwa świata, profile mapy, łup, rzadkości, crafting, etykiety statusów, prolog, narracja, kierunek ilustracji i fallback offline są pobierane z przypiętej wersji pakietu. `magic_book` i nazwy pól bossa pozostają adapterami dla dotychczasowej gry.
+    - Frontend otrzymuje klasy, pięć etykiet cech, startery, księgi i akcje z API. Nieznany identyfikator klasy lub zdolności kończy się błędem bez podstawienia Kleryka. Zmiana świata aktywnej kampanii jest blokowana, a nieznana jawna wersja kończy się błędem.
+    - Motyw pakietu używa trzynastu semantycznych kolorów oraz kontrolowanych ID fontu, tekstury i ikon. Serwer ustawia `data-theme` i meta `theme-color` przed pobraniem sesji; klient pamięta ostatni motyw dla odświeżenia offline. Lokalny podgląd Neon w narzędziach MG nie jest jeszcze kampanią cyberpunkową.
+    - Manifest PWA opisuje neutralny silnik „Przygoda”, a wersjonowane CSS/JS i service worker cache'ują także motyw. Schemat jest wersjonowany przez Alembic. Kontener wykonuje `alembic upgrade head` przed uruchomieniem serwera; bezpośredni start przez `uvicorn` zachowuje tymczasowy fallback dla starszych lokalnych baz.
 
 ---
 
@@ -86,12 +88,12 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
 │   ├── database.py            # Asynchroniczny silnik SQLAlchemy (SQLite / aiosqlite)
 │   ├── models.py              # Modele ORM sesji (w tym limit ilustracji), postaci, tur, nazwanych elementów świata, czatu, mapy, push i głosowań
 │   ├── schemas.py             # Schematy Pydantic i Structured Output JSON dla Gemini
-│   ├── dice.py                # Serwerowe rzuty d20 i dedukcja atrybutów
-│   ├── combat.py              # Intencje, wsparcie celowane, agonia/śmierć, bossowie i statusy
+│   ├── dice.py                # Serwerowe rzuty d20 i dedukcja atrybutów z kontrolowanymi wskazówkami pakietu
+│   ├── combat.py              # Ogólny profil głównego przeciwnika, zdolności, wsparcie, agonia/śmierć i statusy
 │   ├── inventory.py           # Sloty, zajęte ręce i aktywny ekwipunek
-│   ├── loot.py                # Łup, przeszukiwanie i crafting
-│   ├── magic.py               # Zdolności Czarodzieja i Kleryka
-│   ├── map_generator.py       # Generowanie i serializacja mapy kampanii
+│   ├── loot.py                # Łup, przeszukiwanie i crafting według pakietu świata
+│   ├── magic.py               # Ogólne księgi zdolności i adaptery dawnej magii
+│   ├── map_generator.py       # Mapa grafowa generowana z profilu świata
 │   ├── gemini_service.py      # Integracja Google GenAI (Gemini 3.8 Flash + Imagen 3)
 │   ├── push_service.py        # Wysyłanie powiadomień Web Push
 │   ├── generate_vapid_keys.py # Generator kluczy VAPID
@@ -106,17 +108,18 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
 │   │   ├── turn_service.py    # Interpretacja akcji i rozstrzyganie tur
 │   │   ├── chat_service.py    # Trwały czat i obsługa WebSocket
 │   │   ├── image_service.py   # Generowanie ilustracji oraz limit kampanii
-│   │   └── world_service.py   # Publiczne podsumowania rejestru światów
+│   │   └── world_service.py   # Publiczny katalog i deklaratywne dane świata dla UI
 │   ├── worlds/
 │   │   ├── models.py          # Niemutowalny kontrakt WorldPack i typy składowe
 │   │   ├── registry.py        # Walidowany rejestr oraz kontrolowany fallback
 │   │   └── packs/             # Deklaratywne, wersjonowane pakiety JSON
 │   ├── static/
 │   │   ├── css/style.css      # Punkt wejścia kaskady CSS
-│   │   ├── css/modules/       # Tokeny, baza, komponenty, ekwipunek, mapa, kronika, komunikaty i responsywność
+│   │   ├── css/modules/       # Tokeny, baza, komponenty, ekwipunek, mapa, kronika, komunikaty, responsywność i motyw
+│   │   ├── js/theme-bootstrap.js # Ustawienie motywu przed CSS oraz pamięć offline/podgląd Neon
 │   │   ├── js/app.js          # Składanie głównego komponentu Alpine `rpgGame`
 │   │   ├── js/modules/        # Stan, PWA, auth/MG, sesja/postać, mapa/historia, realtime/czat, akcje i ekwipunek
-│   │   ├── manifest.json      # Manifest instalowalnej PWA
+│   │   ├── manifest.json      # Neutralny manifest instalowalnej PWA
 │   │   ├── sw.js              # Service worker, cache modułów i obsługa Web Push
 │   │   └── icons/             # Ikony aplikacji
 │   └── templates/
@@ -131,6 +134,8 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
 │   ├── test_lobby_flow.py     # Testy lobby, gotowości i uprawnień MG
 │   ├── test_loot.py           # Testy łupu oraz craftingu
 │   ├── test_turn_flow.py      # Testy API, autoryzacji i akcji
+│   ├── test_stage6_world_content.py # Próbny pakiet: klasy, księga, mapa, przeciwnik i walidacja mechanik
+│   ├── test_stage7_theme_selection.py # Kontrolowane motywy i wybór świata tylko przy restarcie
 │   ├── test_websocket_chat.py # Test komunikacji czatu przez WebSocket
 │   ├── test_world_registry.py # Walidacja pakietów, odwołań, fallbacku i katalogu światów
 │   └── test_world_migration.py # Migracja historycznej kampanii bez zmiany postępu
@@ -149,6 +154,13 @@ Wieloosobowa aplikacja webowa do rozgrywek turowych w klimacie **Dark Fantasy**,
 ├── .env.example               # Wzór pliku środowiskowego
 └── README.md                  # Dokumentacja techniczna
 ```
+
+Etapy 6–7 nie dodają zmiennych `.env` ani osobnego buildu frontendu. Nadal
+rejestrowany jest wyłącznie `dark_fantasy@1`; podgląd Neon jest lokalną
+prezentacją, a drugi grywalny pakiet należy do etapu 8. Weryfikacja zmian stanu
+kampanii powinna korzystać z osobnej bazy przez `DATABASE_URL` lub z kopii
+zapisu, nie z aktywnej bazy. Checklisty wspólnego odbioru są w
+`docs/WORLD_PACK_ROADMAP.md`.
 
 ---
 

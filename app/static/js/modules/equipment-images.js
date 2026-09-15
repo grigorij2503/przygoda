@@ -111,12 +111,15 @@
     async generateIntroAI() {
       this.isGeneratingIntro = true;
       try {
+        const selectedWorld = this.selectedWorldSummary;
         const res = await fetch('/api/generate-intro', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             scenario_type: this.scenarioChoice,
-            tone: this.scenarioTone
+            tone: this.scenarioTone,
+            world_pack_id: selectedWorld?.id || null,
+            world_pack_version: selectedWorld?.version || null
           })
         });
         if (res.status === 403) {

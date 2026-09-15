@@ -92,7 +92,7 @@
               Na końcu każdej kolejnej tury otrzymujesz porażkę śmierci. Trzecia oznacza zgon. Sojusznik może Cię ustabilizować lub podnieść akcją wsparcia.
             </p>
             <p class="mt-1 text-gray-300" x-show="currentCharacter?.death_state === 'stable'">Nie wykonujesz akcji i nie zbierasz porażek śmierci. Udane wsparcie przywróci Ci co najmniej 1 PW.</p>
-            <p class="mt-1 text-gray-300" x-show="currentCharacter?.death_state === 'dead'">Zwykłe leczenie nie działa. Kleryk od 7. poziomu może użyć Wskrzeszenia.</p>
+            <p class="mt-1 text-gray-300" x-show="currentCharacter?.death_state === 'dead'">Zwykłe leczenie nie działa. Potrzebna jest odblokowana zdolność o efekcie wskrzeszenia.</p>
           </div>
 
           <div x-show="!session?.is_turn_resolving && !hasSubmittedCurrentTurn && currentCharacter?.is_alive">
@@ -132,10 +132,10 @@
                     <span x-text="action.icon + ' ' + action.label"></span>
                   </button>
                 </template>
-                <button x-show="!(session?.active_boss?.hp > 0) && !session?.inventory_rules?.current_location_searched" x-cloak
-                        @click="setQuickAction('Dokładnie przeszukuję tę lokację w poszukiwaniu wartościowego łupu.', 'interact')"
+                <button x-show="lootSearchAction && !(activeEnemy?.hp > 0) && !session?.inventory_rules?.current_location_searched" x-cloak
+                        @click="selectQuickAction(lootSearchAction)"
                         class="text-[11px] bg-amber-950/60 hover:bg-amber-900/60 border border-amber-700/60 text-amber-200 px-2.5 py-1 rounded-md transition">
-                  🎒 Szukaj łupu
+                  <span x-text="lootSearchAction ? `${lootSearchAction.icon} ${lootSearchAction.label}` : ''"></span>
                 </button>
               </div>
             </div>
@@ -145,7 +145,7 @@
               🔨 Warsztat jest dostępny w tej turze. Crafting jest całą akcją: wpisz dokładne nazwy trzech przedmiotów tego samego typu, które chcesz scalić.
             </div>
             <p class="mb-3 text-[10px] text-gray-500">
-              Jedna tura obejmuje jeden główny zamiar. Każdą lokację można przeszukać tylko raz, a boss pozostawia jeden wspólny łup.
+              Jedna tura obejmuje jeden główny zamiar. Każdą lokację można przeszukać tylko raz, a główny przeciwnik pozostawia jeden wspólny łup.
             </p>
 
             <div class="space-y-3">
@@ -174,7 +174,7 @@
                     <option :value="String(character.id)" x-text="character.name + ' • ' + deathStateLabel(character) + ' • ' + character.current_hp + '/' + character.max_hp + ' PW'"></option>
                   </template>
                 </select>
-                <p x-show="magicAbilityId === 'resurrection'" class="mt-1 text-xs text-violet-300">Wskrzeszenie może wskazać poległego bohatera.</p>
+                <p x-show="selectedMagicAbility?.mechanic_key === 'revive'" class="mt-1 text-xs text-violet-300">Ta zdolność może wskazać poległego bohatera.</p>
               </div>
 
               <div x-show="actionInterpretation" x-cloak class="rounded-lg border border-indigo-800/50 bg-indigo-950/25 px-3 py-2 text-[10px]">
@@ -207,11 +207,9 @@
                     Cecha
                     <select x-model="actionTestedStat" @change="interpretAction()"
                             class="mt-1 w-full rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white">
-                      <option value="strength">STR</option>
-                      <option value="agility">AGI</option>
-                      <option value="intellect">INT</option>
-                      <option value="charisma">CHA</option>
-                      <option value="perception">PER</option>
+                      <template x-for="attribute in worldAttributes" :key="attribute.id">
+                        <option :value="attribute.id" x-text="attribute.abbreviation"></option>
+                      </template>
                     </select>
                   </label>
                   <button type="button" @click="clearActionInterpretationCorrection()"
@@ -222,7 +220,7 @@
               <div x-show="actionError" x-text="actionError" class="text-xs text-rose-400"></div>
 
               <button @click="submitAction()" :disabled="isSubmittingAction"
-                      class="w-full py-3 bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-500 text-slate-950 font-fantasy font-bold rounded-xl shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50">
+                      class="ui-button-primary w-full py-3 bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-500 text-slate-950 font-fantasy font-bold rounded-xl shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50">
                 <span x-show="!isSubmittingAction">ZATWIERDŹ AKCJĘ I RZUĆ KOŚCIĄ</span>
                 <span x-show="isSubmittingAction">ZAPISYWANIE...</span>
               </button>

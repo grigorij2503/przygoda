@@ -61,7 +61,9 @@ async def create_character(
         class_definition = (
             WORLD_PACK_REGISTRY.get_class(world_pack, payload.class_id)
             if payload.class_id
-            else WORLD_PACK_REGISTRY.resolve_class(world_pack, payload.character_class)
+            else WORLD_PACK_REGISTRY.resolve_class(
+                world_pack, payload.character_class, fallback=False
+            )
         )
     except WorldPackNotFoundError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -71,9 +73,7 @@ async def create_character(
         session_id=session.id,
         player_name=payload.player_name.strip(),
         name=payload.name.strip(),
-        character_class=(
-            class_definition.name if payload.class_id else payload.character_class.strip()
-        ),
+        character_class=class_definition.name,
         class_id=class_definition.id,
         level=1,
         xp=0,

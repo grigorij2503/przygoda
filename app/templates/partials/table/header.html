@@ -11,13 +11,13 @@
             <strong class="block truncate text-sm font-fantasy text-amber-300" x-text="session?.title"></strong>
             <span class="block text-[10px] text-gray-400">
               Tura #<b class="text-white" x-text="session?.current_turn_number"></b>
-              <span x-show="session?.active_boss"> • <span class="text-red-300" x-text="session?.active_boss?.name"></span></span>
+              <span x-show="activeEnemy"> • <span class="text-red-300" x-text="activeEnemy?.name"></span></span>
             </span>
           </span>
         </span>
         <span class="flex items-center gap-2 shrink-0">
-          <span x-show="session?.active_boss" class="text-[10px] font-mono text-red-300"
-                x-text="'HP ' + session?.active_boss?.hp + '/' + session?.active_boss?.max_hp"></span>
+          <span x-show="activeEnemy" class="text-[10px] font-mono text-red-300"
+                x-text="'HP ' + activeEnemy?.hp + '/' + activeEnemy?.max_hp"></span>
           <svg class="w-4 h-4 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
           </svg>
@@ -28,7 +28,7 @@
         <div class="flex items-center gap-3">
           <span class="text-2xl">🏰</span>
           <div>
-            <h1 class="text-lg font-fantasy font-bold text-amber-300 leading-tight" x-text="session?.title"></h1>
+            <h1 class="ui-heading text-lg font-fantasy font-bold text-amber-300 leading-tight" x-text="session?.title"></h1>
             <p class="text-xs text-gray-400">
               <span class="text-amber-500/90" x-text="session?.setting_theme"></span> • 
               <span>Tura #<b class="text-white" x-text="session?.current_turn_number"></b></span>
@@ -59,13 +59,13 @@
           <template x-if="readyCount >= totalAlivePlayers && totalAlivePlayers > 0 && !session?.is_turn_resolving">
             <button @click="triggerTurnResolution()" :disabled="isResolvingTurn"
                     class="text-xs font-fantasy bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 shadow-md animate-pulse">
-              <span>⚔️</span> Rozstrzygnij Turę
+              <span class="ui-theme-icon ui-theme-icon--action" aria-hidden="true">⚔️</span> Rozstrzygnij Turę
             </button>
           </template>
 
           <!-- Przycisk Kroniki Świata (Lore Book) -->
           <button @click="showLoreBookModal = true" class="text-xs font-fantasy bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
-            <span>📜</span> <span class="hidden md:inline">Kronika Świata</span>
+            <span class="ui-theme-icon ui-theme-icon--lore" aria-hidden="true">📜</span> <span class="hidden md:inline">Kronika Świata</span>
             <span class="bg-amber-500/20 text-amber-400 px-1.5 py-0.2 rounded-full text-[10px]" x-text="session?.lore_entities?.length || 0"></span>
           </button>
 
@@ -82,7 +82,7 @@
           <!-- Wspólna mapa wyprawy -->
           <button @click="openMap()" title="Mapa wspólnej wyprawy"
                   class="text-xs font-fantasy bg-slate-900 hover:bg-slate-800 border border-cyan-500/40 text-cyan-300 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
-            <span>🗺️</span> <span class="hidden md:inline">Mapa</span>
+            <span class="ui-theme-icon ui-theme-icon--map" aria-hidden="true">🗺️</span> <span class="hidden md:inline">Mapa</span>
           </button>
 
           <!-- Osobisty notes wybranej postaci -->
@@ -113,33 +113,33 @@
       </div>
 
       <!-- Pasek aktywnego przeciwnika pozostaje nad przewijaną kroniką. -->
-      <div x-show="session?.active_boss" x-cloak
+      <div x-show="activeEnemy" x-cloak
            class="mobile-header-content max-w-7xl mx-auto mt-3 p-3 rounded-xl border bg-gradient-to-r from-red-950/95 via-black to-red-950/95 shadow-2xl overflow-hidden"
-           :class="session?.active_boss?.hp <= 0 ? 'border-slate-600/70' : 'border-red-700/60'">
+           :class="activeEnemy?.hp <= 0 ? 'border-slate-600/70' : 'border-red-700/60'">
         <div class="flex items-center justify-between gap-3 mb-1.5">
           <div class="flex items-center gap-2 min-w-0">
-            <span class="text-xl" :class="session?.active_boss?.hp > 0 ? 'animate-pulse' : ''">👑</span>
+            <span class="text-xl" :class="activeEnemy?.hp > 0 ? 'animate-pulse' : ''" x-text="enemyProfile.icon || '⚠️'"></span>
             <div class="min-w-0">
-              <span class="text-[9px] uppercase font-mono tracking-widest text-red-400 block truncate" x-text="session?.active_boss?.title"></span>
+              <span class="text-[9px] uppercase font-mono tracking-widest text-red-400 block truncate" x-text="activeEnemy?.title"></span>
               <h3 class="text-sm font-fantasy font-bold truncate"
-                  :class="session?.active_boss?.hp <= 0 ? 'text-gray-400 line-through' : 'text-red-200'"
-                  x-text="session?.active_boss?.name"></h3>
+                  :class="activeEnemy?.hp <= 0 ? 'text-gray-400 line-through' : 'text-red-200'"
+                  x-text="activeEnemy?.name"></h3>
             </div>
           </div>
           <span class="shrink-0 text-[11px] font-mono px-2.5 py-1 rounded-md border"
-                :class="session?.active_boss?.hp <= 0 ? 'text-gray-300 bg-slate-900 border-slate-700' : 'text-red-300 bg-red-900/40 border-red-700/50'">
-            <span x-show="session?.active_boss?.hp <= 0">POKONANY • </span>
-            HP: <span x-text="session?.active_boss?.hp + ' / ' + session?.active_boss?.max_hp"></span>
+                :class="activeEnemy?.hp <= 0 ? 'text-gray-300 bg-slate-900 border-slate-700' : 'text-red-300 bg-red-900/40 border-red-700/50'">
+            <span x-show="activeEnemy?.hp <= 0" x-text="(enemyProfile.defeated_label || 'pokonany').toUpperCase() + ' • '"></span>
+            HP: <span x-text="activeEnemy?.hp + ' / ' + activeEnemy?.max_hp"></span>
           </span>
         </div>
         <div class="flex flex-wrap items-center gap-1.5 mb-2 text-[10px] font-mono">
           <span class="px-2 py-0.5 rounded border border-red-800/70 bg-red-950/70 text-red-200"
-                x-text="'FAZA ' + (session?.active_boss?.phase || 1) + '/3'"></span>
+                x-text="'FAZA ' + (activeEnemy?.phase || 1) + '/3'"></span>
           <span class="px-2 py-0.5 rounded border border-slate-700 bg-slate-950/70 text-gray-300"
-                x-text="'🛡 Pancerz ' + (session?.active_boss?.armor || 0)"></span>
+                x-text="'🛡 Pancerz ' + (activeEnemy?.armor || 0)"></span>
           <span class="px-2 py-0.5 rounded border border-slate-700 bg-slate-950/70 text-gray-300"
-                x-text="'🎲 DC ' + (session?.active_boss?.defense_dc || 12)"></span>
-          <template x-for="effect in session?.active_boss?.effects || []" :key="effect.type">
+                x-text="'🎲 DC ' + (activeEnemy?.defense_dc || 12)"></span>
+          <template x-for="effect in activeEnemy?.effects || []" :key="effect.type">
             <span class="px-2 py-0.5 rounded border cursor-help"
                   :class="statusClass(effect)" :title="statusTooltip(effect)">
               <span x-text="effect.icon"></span>
@@ -150,18 +150,18 @@
         </div>
         <div class="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-red-800/80 p-0.5">
           <div class="h-full rounded-full bg-gradient-to-r from-red-700 via-rose-600 to-red-500 transition-all duration-500"
-               :style="'width: ' + Math.max(0, Math.min(100, (session?.active_boss?.hp / session?.active_boss?.max_hp) * 100)) + '%'"></div>
+               :style="'width: ' + Math.max(0, Math.min(100, (activeEnemy?.hp / activeEnemy?.max_hp) * 100)) + '%'"></div>
         </div>
-        <details x-show="session?.active_boss?.hp > 0" class="mt-2 text-[10px]">
+        <details x-show="activeEnemy?.hp > 0" class="mt-2 text-[10px]">
           <summary class="cursor-pointer text-red-300 hover:text-red-200 font-fantasy select-none">
             ⚔ Mechanika starcia i elementy areny
           </summary>
           <div class="mt-2 grid grid-cols-1 md:grid-cols-4 gap-2">
             <div class="p-2 rounded-lg border border-amber-700/50 bg-amber-950/30">
-              <div class="font-bold text-amber-300" x-text="(session?.active_boss?.telegraph?.icon || '⚠️') + ' ' + (session?.active_boss?.telegraph?.name || 'Nadchodzący atak')"></div>
-              <div class="text-gray-300 mt-0.5" x-text="session?.active_boss?.telegraph?.description"></div>
+              <div class="font-bold text-amber-300" x-text="(activeEnemy?.telegraph?.icon || '⚠️') + ' ' + (activeEnemy?.telegraph?.name || enemyProfile.next_attack_label || 'Nadchodzący atak')"></div>
+              <div class="text-gray-300 mt-0.5" x-text="activeEnemy?.telegraph?.description"></div>
             </div>
-            <template x-for="feature in session?.active_boss?.features || []" :key="feature.id">
+            <template x-for="feature in activeEnemy?.features || []" :key="feature.id">
               <button type="button" @click="setEncounterAction(feature)"
                       :disabled="feature.state !== 'active' || hasSubmittedCurrentTurn || session?.is_turn_resolving"
                       class="text-left p-2 rounded-lg border transition disabled:opacity-40 disabled:cursor-not-allowed"

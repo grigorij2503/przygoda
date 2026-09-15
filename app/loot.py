@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from typing import Iterable
 
 from app.models import CampaignMap, Character, GameSession, InventoryItem, Turn
+from app.worlds.models import LootRarityDefinition, WorldPack
+from app.worlds.registry import WORLD_PACK_REGISTRY, get_default_world_pack
 
 
 CRAFTING_KEYWORDS = (
@@ -13,12 +15,7 @@ CRAFTING_KEYWORDS = (
 )
 AMBIGUOUS_CRAFTING_KEYWORDS = ("lacz", "polacz", "wzmacn")
 CRAFTING_OBJECT_KEYWORDS = (
-    "przedmiot", "skladnik", "ekwipun", "bron", "miecz", "sztylet", "topor", "luk",
-    "kostur", "zbroj", "pancerz", "tarc", "amulet", "piersc", "relik", "helm", "but",
-)
-LOOT_SEARCH_KEYWORDS = (
-    "przeszuk", "pladruj", "ograb", "szukam lupu", "szukam przedmiot", "zbieram lup",
-    "sprawdzam cial", "przegladam cial", "otwieram skrzyn", "przeswietlam skrzyn",
+    "przedmiot", "skladnik", "ekwipun", "bron",
 )
 COMBAT_ACTION_KEYWORDS = (
     "atak", "uderz", "strzel", "tne", "cios", "bronie", "oslaniam", "lecze", "wspieram",
@@ -38,40 +35,6 @@ class InventoryResolution:
     events: list[dict] = field(default_factory=list)
 
 
-LOOT_TEMPLATES = {
-    "strength": (
-        ("weapon", "Miecz Najemnika", "Dobrze wyważone ostrze nie cofa się przed pancerzem.", 1),
-        ("weapon", "Topór Strażnika", "Ciężkie ostrze pomaga przełamywać obronę przeciwnika.", 2),
-        ("armor", "Pancerz Łuskowy", "Nachodzące na siebie płytki rozpraszają siłę uderzeń.", 1),
-        ("accessory", "Karwasz Siłacza", "Usztywnia nadgarstek podczas mocnych cięć i pchnięć.", 1),
-    ),
-    "agility": (
-        ("weapon", "Sztylet Zwiadowcy", "Lekkie ostrze błyskawicznie odnajduje luki w obronie.", 1),
-        ("weapon", "Łuk Popielnego Gaju", "Sprężyste ramiona łuku pomagają posyłać celne strzały.", 2),
-        ("armor", "Płaszcz Cichego Kroku", "Miękki materiał tłumi ruch i nie krępuje uników.", 1),
-        ("accessory", "Pierścień Refleksu", "Chłodny metal wyostrza reakcję w chwili zagrożenia.", 1),
-    ),
-    "intellect": (
-        ("weapon", "Kostur Zgaszonej Runy", "Przewodzi skupioną energię przez wyryte w drewnie znaki.", 2),
-        ("accessory", "Soczewka Arkanisty", "Ułatwia dostrzeganie wzorów ukrytych w magii i materii.", 1),
-        ("accessory", "Amulet Szeptów", "Pomaga zachować jasność myśli pośród nadnaturalnego chaosu.", 1),
-        ("misc", "Kodeks Popiołów", "Zapisane marginesy podpowiadają rozwiązania dawnych zagadek.", 1),
-    ),
-    "charisma": (
-        ("weapon", "Buława Pielgrzyma", "Ceremonialny oręż dodaje powagi słowom właściciela.", 1),
-        ("accessory", "Sygnet Poselstwa", "Stary herb wzbudza respekt nawet u nieufnych rozmówców.", 1),
-        ("armor", "Płaszcz Chorążego", "Wyprostowana sylwetka przyciąga wzrok sprzymierzeńców.", 1),
-        ("misc", "Relikwiarz Przysięgi", "Przypomina słuchaczom, że wypowiedziane obietnice mają wagę.", 1),
-    ),
-    "perception": (
-        ("accessory", "Sokole Szkło", "Wyostrza obraz i pomaga wypatrzyć ruch w półmroku.", 1),
-        ("armor", "Kaptur Czujnego Strażnika", "Tłumi rozproszenia i ułatwia nasłuchiwanie zagrożeń.", 1),
-        ("misc", "Kompas Szeptów", "Drży, gdy w pobliżu porusza się coś ukrytego.", 1),
-        ("accessory", "Monokl Tropiciela", "Pomaga odróżnić świeże ślady od starego kurzu.", 1),
-    ),
-}
-
-
 def normalize_game_text(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", value or "")
     return "".join(char for char in normalized if not unicodedata.combining(char)).lower()
@@ -82,35 +45,54 @@ def _has_token_stem(value: str, stems: Iterable[str]) -> bool:
     return any(token.startswith(stem) for token in tokens for stem in stems)
 
 
-def has_crafting_intent(action_text: str) -> bool:
+def has_crafting_intent(action_text: str, world_pack: WorldPack | None = None) -> bool:
     if _has_token_stem(action_text, CRAFTING_KEYWORDS):
         return True
+    pack = world_pack or get_default_world_pack()
+    vocabulary = tuple(
+        normalize_game_text(alias)[:4]
+        for rule in pack.item_vocabulary
+        for alias in rule.aliases
+    )
+    object_markers = tuple(
+        normalize_game_text(marker)
+        for marker in pack.crafting_profile.object_markers
+    )
     return (
         _has_token_stem(action_text, AMBIGUOUS_CRAFTING_KEYWORDS)
-        and _has_token_stem(action_text, CRAFTING_OBJECT_KEYWORDS)
+        and _has_token_stem(
+            action_text, (*CRAFTING_OBJECT_KEYWORDS, *object_markers, *vocabulary)
+        )
     )
 
 
-def has_loot_search_intent(action_text: str) -> bool:
+def has_loot_search_intent(
+    action_text: str, world_pack: WorldPack | None = None
+) -> bool:
+    world_pack = world_pack or get_default_world_pack()
     normalized = normalize_game_text(action_text)
-    return (
-        _has_token_stem(action_text, ("przeszuk", "pladruj", "ograb"))
-        or any(keyword in normalized for keyword in LOOT_SEARCH_KEYWORDS)
+    return any(
+        normalize_game_text(marker) in normalized
+        or _has_token_stem(action_text, (normalize_game_text(marker),))
+        for marker in world_pack.narrative_profile.loot_search_markers
     )
 
 
 def infer_crafting_source_items(
     action_text: str,
     inventory: Iterable[InventoryItem],
+    world_pack: WorldPack | None = None,
 ) -> list[InventoryItem]:
     """Rozpoznaje konkretne, trwałe przedmioty wymienione w deklaracji craftingu."""
-    if not has_crafting_intent(action_text):
+    if not has_crafting_intent(action_text, world_pack):
         return []
 
     normalized_action = normalize_game_text(action_text)
     inventory_items = [item for item in inventory if item.item_type in CRAFTABLE_ITEM_TYPES]
+    pack = world_pack or get_default_world_pack()
     ignored_name_parts = {
-        "magicz", "runicz", "starozy", "wzmocn", "krasnol", "mistrz", "ognia", "cienia",
+        normalize_game_text(part)
+        for part in pack.crafting_profile.ignored_name_parts
     }
     item_prefixes: dict[int, set[str]] = {}
     prefix_counts: Counter[str] = Counter()
@@ -148,9 +130,11 @@ def validate_special_action(
     inferred_intent: str,
     uses_magic: bool,
     campaign_map: CampaignMap | None,
+    world_pack: WorldPack | None = None,
 ) -> str | None:
-    crafting = has_crafting_intent(action_text)
-    searching = has_loot_search_intent(action_text)
+    world_pack = world_pack or get_default_world_pack()
+    crafting = has_crafting_intent(action_text, world_pack)
+    searching = has_loot_search_intent(action_text, world_pack)
 
     if crafting and searching:
         return "Jedna tura obejmuje jeden główny zamiar. Wybierz crafting albo przeszukiwanie."
@@ -178,8 +162,8 @@ def validate_special_action(
         if boss_alive:
             return "Nie możesz scalać ani ulepszać przedmiotów podczas aktywnej walki."
         if int(session.crafting_available_until_turn or 0) != current_turn_number:
-            return "Warsztat jest niedostępny. Crafting otwiera się na jedną turę po pokonaniu bossa."
-        sources = infer_crafting_source_items(action_text, inventory)
+            return world_pack.crafting_profile.workshop_unavailable_message
+        sources = infer_crafting_source_items(action_text, inventory, world_pack)
         if len(sources) != 3:
             return "Crafting wymaga wskazania w akcji dokładnie trzech posiadanych przedmiotów."
         item_types = {item.item_type for item in sources}
@@ -193,7 +177,9 @@ def resolve_inventory_mechanics(
     turn: Turn,
     characters: list[Character],
     campaign_map: CampaignMap | None,
+    world_pack: WorldPack | None = None,
 ) -> InventoryResolution:
+    world_pack = world_pack or get_default_world_pack()
     resolution = InventoryResolution()
     boss_defeated = any(
         isinstance(event, dict) and event.get("type") == "boss_defeated"
@@ -201,7 +187,7 @@ def resolve_inventory_mechanics(
     )
 
     for action in turn.actions:
-        if not has_crafting_intent(action.action_text):
+        if not has_crafting_intent(action.action_text, world_pack):
             continue
         if (
             boss_defeated
@@ -212,10 +198,10 @@ def resolve_inventory_mechanics(
         character = next((item for item in characters if item.id == action.character_id), None)
         if not character or action.outcome_tier not in CRAFTING_SUCCESS_TIERS:
             continue
-        sources = infer_crafting_source_items(action.action_text, character.inventory)
+        sources = infer_crafting_source_items(action.action_text, character.inventory, world_pack)
         if len(sources) != 3 or len({item.item_type for item in sources}) != 1:
             continue
-        crafted = _build_crafted_item(character, sources)
+        crafted = _build_crafted_item(character, sources, world_pack)
         resolution.new_items.append(crafted)
         for source in sources:
             source_quantity = int(source.quantity or 1)
@@ -238,7 +224,7 @@ def resolve_inventory_mechanics(
             session.last_loot_character_id,
         )
         if recipient:
-            item = _build_random_loot(recipient, boss_reward=True)
+            item = _build_random_loot(recipient, world_pack, boss_reward=True)
             resolution.new_items.append(item)
             session.last_loot_character_id = recipient.id
             resolution.events.append({
@@ -251,7 +237,8 @@ def resolve_inventory_mechanics(
         return resolution
 
     search_actions = [
-        action for action in turn.actions if has_loot_search_intent(action.action_text)
+        action for action in turn.actions
+        if has_loot_search_intent(action.action_text, world_pack)
     ]
     if not search_actions:
         return resolution
@@ -288,7 +275,7 @@ def resolve_inventory_mechanics(
     )
     if not recipient:
         return resolution
-    item = _build_random_loot(recipient, critical_search=critical)
+    item = _build_random_loot(recipient, world_pack, critical_search=critical)
     resolution.new_items.append(item)
     session.last_loot_character_id = recipient.id
     resolution.events.append({
@@ -317,49 +304,56 @@ def _choose_recipient(
     return unique[secrets.randbelow(len(unique))]
 
 
-def _preferred_stat(character: Character) -> str:
-    class_name = normalize_game_text(character.character_class)
-    if any(label in class_name for label in ("lotr", "zaboj", "zlodziej", "lucz")):
-        return "agility"
-    if any(label in class_name for label in ("mag", "czaro", "druid")):
-        return "intellect"
-    if any(label in class_name for label in ("kapl", "klery", "bard", "palad")):
-        return "charisma"
-    return "strength"
+def _preferred_stat(character: Character, world_pack: WorldPack) -> str:
+    class_value = character.class_id or character.character_class
+    try:
+        class_definition = WORLD_PACK_REGISTRY.get_class(world_pack, class_value)
+    except LookupError:
+        class_definition = WORLD_PACK_REGISTRY.resolve_class(world_pack, class_value)
+    return class_definition.primary_stat
 
 
-def _roll_rarity(*, boss_reward: bool, critical_search: bool) -> tuple[str, int]:
+def _roll_rarity(
+    world_pack: WorldPack,
+    *,
+    boss_reward: bool,
+    critical_search: bool,
+) -> LootRarityDefinition:
     roll = secrets.randbelow(100)
-    if boss_reward or critical_search:
-        if roll < 15:
-            return "z Echem Reliktu", 3
-        if roll < 70:
-            return "z Runicznym Splotem", 2
-        return "z Żelaznego Szlaku", 1
-    if roll < 5:
-        return "z Echem Reliktu", 3
-    if roll < 30:
-        return "z Runicznym Splotem", 2
-    return "z Żelaznego Szlaku", 1
+    cumulative = 0
+    reward = boss_reward or critical_search
+    for rarity in world_pack.loot_rarities:
+        cumulative += rarity.reward_weight if reward else rarity.normal_weight
+        if roll < cumulative:
+            return rarity
+    return world_pack.loot_rarities[-1]
 
 
 def _build_random_loot(
     recipient: Character,
+    world_pack: WorldPack,
     *,
     boss_reward: bool = False,
     critical_search: bool = False,
 ) -> InventoryItem:
-    rarity_suffix, rarity_rank = _roll_rarity(
+    rarity = _roll_rarity(
+        world_pack,
         boss_reward=boss_reward,
         critical_search=critical_search,
     )
     # Mikstury pozostają użytecznym, lecz rzadszym wynikiem losowania.
-    if secrets.randbelow(7) == 0:
-        healing = min(30, 8 + recipient.level * 2 + rarity_rank * 2)
+    consumable = world_pack.consumable_loot
+    if secrets.randbelow(consumable.chance_denominator) == 0:
+        healing = min(
+            consumable.healing_cap,
+            consumable.base_healing
+            + recipient.level * consumable.healing_per_level
+            + rarity.rank * consumable.healing_per_rarity,
+        )
         return InventoryItem(
             character_id=recipient.id,
-            name=f"Eliksir Żywotności {rarity_suffix}",
-            description=f"Odnawia {healing} punktów życia.",
+            name=f"{consumable.name} {rarity.suffix}",
+            description=consumable.description_template.format(healing=healing),
             item_type="consumable",
             target_stat="none",
             stat_bonus=healing,
@@ -369,36 +363,40 @@ def _build_random_loot(
             quantity=1,
         )
 
-    target_stat = _preferred_stat(recipient)
-    templates = LOOT_TEMPLATES[target_stat]
-    item_type, base_name, description, hands_required = templates[secrets.randbelow(len(templates))]
+    target_stat = _preferred_stat(recipient, world_pack)
+    table = next(table for table in world_pack.loot_tables if table.id == target_stat)
+    template = table.entries[secrets.randbelow(len(table.entries))]
     level_cap = min(5, 2 + max(0, recipient.level - 1) // 5)
-    stat_bonus = min(rarity_rank, level_cap)
+    stat_bonus = min(rarity.rank, level_cap)
     damage_power = 0
-    if item_type == "weapon":
+    if template.item_type == "weapon":
         damage_bonus_cap = min(3, max(0, recipient.level - 1) // 5)
         damage_power = (
-            (6 if hands_required == 2 else 4)
-            + min(max(0, rarity_rank - 1), damage_bonus_cap)
+            (6 if template.hands_required == 2 else 4)
+            + min(max(0, rarity.rank - 1), damage_bonus_cap)
         )
     return InventoryItem(
         character_id=recipient.id,
-        name=f"{base_name} {rarity_suffix}",
-        description=description,
-        item_type=item_type,
+        name=f"{template.label} {rarity.suffix}",
+        description=template.description,
+        item_type=template.item_type,
         target_stat=target_stat,
         stat_bonus=stat_bonus,
         damage_power=damage_power,
-        hands_required=hands_required,
+        hands_required=template.hands_required,
         is_equipped=False,
         quantity=1,
     )
 
 
-def _build_crafted_item(character: Character, sources: list[InventoryItem]) -> InventoryItem:
+def _build_crafted_item(
+    character: Character,
+    sources: list[InventoryItem],
+    world_pack: WorldPack,
+) -> InventoryItem:
     best = max(sources, key=lambda item: (int(item.stat_bonus or 0), int(item.id or 0)))
     target_stats = [item.target_stat for item in sources if item.target_stat != "none"]
-    target_stat = Counter(target_stats).most_common(1)[0][0] if target_stats else _preferred_stat(character)
+    target_stat = Counter(target_stats).most_common(1)[0][0] if target_stats else _preferred_stat(character, world_pack)
     source_bonus = max(int(item.stat_bonus or 0) for item in sources)
     level_cap = min(5, 2 + max(0, character.level - 1) // 5)
     stat_bonus = min(source_bonus + 1, max(source_bonus, level_cap))
@@ -408,19 +406,15 @@ def _build_crafted_item(character: Character, sources: list[InventoryItem]) -> I
         source_power = max(_item_damage_power(item) for item in sources)
         damage_cap = (6 if hands_required == 2 else 4) + min(3, max(0, character.level - 1) // 5)
         damage_power = min(source_power + 1, max(source_power, damage_cap))
-    stat_labels = {
-        "strength": "siłę",
-        "agility": "zręczność",
-        "intellect": "intelekt",
-        "charisma": "charyzmę",
-        "perception": "percepcję",
-        "hp_max": "żywotność",
-        "none": "skuteczność",
-    }
+    stat_labels = {attribute.id: attribute.label.casefold() for attribute in world_pack.attributes}
+    stat_labels.update({"hp_max": "żywotność", "none": "skuteczność"})
+    crafting_profile = world_pack.crafting_profile
     return InventoryItem(
         character_id=character.id,
-        name=f"Ulepszenie: {best.name}",
-        description=f"Rzemieślnicze wzmocnienie poprawia {stat_labels.get(target_stat, 'skuteczność')} przedmiotu.",
+        name=f"{crafting_profile.result_prefix}: {best.name}",
+        description=crafting_profile.description_template.format(
+            stat_label=stat_labels.get(target_stat, "skuteczność")
+        ),
         item_type=best.item_type,
         target_stat=target_stat,
         stat_bonus=stat_bonus,

@@ -174,10 +174,10 @@
                                 class="px-1.5 py-0.5 rounded bg-indigo-950/80 border border-indigo-500/40 text-indigo-300 text-[9px] not-italic">
                             akcja wybrana przez drużynę
                           </span>
-                          <span x-show="act.magic_ability" x-cloak
+                          <span x-show="act.ability || act.magic_ability" x-cloak
                                 class="px-1.5 py-0.5 rounded bg-violet-950/80 border border-violet-500/40 text-violet-200 text-[9px] not-italic">
-                            <span x-text="act.magic_ability?.icon"></span>
-                            <span x-text="act.magic_ability?.name"></span>
+                            <span x-text="(act.ability || act.magic_ability)?.icon"></span>
+                            <span x-text="(act.ability || act.magic_ability)?.name"></span>
                           </span>
                           <span class="text-gray-400 italic">„<span x-text="act.action_text"></span>”</span>
                         </div>
@@ -318,4 +318,3 @@
           </template>
           </div>
         </div>
-

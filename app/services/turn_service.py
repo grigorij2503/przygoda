@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.combat import (
     action_dc,
-    ensure_boss_encounter,
+    ensure_enemy_encounter,
     infer_action_intent,
     infer_action_intent_details,
     resolve_boss_turn,
@@ -21,7 +21,7 @@ from app.database import get_db
 from app.dice import deduce_tested_attribute_details, resolve_dice_roll
 from app.gemini_service import resolve_turn_with_gemini
 from app.loot import resolve_inventory_mechanics, validate_special_action
-from app.magic import get_magic_ability, get_magic_casting_stat, validate_magic_action
+from app.magic import get_ability, validate_ability_action
 from app.models import (
     CampaignMap,
     Character,
@@ -41,7 +41,9 @@ from app.services.runtime import (
     replace_campaign_map,
     validate_action_item_claim,
 )
+from app.services.world_service import get_session_world_pack
 from app.websocket_manager import ws_manager
+from app.worlds.models import WorldPack
 
 
 async def retry_turn(room_code: str = "kampania-1", db: AsyncSession = Depends(get_db)):
@@ -126,12 +128,13 @@ def interpret_player_action(
     explicit_intent: str | None = None,
     explicit_stat: str | None = None,
     target_ref: str | None = None,
+    world_pack: WorldPack | None = None,
 ) -> dict:
     forced_intent = magic_ability["intent"] if magic_ability else explicit_intent
     intent_details = infer_action_intent_details(action_text, forced_intent)
     resolved_intent = str(intent_details["intent"])
 
-    forced_stat = get_magic_casting_stat(character.character_class) if magic_ability else explicit_stat
+    forced_stat = magic_ability["tested_stat"] if magic_ability else explicit_stat
     if not magic_ability and resolved_intent == "interact" and target_ref:
         feature = next(
             (
@@ -150,6 +153,7 @@ def interpret_player_action(
         character,
         resolved_intent,
         forced_stat,
+        world_pack,
     )
     return {
         "intent": resolved_intent,
@@ -170,16 +174,24 @@ async def interpret_action(payload: InterpretActionRequest, db: AsyncSession = D
     if not character:
         raise HTTPException(status_code=404, detail="Postać nie istnieje")
 
-    magic_ability = get_magic_ability(character.character_class, payload.selected_ability_id)
-    if magic_ability and character.level < magic_ability["required_level"]:
-        magic_ability = None
+    world_pack = get_session_world_pack(character.session)
+    ability, ability_error = validate_ability_action(
+        world_pack,
+        character.class_id,
+        character.level,
+        payload.action_text.strip(),
+        payload.selected_ability_id,
+    )
+    if ability_error:
+        raise HTTPException(status_code=400, detail=ability_error)
     return interpret_player_action(
         character,
         payload.action_text.strip(),
-        magic_ability=magic_ability,
+        magic_ability=ability,
         explicit_intent=payload.intent,
         explicit_stat=payload.tested_stat,
         target_ref=payload.target_ref,
+        world_pack=world_pack,
     )
 
 
@@ -201,8 +213,10 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
         raise HTTPException(status_code=400, detail="Postać w agonii, stabilna lub martwa nie może składać akcji.")
 
     action_text = payload.action_text.strip()
-    magic_ability, magic_action_error = validate_magic_action(
-        character.character_class,
+    world_pack = get_session_world_pack(character.session)
+    magic_ability, magic_action_error = validate_ability_action(
+        world_pack,
+        character.class_id,
         character.level,
         action_text,
         payload.selected_ability_id,
@@ -223,6 +237,7 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
         explicit_intent=action_intent,
         explicit_stat=payload.tested_stat,
         target_ref=action_target_ref,
+        world_pack=world_pack,
     )
     resolved_intent = interpretation["intent"]
     resolved_stat = interpretation["tested_stat"]
@@ -238,20 +253,24 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
         support_target = (await db.execute(target_stmt)).scalar_one_or_none()
         if not support_target or support_target.id == character.id:
             raise HTTPException(status_code=400, detail="Wsparcie musi wskazywać inną postać z drużyny.")
-        if magic_ability and magic_ability["id"] == "resurrection" and support_target.death_state != "dead":
-            raise HTTPException(status_code=400, detail="Wskrzeszenie wymaga wskazania poległego bohatera.")
+        is_revive = bool(magic_ability and magic_ability["mechanic_key"] == "revive")
+        if is_revive and support_target.death_state != "dead":
+            raise HTTPException(status_code=400, detail="Ta zdolność wymaga wskazania poległego bohatera.")
         if support_target.death_state == "dead" and not (
-            magic_ability and magic_ability["id"] == "resurrection"
+            is_revive
         ):
-            raise HTTPException(status_code=400, detail="Poległego bohatera może przywrócić tylko zdolność Wskrzeszenie.")
+            raise HTTPException(status_code=400, detail="Poległego bohatera może przywrócić tylko zdolność o efekcie wskrzeszenia.")
         action_target_ref = str(support_target.id)
-    ignored_item_claims = (
-        {"Tarcza"} if magic_ability and magic_ability["id"] == "spectral_shield" else set()
+    ignored_item_claim = (
+        magic_ability.get("mechanic_params", {}).get("ignore_item_claim")
+        if magic_ability else None
     )
+    ignored_item_claims = {str(ignored_item_claim)} if ignored_item_claim else set()
     item_claim_error = validate_action_item_claim(
         action_text,
         character.inventory,
         ignored_labels=ignored_item_claims,
+        world_pack=world_pack,
     )
     if item_claim_error:
         raise HTTPException(status_code=400, detail=item_claim_error)
@@ -265,6 +284,7 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
         inferred_intent=resolved_intent,
         uses_magic=bool(magic_ability),
         campaign_map=session.campaign_map,
+        world_pack=world_pack,
     )
     if special_action_error:
         raise HTTPException(status_code=400, detail=special_action_error)
@@ -411,7 +431,8 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             )
             characters = (await db.execute(c_stmt)).scalars().all()
             char_map = {c.id: c for c in characters}
-            ensure_boss_encounter(session, characters)
+            world_pack = get_session_world_pack(session)
+            ensure_enemy_encounter(session, characters, world_pack)
             map_stmt = select(CampaignMap).where(CampaignMap.session_id == session_id)
             campaign_map = (await db.execute(map_stmt)).scalar_one_or_none()
             if campaign_map is None:
@@ -428,8 +449,9 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                     action.intent = infer_action_intent(action.action_text, action.intent)
                     dc, tested_stat_override = action_dc(session, action)
                     action_ability_id = action.ability_id or action.magic_ability_id
-                    if get_magic_ability(char.character_class, action_ability_id):
-                        tested_stat_override = get_magic_casting_stat(char.character_class)
+                    action_ability = get_ability(world_pack, char.class_id, action_ability_id)
+                    if action_ability:
+                        tested_stat_override = action_ability["tested_stat"]
                     elif tested_stat_override is None:
                         tested_stat_override = action.tested_stat
                     roll_penalty = status_roll_penalty(char)
@@ -455,17 +477,20 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                         session,
                         list(characters),
                         list(turn.actions),
+                        world_pack=world_pack,
                     )
                 else:
                     turn.combat_events = resolve_status_turn(
                         list(characters),
                         list(turn.actions),
+                        world_pack=world_pack,
                     )
                 inventory_resolution = resolve_inventory_mechanics(
                     session,
                     turn,
                     list(characters),
                     campaign_map,
+                    world_pack=world_pack,
                 )
                 turn.combat_events = [
                     *(turn.combat_events or []),
@@ -492,8 +517,14 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                     "character_id": char.id,
                     "character_name": char.name,
                     "action_text": action.action_text,
-                    "magic_ability": get_magic_ability(
-                        char.character_class,
+                    "ability": get_ability(
+                        world_pack,
+                        char.class_id,
+                        action.ability_id or action.magic_ability_id,
+                    ),
+                    "magic_ability": get_ability(
+                        world_pack,
+                        char.class_id,
                         action.ability_id or action.magic_ability_id,
                     ),
                     "intent": action.intent,
@@ -542,7 +573,7 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                     update(NamedLoreEntity)
                     .where(
                         NamedLoreEntity.session_id == session.id,
-                        NamedLoreEntity.category == "boss",
+                        NamedLoreEntity.category == world_pack.enemy_profile.lore_category_id,
                         NamedLoreEntity.is_active.is_(True),
                     )
                     .values(is_active=False)

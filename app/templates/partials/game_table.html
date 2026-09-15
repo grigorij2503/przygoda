@@ -12,7 +12,7 @@
 
       <!-- PRAWA KOLUMNA: KARTA POSTACI, DRUŻYNA & CZAT -->
       <aside class="lg:col-span-4 space-y-6 lg:sticky"
-             :class="session?.active_boss ? 'lg:top-36' : 'lg:top-20'">
+             :class="activeEnemy ? 'lg:top-36' : 'lg:top-20'">
         {% include "partials/table/character_panel.html" %}
         {% include "partials/table/inventory_panel.html" %}
         </div>

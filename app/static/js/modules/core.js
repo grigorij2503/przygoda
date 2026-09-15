@@ -84,8 +84,8 @@
     newChar: {
       player_name: '',
       name: '',
-      character_class: 'Wojownik',
-      class_id: 'warrior',
+      character_class: '',
+      class_id: '',
       strength: 2,
       agility: 1,
       intellect: 1,
@@ -96,8 +96,12 @@
     isCreatingChar: false,
 
     // Campaign Intro & Prologue
-    scenarioChoice: 'Krasnoludzka Twierdza opanowana przez demony ognia',
-    scenarioTone: 'Mroczne Dark Fantasy z elementami horroru i tajemnicy',
+    scenarioChoice: '',
+    scenarioTone: '',
+    worldCatalog: [],
+    selectedWorldKey: '',
+    isLoadingWorldCatalog: false,
+    worldCatalogError: '',
     generatedIntro: {
       title: '',
       setting_theme: '',

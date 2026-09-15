@@ -9,8 +9,8 @@ from sqlalchemy.orm import selectinload
 from starlette.requests import Request
 
 from app.combat import (
-    build_boss_encounter,
-    ensure_boss_encounter,
+    build_enemy_encounter,
+    ensure_enemy_encounter,
     infer_item_damage_power,
     set_character_downed,
     status_list,
@@ -18,7 +18,7 @@ from app.combat import (
 from app.config import settings
 from app.database import get_db
 from app.gemini_service import generate_campaign_intro_ai, generate_party_prologue_ai
-from app.magic import get_magic_ability, get_magic_book
+from app.magic import get_ability, get_ability_book
 from app.map_generator import serialize_campaign_map
 from app.models import (
     Character,
@@ -50,8 +50,13 @@ from app.services.runtime import (
     require_gm,
     serialize_proxy_decision,
 )
-from app.services.world_service import get_session_world_pack, resolve_requested_world_pack
+from app.services.world_service import (
+    get_session_world_pack,
+    resolve_requested_world_pack,
+    serialize_world_runtime,
+)
 from app.websocket_manager import ws_manager
+from app.worlds.registry import WORLD_PACK_REGISTRY, WorldPackNotFoundError
 
 
 async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = Depends(get_db)):
@@ -71,7 +76,9 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
     if not game_session:
         raise HTTPException(status_code=404, detail="Sesja nie została znaleziona")
     world_pack = get_session_world_pack(game_session)
-    session_changed = ensure_boss_encounter(game_session, game_session.characters)
+    session_changed = ensure_enemy_encounter(
+        game_session, game_session.characters, world_pack
+    )
     for character in game_session.characters:
         if character.current_hp <= 0 and getattr(character, "death_state", "alive") == "alive":
             set_character_downed(character)
@@ -153,7 +160,23 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
             "death_failures": int(getattr(c, "death_failures", 0) or 0),
             "is_ready": bool(getattr(c, "is_ready", False)),
             "status_effects": status_list(c.status_effects),
-            "magic_book": get_magic_book(c.character_class, c.level),
+            "ability_book": get_ability_book(world_pack, c.class_id, c.level),
+            "magic_book": get_ability_book(world_pack, c.class_id, c.level),
+            "quick_actions": [
+                {
+                    "id": action.id,
+                    "icon": action.icon,
+                    "label": action.label,
+                    "text": action.action_text,
+                    "intent": action.intent,
+                    "tested_stat": action.tested_stat,
+                    "target_ref": action.target_ref,
+                }
+                for action in WORLD_PACK_REGISTRY.get_class(
+                    world_pack,
+                    c.class_id,
+                ).quick_actions
+            ],
             "has_submitted_action": c.id in submitted_character_ids,
             "action_submission_source": current_action.submission_source if current_action else None,
             "proxy_action": {
@@ -232,8 +255,14 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
                     "action_text": a.action_text,
                     "magic_ability_id": a.magic_ability_id or a.ability_id,
                     "ability_id": a.ability_id or a.magic_ability_id,
-                    "magic_ability": get_magic_ability(
-                        characters_by_id.get(a.character_id).character_class,
+                    "ability": get_ability(
+                        world_pack,
+                        characters_by_id.get(a.character_id).class_id,
+                        a.ability_id or a.magic_ability_id,
+                    ) if characters_by_id.get(a.character_id) else None,
+                    "magic_ability": get_ability(
+                        world_pack,
+                        characters_by_id.get(a.character_id).class_id,
                         a.ability_id or a.magic_ability_id,
                     ) if characters_by_id.get(a.character_id) else None,
                     "intent": a.intent,
@@ -264,14 +293,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
         "room_code": game_session.room_code,
         "world_pack_id": world_pack.id,
         "world_pack_version": world_pack.version,
-        "world_pack": {
-            "id": world_pack.id,
-            "version": world_pack.version,
-            "key": world_pack.key,
-            "display_name": world_pack.display_name,
-            "ruleset_id": world_pack.ruleset_id,
-            "theme_id": world_pack.theme_id,
-        },
+        "world_pack": serialize_world_runtime(world_pack),
         "title": game_session.title,
         "setting_theme": game_session.setting_theme,
         "campaign_intro": game_session.campaign_intro,
@@ -306,6 +328,18 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
             ),
         },
         "status": getattr(game_session, "status", "in_progress") or "in_progress",
+        "active_enemy": {
+            "name": game_session.active_boss_name,
+            "title": game_session.active_boss_title,
+            "hp": game_session.active_boss_hp,
+            "max_hp": game_session.active_boss_max_hp,
+            "armor": game_session.active_boss_armor or 0,
+            "defense_dc": game_session.active_boss_defense_dc or 12,
+            "phase": game_session.active_boss_phase or 1,
+            "effects": status_list(game_session.active_boss_effects),
+            "features": game_session.active_boss_features or [],
+            "telegraph": game_session.active_boss_telegraph,
+        } if game_session.active_boss_name else None,
         "active_boss": {
             "name": game_session.active_boss_name,
             "title": game_session.active_boss_title,
@@ -343,7 +377,15 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
 
 async def generate_intro(payload: GenerateIntroRequest, request: Request):
     require_gm(request)
-    return await generate_campaign_intro_ai(payload.scenario_type, payload.tone or "Dark Fantasy")
+    try:
+        world_pack = WORLD_PACK_REGISTRY.get(
+            payload.world_pack_id, payload.world_pack_version
+        )
+    except WorldPackNotFoundError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return await generate_campaign_intro_ai(
+        payload.scenario_type, payload.tone, world_pack
+    )
 
 async def reset_campaign(
     payload: CreateSessionRequest,
@@ -357,9 +399,11 @@ async def reset_campaign(
     session = res.scalar_one_or_none()
 
     if session:
-        session.title = payload.title
-        session.setting_theme = payload.setting_theme
-        session.campaign_intro = payload.campaign_intro
+        world_pack = get_session_world_pack(session)
+        narrative_profile = world_pack.narrative_profile
+        session.title = payload.title or narrative_profile.default_title
+        session.setting_theme = payload.setting_theme or narrative_profile.setting_theme
+        session.campaign_intro = payload.campaign_intro or narrative_profile.campaign_intro
         session.current_turn_number = 1
         session.is_turn_resolving = False
         session.active_boss_name = None
@@ -391,14 +435,10 @@ async def reset_campaign(
             session_id=session.id,
             turn_number=1,
             status="waiting_for_actions",
-            gm_narration=payload.campaign_intro,
+            gm_narration=session.campaign_intro,
             next_turn_prompt="Co zamierzacie uczynić?",
-            suggested_actions=[
-                "⚔️ Ścieżka Siły: Bezpośrednie natarcie i zabezpieczenie terenu.",
-                "🏹 Ścieżka Zręczności: Ciche podejście i rekonesans pozycji wroga.",
-                "🔍 Ścieżka Wiedzy: Zbadanie otoczenia w poszukiwaniu śladów lub pułapek."
-            ],
-            image_prompt=f"Dark fantasy oil painting of adventurers in {payload.setting_theme}",
+            suggested_actions=list(narrative_profile.suggested_actions),
+            image_prompt=narrative_profile.initial_image_prompt,
         )
         db.add(initial_turn)
         await replace_campaign_map(db, session)
@@ -431,12 +471,17 @@ async def setup_scenario(
         session,
         payload.world_pack_id,
         payload.world_pack_version,
+        allow_new_campaign_reset=True,
     )
     session.world_pack_id = world_pack.id
     session.world_pack_version = world_pack.version
 
-    session.title = f"Wyprawa: {payload.scenario_type}"
-    session.setting_theme = payload.tone or "Dark Fantasy"
+    narrative_profile = world_pack.narrative_profile
+    scenario_type = payload.scenario_type or narrative_profile.scenario_options[0]
+    session.title = narrative_profile.lobby_title_template.format(
+        scenario_type=scenario_type
+    )
+    session.setting_theme = payload.tone or narrative_profile.setting_theme
     session.campaign_intro = ""
     session.status = "lobby"
     session.current_turn_number = 1
@@ -478,8 +523,9 @@ async def setup_scenario(
 
     turn1.status = "waiting_for_actions"
     turn1.gm_narration = ""
-    turn1.next_turn_prompt = "Drużyna zbiera się w karczmie przed wyruszeniem na wyprawę..."
+    turn1.next_turn_prompt = narrative_profile.lobby_prompt
     turn1.suggested_actions = []
+    turn1.image_prompt = narrative_profile.initial_image_prompt
 
     await replace_campaign_map(db, session)
 
@@ -525,8 +571,8 @@ async def start_prologue(payload: PrologueRequest, db: AsyncSession = Depends(ge
     prologue_data = await generate_party_prologue_ai(
         session=session,
         characters=alive_chars,
-        scenario_type=payload.scenario_type,
-        tone=payload.tone or "Dark Fantasy"
+        scenario_type=payload.scenario_type or get_session_world_pack(session).narrative_profile.scenario_options[0],
+        tone=payload.tone or session.setting_theme
     )
 
     session.title = prologue_data.title
@@ -545,6 +591,7 @@ async def start_prologue(payload: PrologueRequest, db: AsyncSession = Depends(ge
     turn1.next_turn_prompt = prologue_data.first_challenge
     turn1.suggested_actions = prologue_data.suggested_actions
     turn1.status = "waiting_for_actions"
+    turn1.image_prompt = get_session_world_pack(session).narrative_profile.initial_image_prompt
 
     if session.campaign_map is None:
         await replace_campaign_map(db, session)
@@ -586,12 +633,14 @@ async def name_entity(payload: NameEntityRequest, db: AsyncSession = Depends(get
     if not custom_name:
         raise HTTPException(status_code=400, detail="Nazwa nie może być pusta")
 
-    if category == "boss":
+    world_pack = get_session_world_pack(session)
+    enemy_category = world_pack.enemy_profile.lore_category_id
+    if category == enemy_category:
         await db.execute(
             update(NamedLoreEntity)
             .where(
                 NamedLoreEntity.session_id == session.id,
-                NamedLoreEntity.category == "boss",
+                NamedLoreEntity.category == enemy_category,
                 NamedLoreEntity.is_active.is_(True),
             )
             .values(is_active=False)
@@ -613,9 +662,11 @@ async def name_entity(payload: NameEntityRequest, db: AsyncSession = Depends(get
         campaign_map = session.campaign_map or await replace_campaign_map(db, session)
         map_node_id = apply_custom_location_name(campaign_map, custom_name, char_name)
 
-    # Jeśli to boss, aktywuj na sesji
-    if category == "boss":
-        encounter = build_boss_encounter(session.characters, description)
+    # Stabilne pola active_boss_* przechowują ogólnego głównego przeciwnika.
+    if category == enemy_category:
+        encounter = build_enemy_encounter(
+            session.characters, description, world_pack
+        )
         session.active_boss_name = custom_name
         session.active_boss_title = description
         session.active_boss_hp = encounter["hp"]
@@ -632,7 +683,9 @@ async def name_entity(payload: NameEntityRequest, db: AsyncSession = Depends(get
         db.add(InventoryItem(
             character_id=char.id,
             name=custom_name,
-            description=f"Nie wybacza błędów i nosi imię nadane przez {char_name}",
+            description=world_pack.narrative_profile.named_weapon_description_template.format(
+                character_name=char_name
+            ),
             item_type="weapon",
             target_stat="strength",
             stat_bonus=2,

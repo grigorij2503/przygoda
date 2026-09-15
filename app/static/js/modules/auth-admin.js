@@ -65,6 +65,7 @@
         if (this.isGmAuthenticated) {
           this.resetConfirmation = '';
           this.prepareGmStatEditor();
+          await this.loadWorldCatalog();
           this.showIntroModal = true;
         } else {
           this.gmPin = '';
@@ -91,6 +92,7 @@
         this.gmPin = '';
         this.resetConfirmation = '';
         this.prepareGmStatEditor();
+        await this.loadWorldCatalog();
         this.showIntroModal = true;
       } catch (err) {
         this.gmAuthError = err.message;
@@ -121,6 +123,51 @@
       this.gmPin = '';
       this.gmAuthError = 'Sesja MG wygasła. Wpisz PIN ponownie.';
       this.showGmAuthModal = true;
+    },
+
+    async loadWorldCatalog() {
+      this.isLoadingWorldCatalog = true;
+      this.worldCatalogError = '';
+      try {
+        const response = await fetch('/api/worlds', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Nie udało się pobrać katalogu światów.');
+        const catalog = await response.json();
+        this.worldCatalog = Array.isArray(catalog.worlds) ? catalog.worlds : [];
+        if (!this.worldCatalog.some(world => world.key === this.selectedWorldKey)) {
+          this.selectedWorldKey = this.session?.world_pack?.key ||
+            catalog.default_world?.key || '';
+        }
+      } catch (error) {
+        this.worldCatalogError = error.message;
+        this.worldCatalog = [];
+      } finally {
+        this.isLoadingWorldCatalog = false;
+      }
+    },
+
+    get selectedWorldSummary() {
+      return this.worldCatalog.find(world => world.key === this.selectedWorldKey) || null;
+    },
+
+    get selectedWorldScenarioOptions() {
+      return this.selectedWorldSummary?.scenario_options ||
+        this.session?.world_pack?.scenario_options || [];
+    },
+
+    selectWorldForNextCampaign() {
+      const selected = this.selectedWorldSummary;
+      if (!selected) return;
+      this.scenarioChoice = selected.scenario_options?.[0] || '';
+      this.scenarioTone = selected.setting_theme || '';
+    },
+
+    showNeonThemePreview() {
+      window.TTRPG_THEME?.showPreview();
+      this.addToast('Podgląd neonowy jest lokalny i nie zmienia świata kampanii.', 'info');
+    },
+
+    restoreCampaignTheme() {
+      window.TTRPG_THEME?.clearPreview();
     },
 
     get gmStatCharacter() {

@@ -4,6 +4,7 @@
   features.sessionCharacter = {
     // --- Pobieranie Stanu Sesji ---
     async fetchSession() {
+      const previousWorldKey = this.session?.world_pack?.key;
       const previousTurnNumber = this.session?.current_turn_number;
       const previousUnspentStatPoints = this.currentCharacter?.unspent_stat_points;
       const previousCharacterId = this.currentCharacter?.id;
@@ -16,6 +17,15 @@
         if (!res.ok) throw new Error('Błąd ładowania sesji.');
         const data = await res.json();
         this.session = data;
+        window.TTRPG_THEME?.applyPackTheme(data.world_pack?.theme, data.world_pack?.key);
+        if (previousWorldKey !== data.world_pack?.key) {
+          this.selectedWorldKey = data.world_pack?.key || '';
+          this.scenarioChoice = data.world_pack?.scenario_options?.[0] || '';
+          this.scenarioTone = data.world_pack?.setting_theme || '';
+        }
+        if (!this.worldClasses.some(item => item.id === this.newChar.class_id)) {
+          this.newChar.class_id = this.worldClasses[0]?.id || '';
+        }
         this.isResolvingTurn = Boolean(data.is_turn_resolving);
         if (previousTurnNumber !== undefined && previousTurnNumber !== data.current_turn_number) {
           this.actionText = '';
@@ -148,53 +158,65 @@
       return this.session.characters.find(c => c.id === this.selectedCharacterId);
     },
 
+    get worldClasses() {
+      return this.session?.world_pack?.classes || [];
+    },
+
+    get worldAttributes() {
+      return this.session?.world_pack?.attributes || [];
+    },
+
+    get selectedNewClass() {
+      return this.worldClasses.find(item => item.id === this.newChar.class_id) || null;
+    },
+
+    classDefinition(classId) {
+      return this.worldClasses.find(item => item.id === classId) || null;
+    },
+
+    classIcon(character) {
+      return this.classDefinition(character?.class_id)?.icon || '👤';
+    },
+
+    attributeDefinition(stat) {
+      return this.worldAttributes.find(item => item.id === stat)
+        || { id: stat, label: stat, abbreviation: String(stat || '').toUpperCase() };
+    },
+
+    get enemyProfile() {
+      return this.session?.world_pack?.enemy_profile || {};
+    },
+
+    get lootSearchAction() {
+      return this.session?.world_pack?.loot_search_action || null;
+    },
+
+    get activeEnemy() {
+      return this.session?.active_enemy || this.session?.active_boss || null;
+    },
+
+    get abilityBook() {
+      return this.currentCharacter?.ability_book || this.currentCharacter?.magic_book || null;
+    },
+
     get magicBook() {
-      return this.currentCharacter?.magic_book || null;
+      return this.abilityBook;
     },
 
     get selectedMagicAbility() {
-      return this.magicBook?.abilities?.find(ability => ability.id === this.magicAbilityId) || null;
+      return this.abilityBook?.abilities?.find(ability => ability.id === this.magicAbilityId) || null;
     },
 
     get quickActions() {
-      const className = (this.currentCharacter?.character_class || '')
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase();
-      const presets = {
-        wojownik: [
-          { id: 'warrior-strike', icon: '⚔️', label: 'Potężne uderzenie', text: 'Nacieram z pełną siłą i uderzam przeciwnika w najsłabiej chronione miejsce.', intent: 'attack', targetRef: 'boss' },
-          { id: 'warrior-guard', icon: '🛡️', label: 'Twarda obrona', text: 'Przyjmuję twardą postawę obronną i skupiam na sobie uwagę przeciwnika.', intent: 'defend' },
-          { id: 'warrior-help', icon: '🤝', label: 'Osłoń sojusznika', text: 'Wkraczam między przeciwnika a sojusznika, dając rannemu czas na odzyskanie sił.', intent: 'support' },
-          { id: 'warrior-tactics', icon: '👁️', label: 'Oceń pole walki', text: 'Oceniam ustawienie wrogów i szukam słabego punktu ich szyku.', intent: 'other' }
-        ],
-        lotrzyk: [
-          { id: 'rogue-strike', icon: '🗡️', label: 'Precyzyjny atak', text: 'Wykorzystuję lukę w obronie przeciwnika i uderzam w odsłonięty słaby punkt.', intent: 'attack', targetRef: 'boss' },
-          { id: 'rogue-flank', icon: '🥷', label: 'Skradanie i flanka', text: 'Znikam w cieniu, obchodzę zagrożenie i zajmuję dogodną pozycję na flance.', intent: 'other' },
-          { id: 'rogue-traps', icon: '🪤', label: 'Pułapki i mechanizmy', text: 'Uważnie sprawdzam otoczenie pod kątem pułapek, zamków i ukrytych mechanizmów.', intent: 'interact' },
-          { id: 'rogue-distract', icon: '🤝', label: 'Odwróć uwagę', text: 'Odwracam uwagę przeciwnika, aby sojusznik mógł bezpiecznie odzyskać siły.', intent: 'support' }
-        ],
-        czarodziej: [
-          { id: 'wizard-knowledge', icon: '🔍', label: 'Wiedza tajemna', text: 'Analizuję znaki, runy i ślady, aby odkryć naturę zagrożenia.', intent: 'interact' },
-          { id: 'wizard-retreat', icon: '🛡️', label: 'Taktyczny odwrót', text: 'Cofam się na bezpieczniejszą pozycję i obserwuję zamiary przeciwnika.', intent: 'defend' },
-          { id: 'wizard-guidance', icon: '🤝', label: 'Wskaż rozwiązanie', text: 'Dzielę się swoją wiedzą z sojusznikiem i pomagam mu wykorzystać słabość zagrożenia.', intent: 'support' }
-        ],
-        kleryk: [
-          { id: 'cleric-strike', icon: '🔨', label: 'Stanowczy atak', text: 'Staję naprzeciw zagrożenia i wyprowadzam zdecydowany cios.', intent: 'attack', targetRef: 'boss' },
-          { id: 'cleric-guard', icon: '🛡️', label: 'Obrona drużyny', text: 'Zajmuję pozycję między zagrożeniem a drużyną i przygotowuję się do obrony.', intent: 'defend' },
-          { id: 'cleric-aid', icon: '🤝', label: 'Pomoc rannemu', text: 'Pomagam rannemu sojusznikowi, opatrując jego obrażenia i przywracając go do walki.', intent: 'support' }
-        ]
-      };
-      const classPresets = presets[className] || [
-        { id: 'generic-attack', icon: '⚔️', label: 'Atak', text: 'Atakuję przeciwnika, wykorzystując jego chwilę nieuwagi.', intent: 'attack', targetRef: 'boss' },
-        { id: 'generic-defend', icon: '🛡️', label: 'Obrona', text: 'Przyjmuję pozycję obronną i obserwuję ruchy przeciwnika.', intent: 'defend' },
-        { id: 'generic-scout', icon: '🔍', label: 'Rozpoznanie', text: 'Ostrożnie badam otoczenie w poszukiwaniu zagrożeń i możliwych dróg działania.', intent: 'other' }
-      ];
-      const magicPresets = (this.magicBook?.abilities || [])
+      const classPresets = (this.currentCharacter?.quick_actions || []).map(action => ({
+        ...action,
+        targetRef: action.target_ref ?? null
+      }));
+      const abilityPresets = (this.abilityBook?.abilities || [])
         .filter(ability => ability.unlocked)
         .slice(0, 3)
         .map(ability => ({
-          id: `magic-${ability.id}`,
+          id: `ability-${ability.id}`,
           icon: ability.icon,
           label: ability.name,
           text: ability.action_text,
@@ -202,11 +224,11 @@
           targetRef: ability.target_ref,
           magicAbilityId: ability.id
         }));
-      return [...classPresets, ...magicPresets];
+      return [...classPresets, ...abilityPresets];
     },
 
     get supportTargets() {
-      const resurrection = this.magicAbilityId === 'resurrection';
+      const resurrection = this.selectedMagicAbility?.mechanic_key === 'revive';
       return (this.session?.characters || []).filter(character =>
         character.id !== this.selectedCharacterId
           && (resurrection ? character.death_state === 'dead' : character.death_state !== 'dead')
@@ -422,13 +444,7 @@
     },
 
     statAbbreviation(stat) {
-      return {
-        strength: 'STR',
-        agility: 'AGI',
-        intellect: 'INT',
-        charisma: 'CHA',
-        perception: 'PER'
-      }[stat] || String(stat || '').toUpperCase();
+      return this.attributeDefinition(stat).abbreviation;
     },
 
   };

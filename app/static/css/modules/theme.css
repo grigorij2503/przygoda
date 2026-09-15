@@ -1,0 +1,280 @@
+/* Controlled world presentation. Dark Fantasy keeps the established cascade. */
+.ui-preview-controls {
+  background: var(--ui-surface);
+  border: 1px solid var(--border-gold);
+  color: var(--ui-text);
+}
+
+.ui-button-secondary {
+  background: var(--ui-surface-raised);
+  border: 1px solid var(--border-gold);
+  color: var(--ui-text);
+}
+
+.ui-button-secondary:hover,
+.ui-button-secondary:focus-visible {
+  border-color: var(--ui-focus);
+  color: var(--ui-primary);
+}
+
+:root[data-typeface="modern"] .font-fantasy,
+:root[data-typeface="modern"] .font-decorative,
+:root[data-typeface="modern"] .story-narration::first-letter {
+  font-family: 'Inter', sans-serif;
+}
+
+:root[data-texture="grid"] body {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--ui-primary) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--ui-primary) 7%, transparent) 1px, transparent 1px),
+    radial-gradient(circle at 78% 12%, color-mix(in srgb, var(--ui-accent) 16%, transparent), transparent 38%);
+  background-size: 48px 48px, 48px 48px, auto;
+}
+
+:root[data-texture="none"] body {
+  background-image: none;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) body {
+  color: var(--ui-text);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .fantasy-card {
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--ui-surface-raised) 92%, transparent),
+    color-mix(in srgb, var(--ui-surface) 96%, transparent));
+  border-color: var(--border-gold);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.42),
+    inset 0 0 1px 1px color-mix(in srgb, var(--ui-primary) 22%, transparent);
+}
+
+:root[data-icon-set="neutral"] .fantasy-card::before {
+  opacity: 0.25;
+}
+
+:root[data-icon-set="neutral"] .ui-theme-icon {
+  font-size: 0;
+}
+
+:root[data-icon-set="neutral"] .ui-theme-icon::after {
+  color: var(--ui-accent);
+  font: 700 1rem 'Inter', sans-serif;
+}
+
+:root[data-icon-set="neutral"] .ui-theme-icon--action::after { content: '▶'; }
+:root[data-icon-set="neutral"] .ui-theme-icon--lore::after { content: '▤'; }
+:root[data-icon-set="neutral"] .ui-theme-icon--map::after { content: '◎'; }
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .ui-heading,
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="text-amber-300"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="text-amber-400"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="text-amber-200"] {
+  color: var(--ui-primary) !important;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="text-gray-400"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="text-gray-500"] {
+  color: var(--ui-text-muted) !important;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="text-amber-500"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="text-yellow-300"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="text-yellow-400"] {
+  color: var(--ui-focus) !important;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="text-cyan-200"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="text-cyan-300"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="text-cyan-400"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="text-indigo-300"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="text-indigo-400"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="text-violet-300"] {
+  color: var(--ui-accent) !important;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="text-red-300"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="text-rose-300"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="text-rose-400"] {
+  color: var(--ui-danger) !important;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="text-emerald-300"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="text-emerald-400"] {
+  color: var(--ui-success) !important;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="border-amber-900/40"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="border-amber-900/50"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="border-amber-500/40"] {
+  border-color: var(--border-gold) !important;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="border-cyan-900/70"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="border-indigo-500/50"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="border-indigo-950/80"] {
+  border-color: color-mix(in srgb, var(--ui-accent) 55%, transparent) !important;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="border-rose-800/60"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="border-rose-900/60"] {
+  border-color: color-mix(in srgb, var(--ui-danger) 55%, transparent) !important;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="bg-slate-900"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="bg-slate-950"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="bg-slate-800"] {
+  background-color: var(--ui-surface-raised) !important;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="bg-amber-600"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="bg-amber-700"],
+:root[data-theme]:not([data-theme="dark_fantasy"]) [class~="bg-amber-500"] {
+  background-color: var(--ui-primary) !important;
+  color: var(--ui-background) !important;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .ui-button-primary {
+  background: var(--ui-primary) !important;
+  color: var(--ui-background) !important;
+  border-color: var(--ui-primary) !important;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .ui-button-primary:hover {
+  background: var(--ui-focus) !important;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) button[class*="from-amber"]:not(:disabled) {
+  background: var(--ui-primary) !important;
+  color: var(--ui-background) !important;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) button[class*="from-amber"]:not(:disabled):hover {
+  background: var(--ui-focus) !important;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) :is(button, input, select, textarea, [role="button"]):focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .hp-fill {
+  background: linear-gradient(90deg, var(--ui-hp), var(--ui-danger));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--ui-danger) 52%, transparent);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .xp-fill {
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--ui-xp) 64%, var(--ui-background)), var(--ui-xp));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--ui-xp) 40%, transparent);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .status-effect--rose {
+  border-color: var(--ui-danger);
+  color: var(--ui-text);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .status-effect--green {
+  border-color: var(--ui-success);
+  color: var(--ui-text);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .status-effect--blue,
+:root[data-theme]:not([data-theme="dark_fantasy"]) .status-effect--cyan {
+  border-color: var(--ui-accent);
+  color: var(--ui-text);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .status-effect--orange,
+:root[data-theme]:not([data-theme="dark_fantasy"]) .status-effect--yellow {
+  border-color: var(--ui-focus);
+  color: var(--ui-text);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .status-effect--neutral {
+  background: var(--ui-surface-raised);
+  border-color: var(--ui-border);
+  color: var(--ui-text);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .campaign-map-viewport {
+  background: radial-gradient(circle at center,
+    color-mix(in srgb, var(--ui-accent) 14%, transparent), transparent 55%),
+    var(--ui-background);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .campaign-map-room {
+  fill: var(--ui-surface);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .campaign-map-node--available,
+:root[data-theme]:not([data-theme="dark_fantasy"]) .campaign-map-door,
+:root[data-theme]:not([data-theme="dark_fantasy"]) .campaign-map-edge--available {
+  color: var(--ui-primary);
+  fill: var(--ui-primary);
+  stroke: var(--ui-primary);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .campaign-map-node--current {
+  color: var(--ui-accent);
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--ui-accent) 42%, transparent));
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .map-control {
+  color: var(--ui-text);
+  background: var(--ui-surface-raised);
+  border-color: var(--border-gold);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .map-control:hover,
+:root[data-theme]:not([data-theme="dark_fantasy"]) .map-control:focus-visible {
+  border-color: var(--ui-focus);
+  color: var(--ui-primary);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .story-narration {
+  color: var(--ui-text);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .story-narration::first-letter {
+  color: var(--ui-primary);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .equipment-panel,
+:root[data-theme]:not([data-theme="dark_fantasy"]) .equipment-paperdoll,
+:root[data-theme]:not([data-theme="dark_fantasy"]) .paperdoll-slot,
+:root[data-theme]:not([data-theme="dark_fantasy"]) .paperdoll-armor,
+:root[data-theme]:not([data-theme="dark_fantasy"]) .active-mini-slot,
+:root[data-theme]:not([data-theme="dark_fantasy"]) .inventory-item,
+:root[data-theme]:not([data-theme="dark_fantasy"]) .lore-category,
+:root[data-theme]:not([data-theme="dark_fantasy"]) .lore-entry {
+  background: var(--ui-surface);
+  border-color: var(--border-gold);
+  color: var(--ui-text);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .inventory-item--new {
+  background: color-mix(in srgb, var(--ui-primary) 12%, var(--ui-surface));
+  border-color: var(--ui-primary);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .paperdoll-slot__item,
+:root[data-theme]:not([data-theme="dark_fantasy"]) .paperdoll-armor button,
+:root[data-theme]:not([data-theme="dark_fantasy"]) .active-mini-slot button,
+:root[data-theme]:not([data-theme="dark_fantasy"]) .inventory-action,
+:root[data-theme]:not([data-theme="dark_fantasy"]) .inventory-filter-bar button {
+  background: var(--ui-surface-raised);
+  border-color: var(--border-gold);
+  color: var(--ui-text);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .lore-category__title,
+:root[data-theme]:not([data-theme="dark_fantasy"]) .equipment-bonus {
+  color: var(--ui-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme]:not([data-theme="dark_fantasy"]) .hp-fill,
+  :root[data-theme]:not([data-theme="dark_fantasy"]) .xp-fill {
+    transition: none;
+  }
+}

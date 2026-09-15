@@ -111,7 +111,8 @@ from app.schemas import (
     VerifyPasswordRequest,
 )
 from app.websocket_manager import ws_manager
-from app.worlds.registry import get_default_world_pack
+from app.worlds.models import WorldPack
+from app.worlds.registry import WORLD_PACK_REGISTRY, get_default_world_pack
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ttrpg")
@@ -135,17 +136,6 @@ for target_level in range(6, MAX_LEVEL + 1):
     XP_LEVEL_THRESHOLDS[target_level] = (
         XP_LEVEL_THRESHOLDS[target_level - 1] + 700 + (target_level - 5) * 25
     )
-ITEM_CLAIM_RULES = (
-    ("Tarcza", ("tarc", "pawez", "puklerz"), ("tarc", "pawez", "puklerz"), {"shield"}),
-    ("Miecz", ("miecz", "szabl", "rapier"), ("miecz", "szabl", "rapier"), {"weapon"}),
-    ("Sztylet", ("sztylet", "noz"), ("sztylet", "noz"), {"weapon"}),
-    ("Topór", ("topor", "siekier"), ("topor", "siekier"), {"weapon"}),
-    ("Łuk", ("luk", "kusz"), ("luk", "kusz"), {"weapon"}),
-    ("Kostur", ("kostur", "lask", "rozdzk"), ("kostur", "lask", "rozdzk"), {"weapon"}),
-    ("Młot", ("mlot", "bulaw"), ("mlot", "bulaw"), {"weapon"}),
-    ("Włócznia", ("wlocz", "oszczep"), ("wlocz", "oszczep"), {"weapon"}),
-    ("Zbroja", ("zbroj", "pancerz"), ("zbroj", "pancerz"), {"armor"}),
-)
 ITEM_CLAIM_VERBS = (
     "uzyw", "wyciag", "dobyw", "zaklad", "chwyt", "trzym", "blokuj",
     "zaslani", "oslani", "bron sie", "atak", "walcz", "strzel", "wystrzel",
@@ -427,13 +417,22 @@ LEGACY_STARTER_ITEM_UPDATES = {
 async def replace_campaign_map(db: AsyncSession, session: GameSession) -> CampaignMap:
     """Tworzy nową mapę bez modyfikowania tur, postaci ani mechaniki kampanii."""
     seed = secrets.randbits(63)
-    layout = generate_campaign_map(seed, session.title or "Wyprawa", session.setting_theme or "Dark Fantasy")
+    world_pack = WORLD_PACK_REGISTRY.get(
+        session.world_pack_id,
+        session.world_pack_version,
+    )
+    layout = generate_campaign_map(
+        seed,
+        session.title or world_pack.narrative_profile.default_title,
+        session.setting_theme or world_pack.narrative_profile.setting_theme,
+        world_pack.map_profile,
+    )
     existing = (
         await db.execute(select(CampaignMap).where(CampaignMap.session_id == session.id))
     ).scalar_one_or_none()
     if existing:
         existing.seed = seed
-        existing.generator_version = GENERATOR_VERSION
+        existing.generator_version = world_pack.map_profile.generator_version
         existing.layout = layout
         existing.current_node_id = layout["start_node_id"]
         existing.discovered_node_ids = [layout["start_node_id"]]
@@ -443,7 +442,7 @@ async def replace_campaign_map(db: AsyncSession, session: GameSession) -> Campai
         campaign_map = CampaignMap(
             session=session,
             seed=seed,
-            generator_version=GENERATOR_VERSION,
+            generator_version=world_pack.map_profile.generator_version,
             layout=layout,
             current_node_id=layout["start_node_id"],
             discovered_node_ids=[layout["start_node_id"]],
@@ -596,16 +595,22 @@ def validate_action_item_claim(
     action_text: str,
     inventory: List[InventoryItem],
     ignored_labels: set[str] | None = None,
+    world_pack: WorldPack | None = None,
 ) -> str | None:
     """Blokuje jawne użycie broni lub pancerza, którego postać nie ma albo nie założyła."""
     normalized_action = normalize_game_text(action_text)
     action_clauses = re.split(r"[,.!?;]", normalized_action)
     effectively_equipped_items = get_effectively_equipped_items(inventory)
     ignored_labels = ignored_labels or set()
+    world_pack = world_pack or get_default_world_pack()
 
-    for label, claim_aliases, inventory_aliases, item_types in ITEM_CLAIM_RULES:
+    for vocabulary in world_pack.item_vocabulary:
+        label = vocabulary.label
         if label in ignored_labels:
             continue
+        claim_aliases = tuple(normalize_game_text(alias) for alias in vocabulary.aliases)
+        inventory_aliases = claim_aliases
+        item_types = set(vocabulary.item_types)
         claims_item = any(
             any(alias in clause for alias in claim_aliases)
             and any(verb in clause for verb in ITEM_CLAIM_VERBS)

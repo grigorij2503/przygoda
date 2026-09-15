@@ -4,6 +4,7 @@ import unicodedata
 from typing import Tuple
 from app.inventory import get_effectively_equipped_items
 from app.models import Character
+from app.worlds.models import WorldPack
 
 _POLISH_CHAR_TRANSLATION = str.maketrans("ąćęłńóśźż", "acelnoszz")
 CANONICAL_STATS = ("strength", "agility", "intellect", "charisma", "perception")
@@ -73,6 +74,7 @@ def deduce_tested_attribute_details(
     character: Character,
     intent: str | None = None,
     explicit_stat: str | None = None,
+    world_pack: WorldPack | None = None,
 ) -> dict[str, str | float]:
     """
     Dedukuje cechę z dominującego sposobu wykonania akcji. Słabe ozdobniki
@@ -95,6 +97,12 @@ def deduce_tested_attribute_details(
             if re.search(pattern, cleaned_text):
                 scores[stat] += weight
                 strongest_evidence[stat] = max(strongest_evidence[stat], weight)
+    if world_pack:
+        for cue in world_pack.action_stat_cues:
+            marker = _normalize_action_text(cue.marker)
+            if marker and re.search(r"\b" + re.escape(marker) + r"\w*\b", cleaned_text):
+                scores[cue.stat] += cue.weight
+                strongest_evidence[cue.stat] = max(strongest_evidence[cue.stat], cue.weight)
 
     # Okrzyk, szybki ruch lub inny detal o wadze 1 jest tylko kolorytem, kiedy
     # główny zamiar jest fizycznym atakiem albo obroną.

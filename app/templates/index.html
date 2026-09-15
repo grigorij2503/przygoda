@@ -1,26 +1,29 @@
 <!DOCTYPE html>
-<html lang="pl" class="dark">
+<html lang="pl" class="{{ 'dark' if theme.color_scheme == 'dark' else '' }}" data-theme="{{ theme.id }}" data-typeface="{{ theme.typography_id }}" data-texture="{{ theme.texture_id }}" data-icon-set="{{ theme.icon_set_id }}" data-world-key="{{ world_key }}" style="{{ theme_style }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-  <title>TTRPG Gemini Master • Wieloosobowy RPG</title>
+  <title>Przygoda • Wieloosobowy RPG</title>
 
   <!-- PWA & Mobile Meta Tags -->
   <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#0a0c10">
-  <meta name="background-color" content="#0a0c10">
+  <meta name="theme-color" content="{{ theme_background }}">
+  <meta name="background-color" content="{{ theme_background }}">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="TTRPG Gemini">
-  <meta name="application-name" content="TTRPG Gemini Master">
-  <meta name="description" content="Wieloosobowy turowy RPG prowadzony przez Gemini AI z deterministycznymi rzutami kością">
+  <meta name="apple-mobile-web-app-title" content="Przygoda RPG">
+  <meta name="application-name" content="Przygoda RPG">
+  <meta name="description" content="Wieloosobowy RPG z wersjonowanymi światami, losowymi rzutami d20 i narracją AI">
 
   <!-- PWA Icons & Favicon -->
   <link rel="icon" type="image/svg+xml" href="/static/icons/icon.svg">
   <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
   <link rel="icon" type="image/png" sizes="512x512" href="/static/icons/icon-512.png">
   <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+
+  <!-- Runs before CSS so the local theme preview does not flash on reload. -->
+  <script src="/static/js/theme-bootstrap.js?v=31"></script>
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -45,17 +48,17 @@
   </script>
 
   <!-- Frontend assets load in dependency order before Alpine initializes. -->
-  <link rel="stylesheet" href="/static/css/style.css?v=20">
-  <script defer src="/static/js/modules/core.js?v=29"></script>
-  <script defer src="/static/js/modules/pwa-notifications.js?v=29"></script>
-  <script defer src="/static/js/modules/auth-admin.js?v=29"></script>
-  <script defer src="/static/js/modules/session-character.js?v=29"></script>
-  <script defer src="/static/js/modules/story-map-proxy.js?v=29"></script>
-  <script defer src="/static/js/modules/realtime-chat.js?v=29"></script>
-  <script defer src="/static/js/modules/campaign-actions.js?v=29"></script>
-  <script defer src="/static/js/modules/equipment-images.js?v=29"></script>
-  <script defer src="/static/js/modules/local-components.js?v=29"></script>
-  <script defer src="/static/js/app.js?v=29"></script>
+  <link rel="stylesheet" href="/static/css/style.css?v=21">
+  <script defer src="/static/js/modules/core.js?v=31"></script>
+  <script defer src="/static/js/modules/pwa-notifications.js?v=31"></script>
+  <script defer src="/static/js/modules/auth-admin.js?v=31"></script>
+  <script defer src="/static/js/modules/session-character.js?v=31"></script>
+  <script defer src="/static/js/modules/story-map-proxy.js?v=31"></script>
+  <script defer src="/static/js/modules/realtime-chat.js?v=31"></script>
+  <script defer src="/static/js/modules/campaign-actions.js?v=31"></script>
+  <script defer src="/static/js/modules/equipment-images.js?v=31"></script>
+  <script defer src="/static/js/modules/local-components.js?v=31"></script>
+  <script defer src="/static/js/app.js?v=31"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
 </head>
 <body x-data="rpgGame" class="min-h-screen text-gray-200 antialiased selection:bg-amber-600 selection:text-white">

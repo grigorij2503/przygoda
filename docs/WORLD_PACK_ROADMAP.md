@@ -231,7 +231,7 @@ oferować wyboru świata ani pola Percepcji.
 
 ### Etap 5 - wersjonowanie kampanii i migracje
 
-Status: zakończony 2026-09-14, oczekuje na ręczny odbiór.
+Status: zakończony i odebrany ręcznie 2026-09-14.
 
 - wdrożenie Alembic;
 - dodanie `GameSession.world_pack_id` i `world_pack_version`;
@@ -278,10 +278,20 @@ zdolności i po odświeżeniu sprawdzić, że akcja zawiera zgodne `ability_id` 
 
 ### Etap 6 - generalizacja zawartości
 
+Status: zaimplementowany 2026-09-15; użytkownik odbierze go zbiorczo z etapem 7.
+
+`dark_fantasy@1` pozostaje jedynym zarejestrowanym światem. Próbny, niepublikowany
+pakiet jest sprawdzany przez kontrakt `tests/test_stage6_world_content.py` na
+ogólnych interfejsach. UI nie oferuje jeszcze wyboru świata ani zmiany motywu;
+obie rzeczy należą do etapu 7. Pola `magic_*`, `active_boss_*` i zdarzenia
+`boss_*` pozostają adapterami zgodności dla istniejących kampanii.
+
 - klasy, startery i szybkie akcje z pakietu;
 - `magic_book` zastąpione domenowo przez `ability_book`;
 - deklaratywne efekty i walidacja zdolności;
 - słowniki przedmiotów, łup, rzadkości i crafting z profilu świata;
+- kontrolowane wskazówki cechy dla słownictwa przyszłych światów, bez regexów
+  ani wykonywalnego kodu w pakiecie;
 - ogólna rola przeciwnika zamiast wszędzie zaszytego `boss`;
 - profile map, kroniki, komunikatów, narratora, ilustracji i fallbacku offline;
 - etykiety wszystkich pięciu atrybutów oraz przedmioty wzmacniające Percepcję;
@@ -290,13 +300,26 @@ zdolności i po odświeżeniu sprawdzić, że akcja zawiera zgodne `ability_id` 
 Kryterium zakończenia: próbny pakiet można dodać bez warunków zależnych od świata
 w routerach, walce i frontendzie.
 
-Test lokalny: wymagany. Dla każdej obecnej klasy sprawdzić startery, szybkie
-akcje, księgę zdolności, łup, crafting i akcję Percepcji. W narzędziach
-deweloperskich potwierdzić, że frontend otrzymuje katalog klas, etykiety pięciu
-cech i akcje z API, a ręczna zmiana nieznanego ID klasy lub zdolności kończy się
-czytelnym błędem zamiast fallbackiem do Kleryka.
+Test lokalny: wymagany wyłącznie na osobnej bazie SQLite albo kopii, nigdy na
+aktywnym zapisie kampanii. Uruchomić lokalną aplikację lub własny kontener na tej
+bazie i przejść od lobby do tury. Dla każdej obecnej klasy sprawdzić startery,
+szybkie akcje, a dla Czarodzieja i Kleryka także `ability_book` oraz działanie
+odblokowanej zdolności; Wojownik i Łotrzyk nie mają księgi. Potwierdzić łup z
+lokacji, nagrodę po walce, crafting oraz akcję opartą na Percepcji. W odpowiedzi
+`/api/session` sprawdzić `world_pack.classes`, pięć etykiet cech, `quick_actions`,
+`ability_book`, `active_enemy` i kompatybilne `magic_book`/`active_boss`.
+W formularzu postaci i akcji treść klas, starterów, ksiąg i skrótów ma zgadzać
+się z API. W kopii można ręcznie wysłać nieznane `class_id` lub `ability_id`:
+żądanie powinno zwrócić błąd, nie stworzyć Kleryka ani zamienić zdolności.
+Odświeżyć PWA, sprawdzić mapę, kronikę, prolog i fallback ilustracji bez klucza
+oraz upewnić się, że dotychczasowy wygląd Dark Fantasy jest niezmieniony.
 
 ### Etap 7 - motywy i wybór świata
+
+Status: zaimplementowany 2026-09-15; oczekuje na wspólny ręczny odbiór etapów
+6 i 7. Rejestr nadal publikuje tylko `dark_fantasy@1`. Wybór pakietu w
+narzędziach MG jest gotowy na następne światy, a Neon to wyłącznie lokalny
+podgląd kontrolowanego motywu, nie grywalna kampania.
 
 - semantyczne tokeny kolorów, typografii, powierzchni i stanów;
 - `data-theme` na korzeniu aplikacji;
@@ -309,11 +332,26 @@ czytelnym błędem zamiast fallbackiem do Kleryka.
 Kryterium zakończenia: Dark Fantasy wygląda jak wcześniej, a próbny drugi motyw
 zmienia wygląd bez duplikowania HTML.
 
-Test lokalny: wymagany na komputerze, telefonie i w trybie z ograniczonym ruchem.
-W narzędziach MG wybrać kolejno dostępne motywy, sprawdzić kolory, fonty, focus,
-kontrast, modale, paski HP/XP, mapę i piątą cechę. Po odświeżeniu oraz krótkim
-przejściu offline aktywny motyw nie może migać, wracać do fantasy ani mieszać
-zasobów z innym światem.
+Test lokalny: wymagany na komputerze, telefonie i w trybie z ograniczonym ruchem,
+na osobnej bazie SQLite albo kopii kampanii. Otworzyć narzędzia MG i sprawdzić,
+że katalog świata pokazuje `Dark Fantasy • v1`. Wybrać jego scenariusz, wpisać
+`RESETUJ`, otworzyć lobby, a następnie przejść do prologu i stołu. Zmiana świata
+powinna nastąpić dopiero przy tym potwierdzonym restarcie, nie podczas aktywnej
+tury. W narzędziach MG włączyć lokalny podgląd Neon, obejrzeć karty, przyciski,
+focus/kontrast, modale, paski HP/XP, statusy, mapę, kronikę i Percepcję; wrócić
+przyciskiem „Motyw kampanii” i potwierdzić stary wygląd Dark Fantasy. Podgląd
+nie może zmienić pakietu ani widoku innego gracza. Odświeżyć stronę z włączonym
+podglądem, a także po przywróceniu motywu kampanii: nie powinno być błysku
+innej palety, `data-theme` i meta `theme-color` muszą odpowiadać widocznemu
+motywowi. Krótkie odświeżenie offline powinno użyć ostatniego zapisanego motywu
+tego świata, a cache powinien zawierać dokładnie wersjonowane zasoby etapu 7.
+Nie ma jeszcze drugiej grywalnej kampanii do przeklikania; będzie odbierana
+w etapie 8.
+
+Zatwierdzone prezentacje etapu 7: fonty `Cinzel`, `Cinzel Decorative` i `Inter`;
+tekstury `runes`, `grid`, `none`; zestawy ikon `classic`, `neutral`. Pakiet podaje
+wyłącznie kontrolowane ID i trzynaście kolorów `#RRGGBB`; nie może wskazywać
+zewnętrznych fontów, adresów assetów ani dowolnego CSS.
 
 ### Etap 8 - pilot Neonowa Polska 3078
 

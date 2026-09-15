@@ -102,11 +102,15 @@
       }
       this.isGeneratingIntro = true;
       try {
+        const selectedWorld = this.selectedWorldSummary;
+        if (!selectedWorld) throw new Error('Wybierz dostępny świat kampanii.');
         const res = await fetch('/api/session/setup-scenario', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             room_code: this.roomCode,
+            world_pack_id: selectedWorld.id,
+            world_pack_version: selectedWorld.version,
             scenario_type: this.scenarioChoice,
             tone: this.scenarioTone
           })
@@ -184,13 +188,7 @@
     },
 
     statLabel(stat) {
-      return {
-        strength: 'Siła',
-        agility: 'Zręczność',
-        intellect: 'Rozum',
-        charisma: 'Charyzma',
-        perception: 'Percepcja'
-      }[stat] || stat;
+      return this.attributeDefinition(stat).label;
     },
 
     async spendStatPoint(stat) {
@@ -384,11 +382,11 @@
       });
     },
 
-    setQuickAction(text, intent = null, targetRef = null) {
+    setQuickAction(text, intent = null, targetRef = null, testedStat = null) {
       this.actionText = text;
       this.magicAbilityId = null;
       this.actionIntent = intent;
-      this.actionTestedStat = null;
+      this.actionTestedStat = testedStat;
       this.actionTargetRef = targetRef;
       this.actionInterpretation = null;
       this.showActionInterpretationControls = false;
@@ -411,18 +409,27 @@
         if (ability) this.selectMagicAbility(ability);
         return;
       }
-      this.setQuickAction(action.text);
+      this.setQuickAction(
+        action.action_text || action.text,
+        action.intent || null,
+        action.target_ref ?? action.targetRef ?? null,
+        action.tested_stat || null
+      );
     },
 
     availableSuggestedActions(actions) {
       if (!Array.isArray(actions)) return [];
+      const phrases = this.session?.world_pack?.ability_action_phrases || [];
+      const normalize = value => String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
       return actions.filter(action => {
-        const normalized = String(action || '')
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .toLowerCase();
-        return !/\b(czar|czaruj|wyczar|zakle|zaklin|magi|inkant|teleport|przyzyw|modl|cud|zamraz|wskrzes|lewit|niewidzial|uzdraw|bosk|swiet|blyskawic)\w*/.test(normalized)
-          && !/\b(kula ognia|ognista kula|widmowa tarcza)\b/.test(normalized);
+        const normalized = normalize(action);
+        return !phrases.some(phrase => {
+          const marker = normalize(phrase).trim();
+          return marker && normalized.includes(marker);
+        });
       });
     },
 
@@ -431,7 +438,7 @@
       this.actionText = ability.action_text;
       this.magicAbilityId = ability.id;
       this.actionIntent = ability.intent || null;
-      this.actionTestedStat = this.magicBook?.casting_stat || null;
+      this.actionTestedStat = ability.tested_stat || this.abilityBook?.casting_stat || null;
       this.actionTargetRef = ability.target_ref || null;
       this.actionInterpretation = null;
       this.showActionInterpretationControls = false;
@@ -475,7 +482,7 @@
     },
 
     statShortLabel(stat) {
-      return { strength: 'SIŁ', agility: 'ZRĘ', intellect: 'ROZ', charisma: 'CHA', perception: 'PER' }[stat] || stat;
+      return this.attributeDefinition(stat).abbreviation;
     },
 
     intentLabel(intent) {
@@ -486,10 +493,12 @@
 
     targetLabel(targetRef) {
       if (!targetRef) return '';
-      if (targetRef === 'boss') return this.session?.active_boss?.name || 'boss';
+      if (targetRef === 'enemy' || targetRef === 'boss') {
+        return this.activeEnemy?.name || this.enemyProfile.role_label || 'przeciwnik';
+      }
       const character = (this.session?.characters || []).find(item => String(item.id) === String(targetRef));
       if (character) return character.name;
-      const feature = (this.session?.active_boss?.features || []).find(item => item.id === targetRef);
+      const feature = (this.activeEnemy?.features || []).find(item => item.id === targetRef);
       return feature?.name || targetRef;
     },
 

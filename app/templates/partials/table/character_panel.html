@@ -70,9 +70,9 @@
             <div class="grid grid-cols-2 gap-2">
               <div x-data="infoPopover" class="relative">
                 <button type="button" @click="showInfo = !showInfo" @keydown.escape.window="showInfo = false"
-                        :aria-expanded="showInfo" aria-label="Wyjaśnij atrybut Siła"
+                        :aria-expanded="showInfo" :aria-label="`Wyjaśnij atrybut ${attributeDefinition('strength').label}`"
                         class="w-full bg-slate-950/80 hover:border-amber-600/60 p-2.5 rounded-lg border border-slate-800 text-center transition relative">
-                  <span class="text-[10px] text-gray-500 block uppercase">Siła (STR)</span>
+                  <span class="text-[10px] text-gray-500 block uppercase" x-text="`${attributeDefinition('strength').label} (${attributeDefinition('strength').abbreviation})`"></span>
                   <span class="text-lg leading-tight font-bold text-amber-300 block" x-text="formatSignedStat(totalCharacterStat('strength'))"></span>
                   <span class="mt-1 flex items-center justify-center gap-1.5 text-[9px] leading-none font-mono">
                     <span class="text-gray-500" x-text="'baz. ' + formatSignedStat(currentCharacter?.strength)"></span>
@@ -84,15 +84,15 @@
                 </button>
                 <div x-show="showInfo" x-cloak x-transition @click.outside="showInfo = false"
                      class="absolute z-40 bottom-full left-0 mb-2 w-56 p-3 rounded-lg border border-amber-700/60 bg-slate-950 shadow-2xl text-left text-[11px] leading-relaxed text-gray-300">
-                  <b class="text-amber-300 block mb-1">Siła (STR)</b>
-                  Walka wręcz, mocne uderzenia, wyważanie, przepychanie i działania wymagające krzepy. Wartość jest dodawana do rzutu d20, gdy akcja testuje Siłę.
+                  <b class="text-amber-300 block mb-1" x-text="`${attributeDefinition('strength').label} (${attributeDefinition('strength').abbreviation})`"></b>
+                  <span x-text="attributeDefinition('strength').description"></span>
                 </div>
               </div>
               <div x-data="infoPopover" class="relative">
                 <button type="button" @click="showInfo = !showInfo" @keydown.escape.window="showInfo = false"
-                        :aria-expanded="showInfo" aria-label="Wyjaśnij atrybut Zręczność"
+                        :aria-expanded="showInfo" :aria-label="`Wyjaśnij atrybut ${attributeDefinition('agility').label}`"
                         class="w-full bg-slate-950/80 hover:border-amber-600/60 p-2.5 rounded-lg border border-slate-800 text-center transition relative">
-                  <span class="text-[10px] text-gray-500 block uppercase">Zręczność (AGI)</span>
+                  <span class="text-[10px] text-gray-500 block uppercase" x-text="`${attributeDefinition('agility').label} (${attributeDefinition('agility').abbreviation})`"></span>
                   <span class="text-lg leading-tight font-bold text-amber-300 block" x-text="formatSignedStat(totalCharacterStat('agility'))"></span>
                   <span class="mt-1 flex items-center justify-center gap-1.5 text-[9px] leading-none font-mono">
                     <span class="text-gray-500" x-text="'baz. ' + formatSignedStat(currentCharacter?.agility)"></span>
@@ -104,15 +104,15 @@
                 </button>
                 <div x-show="showInfo" x-cloak x-transition @click.outside="showInfo = false"
                      class="absolute z-40 bottom-full right-0 mb-2 w-56 p-3 rounded-lg border border-amber-700/60 bg-slate-950 shadow-2xl text-left text-[11px] leading-relaxed text-gray-300">
-                  <b class="text-amber-300 block mb-1">Zręczność (AGI)</b>
-                  Ataki dystansowe, uniki, skradanie, wspinaczka, pułapki i precyzyjne działania. Wartość jest dodawana do rzutu d20, gdy akcja testuje Zręczność.
+                  <b class="text-amber-300 block mb-1" x-text="`${attributeDefinition('agility').label} (${attributeDefinition('agility').abbreviation})`"></b>
+                  <span x-text="attributeDefinition('agility').description"></span>
                 </div>
               </div>
               <div x-data="infoPopover" class="relative">
                 <button type="button" @click="showInfo = !showInfo" @keydown.escape.window="showInfo = false"
-                        :aria-expanded="showInfo" aria-label="Wyjaśnij atrybut Rozum"
+                        :aria-expanded="showInfo" :aria-label="`Wyjaśnij atrybut ${attributeDefinition('intellect').label}`"
                         class="w-full bg-slate-950/80 hover:border-amber-600/60 p-2.5 rounded-lg border border-slate-800 text-center transition relative">
-                  <span class="text-[10px] text-gray-500 block uppercase">Rozum (INT)</span>
+                  <span class="text-[10px] text-gray-500 block uppercase" x-text="`${attributeDefinition('intellect').label} (${attributeDefinition('intellect').abbreviation})`"></span>
                   <span class="text-lg leading-tight font-bold text-amber-300 block" x-text="formatSignedStat(totalCharacterStat('intellect'))"></span>
                   <span class="mt-1 flex items-center justify-center gap-1.5 text-[9px] leading-none font-mono">
                     <span class="text-gray-500" x-text="'baz. ' + formatSignedStat(currentCharacter?.intellect)"></span>
@@ -124,15 +124,15 @@
                 </button>
                 <div x-show="showInfo" x-cloak x-transition @click.outside="showInfo = false"
                      class="absolute z-40 bottom-full left-0 mb-2 w-56 p-3 rounded-lg border border-amber-700/60 bg-slate-950 shadow-2xl text-left text-[11px] leading-relaxed text-gray-300">
-                  <b class="text-amber-300 block mb-1">Rozum (INT)</b>
-                  Magia, wiedza, badanie, analiza i rozwiązywanie zagadek. Wartość jest dodawana do rzutu d20, gdy akcja testuje Rozum.
+                  <b class="text-amber-300 block mb-1" x-text="`${attributeDefinition('intellect').label} (${attributeDefinition('intellect').abbreviation})`"></b>
+                  <span x-text="attributeDefinition('intellect').description"></span>
                 </div>
               </div>
               <div x-data="infoPopover" class="relative">
                 <button type="button" @click="showInfo = !showInfo" @keydown.escape.window="showInfo = false"
-                        :aria-expanded="showInfo" aria-label="Wyjaśnij atrybut Charyzma"
+                        :aria-expanded="showInfo" :aria-label="`Wyjaśnij atrybut ${attributeDefinition('charisma').label}`"
                         class="w-full bg-slate-950/80 hover:border-amber-600/60 p-2.5 rounded-lg border border-slate-800 text-center transition relative">
-                  <span class="text-[10px] text-gray-500 block uppercase">Charyzma (CHA)</span>
+                  <span class="text-[10px] text-gray-500 block uppercase" x-text="`${attributeDefinition('charisma').label} (${attributeDefinition('charisma').abbreviation})`"></span>
                   <span class="text-lg leading-tight font-bold text-amber-300 block" x-text="formatSignedStat(totalCharacterStat('charisma'))"></span>
                   <span class="mt-1 flex items-center justify-center gap-1.5 text-[9px] leading-none font-mono">
                     <span class="text-gray-500" x-text="'baz. ' + formatSignedStat(currentCharacter?.charisma)"></span>
@@ -144,15 +144,15 @@
                 </button>
                 <div x-show="showInfo" x-cloak x-transition @click.outside="showInfo = false"
                      class="absolute z-40 bottom-full right-0 mb-2 w-56 p-3 rounded-lg border border-amber-700/60 bg-slate-950 shadow-2xl text-left text-[11px] leading-relaxed text-gray-300">
-                  <b class="text-amber-300 block mb-1">Charyzma (CHA)</b>
-                  Perswazja, zastraszanie, blef, negocjacje, dowodzenie i inspirowanie innych. Wartość jest dodawana do rzutu d20, gdy akcja testuje Charyzmę.
+                  <b class="text-amber-300 block mb-1" x-text="`${attributeDefinition('charisma').label} (${attributeDefinition('charisma').abbreviation})`"></b>
+                  <span x-text="attributeDefinition('charisma').description"></span>
                 </div>
               </div>
               <div x-data="infoPopover" class="relative col-span-2">
                 <button type="button" @click="showInfo = !showInfo" @keydown.escape.window="showInfo = false"
-                        :aria-expanded="showInfo" aria-label="Wyjaśnij atrybut Percepcja"
+                        :aria-expanded="showInfo" :aria-label="`Wyjaśnij atrybut ${attributeDefinition('perception').label}`"
                         class="w-full bg-slate-950/80 hover:border-amber-600/60 p-2.5 rounded-lg border border-slate-800 text-center transition relative">
-                  <span class="text-[10px] text-gray-500 block uppercase">Percepcja (PER)</span>
+                  <span class="text-[10px] text-gray-500 block uppercase" x-text="`${attributeDefinition('perception').label} (${attributeDefinition('perception').abbreviation})`"></span>
                   <span class="text-lg leading-tight font-bold text-amber-300 block" x-text="formatSignedStat(totalCharacterStat('perception'))"></span>
                   <span class="mt-1 flex items-center justify-center gap-1.5 text-[9px] leading-none font-mono">
                     <span class="text-gray-500" x-text="'baz. ' + formatSignedStat(currentCharacter?.perception)"></span>
@@ -164,29 +164,29 @@
                 </button>
                 <div x-show="showInfo" x-cloak x-transition @click.outside="showInfo = false"
                      class="absolute z-40 bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 rounded-lg border border-amber-700/60 bg-slate-950 shadow-2xl text-left text-[11px] leading-relaxed text-gray-300">
-                  <b class="text-amber-300 block mb-1">Percepcja (PER)</b>
-                  Czujność, nasłuchiwanie, tropienie, wypatrywanie zasadzek i zauważanie szczegółów. Analiza wiedzy lub dokumentów nadal korzysta z Rozumu.
+                  <b class="text-amber-300 block mb-1" x-text="`${attributeDefinition('perception').label} (${attributeDefinition('perception').abbreviation})`"></b>
+                  <span x-text="attributeDefinition('perception').description"></span>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Magia klasowa: backend zwraca ten widok wyłącznie Czarodziejowi lub Klerykowi. -->
-          <section x-show="magicBook" x-cloak class="mb-6 rounded-xl border border-violet-800/60 bg-gradient-to-br from-violet-950/45 to-slate-950/80 p-4">
+          <!-- Księga zdolności pochodzi z klasy zadeklarowanej w aktywnym pakiecie świata. -->
+          <section x-show="abilityBook" x-cloak class="mb-6 rounded-xl border border-violet-800/60 bg-gradient-to-br from-violet-950/45 to-slate-950/80 p-4">
             <div class="flex items-start justify-between gap-3 mb-3">
               <div>
                 <h4 class="text-xs font-fantasy font-bold uppercase tracking-widest text-violet-300">
-                  <span x-text="magicBook?.icon"></span>
-                  <span x-text="magicBook?.title"></span>
+                  <span x-text="abilityBook?.icon"></span>
+                  <span x-text="abilityBook?.title"></span>
                 </h4>
                 <p class="text-[10px] text-gray-500 mt-1">Kliknij odblokowaną zdolność, aby przygotować deklarację akcji.</p>
               </div>
               <span class="shrink-0 rounded-md border border-violet-700/50 bg-violet-950/70 px-2 py-1 text-[9px] font-mono text-violet-300"
-                    x-text="magicBook ? (magicBook.resource_label + ' • ' + statShortLabel(magicBook.casting_stat)) : ''"></span>
+                    x-text="abilityBook ? (abilityBook.resource_label + ' • ' + statShortLabel(abilityBook.casting_stat)) : ''"></span>
             </div>
 
             <div class="space-y-2 max-h-80 overflow-y-auto pr-1">
-              <template x-for="ability in magicBook?.abilities || []" :key="ability.id">
+              <template x-for="ability in abilityBook?.abilities || []" :key="ability.id">
                 <button type="button" @click="selectMagicAbility(ability)"
                         :disabled="!ability.unlocked || hasSubmittedCurrentTurn || session?.is_turn_resolving"
                         class="w-full rounded-lg border p-3 text-left transition disabled:cursor-not-allowed"

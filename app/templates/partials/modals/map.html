@@ -5,8 +5,8 @@
     <div class="campaign-map-modal fantasy-card rounded-2xl w-full max-w-7xl border border-cyan-900/70 shadow-2xl flex flex-col" @click.stop>
       <div class="flex flex-wrap items-center justify-between gap-3 p-4 md:px-6 border-b border-slate-800">
         <div>
-          <h3 id="map-dialog-title" class="text-xl md:text-2xl font-fantasy font-bold text-cyan-200 flex items-center gap-2">
-            <span>🗺️</span> MAPA WYPRAWY
+          <h3 id="map-dialog-title" class="ui-heading text-xl md:text-2xl font-fantasy font-bold text-cyan-200 flex items-center gap-2">
+            <span class="ui-theme-icon ui-theme-icon--map" aria-hidden="true">🗺️</span> MAPA WYPRAWY
           </h3>
           <p class="text-[10px] md:text-xs text-gray-400 mt-1">
             Odwiedzone: <b class="text-cyan-300" x-text="campaignMap?.discovered_count || 0"></b>
@@ -100,4 +100,3 @@
       </div>
     </div>
   </div>
-

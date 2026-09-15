@@ -27,13 +27,7 @@
     },
 
     get loreCategories() {
-      return [
-        { id: 'boss', label: 'Bossowie', icon: '👑' },
-        { id: 'location', label: 'Miejsca', icon: '🏰' },
-        { id: 'npc', label: 'Napotkani NPC', icon: '🧙' },
-        { id: 'weapon', label: 'Oręż i artefakty', icon: '🗡️' },
-        { id: 'attack', label: 'Ataki drużynowe', icon: '💥' }
-      ];
+      return this.session?.world_pack?.lore_categories || [];
     },
 
     loreEntitiesByCategory(category) {

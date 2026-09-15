@@ -1,7 +1,7 @@
   <!-- ==================== MODAL: TWORZENIE POSTACI ==================== -->
   <div x-show="showCharModal" role="dialog" aria-modal="true" aria-labelledby="character-dialog-title" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
     <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-lg w-full border border-amber-900/50 shadow-2xl relative">
-      <h3 id="character-dialog-title" class="text-2xl font-fantasy font-bold text-amber-300 mb-1">STWÓRZ BOHATERA</h3>
+      <h3 id="character-dialog-title" class="ui-heading text-2xl font-fantasy font-bold text-amber-300 mb-1">STWÓRZ BOHATERA</h3>
       <p class="text-xs text-gray-400 mb-6">Wybierz klasę i rozdysponuj atrybuty (punkty modyfikatorów d20).</p>
 
       <form @submit.prevent="createCharacter()" class="space-y-4">
@@ -21,10 +21,10 @@
         <div>
           <label for="character-class" class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Archetyp / Klasa</label>
           <select id="character-class" x-model="newChar.class_id" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none">
-            <option value="warrior">Wojownik (Start: Krasnoludzki Miecz + Zbroja)</option>
-            <option value="rogue">Łotrzyk (Start: Zatruty Sztylet + Wytrychy)</option>
-            <option value="wizard">Czarodziej (Start: Runiczny Kostur + Amulet Ognia)</option>
-            <option value="cleric">Kleryk (Start: Srebrzysta Buława + Sygnet Wiary)</option>
+            <template x-for="classItem in worldClasses" :key="classItem.id">
+              <option :value="classItem.id"
+                      x-text="`${classItem.icon} ${classItem.name} (Start: ${classItem.starter_items.map(item => item.name).join(' + ')})`"></option>
+            </template>
           </select>
         </div>
 
@@ -39,24 +39,24 @@
 
           <div class="grid grid-cols-2 gap-3">
             <div class="bg-slate-950/90 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
-              <span class="text-xs text-gray-300">Siła (STR)</span>
-              <input type="number" min="0" max="4" x-model.number="newChar.strength" aria-label="Siła postaci" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
+              <span class="text-xs text-gray-300" x-text="`${attributeDefinition('strength').label} (${attributeDefinition('strength').abbreviation})`"></span>
+              <input type="number" min="0" max="4" x-model.number="newChar.strength" :aria-label="`${attributeDefinition('strength').label} postaci`" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
             </div>
             <div class="bg-slate-950/90 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
-              <span class="text-xs text-gray-300">Zręczność (AGI)</span>
-              <input type="number" min="0" max="4" x-model.number="newChar.agility" aria-label="Zręczność postaci" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
+              <span class="text-xs text-gray-300" x-text="`${attributeDefinition('agility').label} (${attributeDefinition('agility').abbreviation})`"></span>
+              <input type="number" min="0" max="4" x-model.number="newChar.agility" :aria-label="`${attributeDefinition('agility').label} postaci`" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
             </div>
             <div class="bg-slate-950/90 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
-              <span class="text-xs text-gray-300">Rozum (INT)</span>
-              <input type="number" min="0" max="4" x-model.number="newChar.intellect" aria-label="Rozum postaci" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
+              <span class="text-xs text-gray-300" x-text="`${attributeDefinition('intellect').label} (${attributeDefinition('intellect').abbreviation})`"></span>
+              <input type="number" min="0" max="4" x-model.number="newChar.intellect" :aria-label="`${attributeDefinition('intellect').label} postaci`" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
             </div>
             <div class="bg-slate-950/90 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
-              <span class="text-xs text-gray-300">Charyzma (CHA)</span>
-              <input type="number" min="0" max="4" x-model.number="newChar.charisma" aria-label="Charyzma postaci" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
+              <span class="text-xs text-gray-300" x-text="`${attributeDefinition('charisma').label} (${attributeDefinition('charisma').abbreviation})`"></span>
+              <input type="number" min="0" max="4" x-model.number="newChar.charisma" :aria-label="`${attributeDefinition('charisma').label} postaci`" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
             </div>
             <div class="bg-slate-950/90 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between sm:col-span-2">
-              <span class="text-xs text-gray-300">Percepcja (PER)</span>
-              <input type="number" min="0" max="4" x-model.number="newChar.perception" aria-label="Percepcja postaci" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
+              <span class="text-xs text-gray-300" x-text="`${attributeDefinition('perception').label} (${attributeDefinition('perception').abbreviation})`"></span>
+              <input type="number" min="0" max="4" x-model.number="newChar.perception" :aria-label="`${attributeDefinition('perception').label} postaci`" class="w-14 bg-slate-900 border border-slate-700 rounded text-center text-sm font-bold text-amber-300">
             </div>
           </div>
         </div>
@@ -68,7 +68,7 @@
             Anuluj
           </button>
           <button type="submit" :disabled="isCreatingChar || statPointsRemaining < 0"
-                  class="flex-1 py-2.5 bg-amber-600 hover:bg-amber-500 text-slate-950 rounded-lg text-xs font-fantasy font-bold transition disabled:opacity-50">
+                  class="ui-button-primary flex-1 py-2.5 bg-amber-600 hover:bg-amber-500 text-slate-950 rounded-lg text-xs font-fantasy font-bold transition disabled:opacity-50">
             <span x-show="!isCreatingChar">POWOŁAJ DO ŻYCIA</span>
             <span x-show="isCreatingChar">TWORZENIE...</span>
           </button>

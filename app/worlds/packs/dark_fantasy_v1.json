@@ -11,6 +11,7 @@
     "enemy": "przeciwnik",
     "location": "lokacja"
   },
+  "action_stat_cues": [],
   "attributes": [
     {"id": "strength", "label": "Siła", "abbreviation": "STR", "description": "Siła fizyczna, wytrzymałość i walka wręcz."},
     {"id": "agility", "label": "Zręczność", "abbreviation": "AGI", "description": "Refleks, skradanie, precyzja i uniki."},
@@ -22,12 +23,23 @@
   "theme": {
     "id": "dark_fantasy",
     "color_scheme": "dark",
+    "typography_id": "classic",
+    "texture_id": "runes",
+    "icon_set_id": "classic",
     "tokens": [
-      {"id": "background", "value": "#080b12"},
-      {"id": "surface", "value": "#161b26"},
-      {"id": "primary", "value": "#c8a96b"},
-      {"id": "danger", "value": "#b64040"},
-      {"id": "text", "value": "#e8e1d2"}
+      {"id": "background", "value": "#0a0c10"},
+      {"id": "surface", "value": "#12151e"},
+      {"id": "surface_raised", "value": "#1a1e2b"},
+      {"id": "primary", "value": "#e6c35c"},
+      {"id": "danger", "value": "#dc2626"},
+      {"id": "text", "value": "#e2e8f0"},
+      {"id": "text_muted", "value": "#94a3b8"},
+      {"id": "border", "value": "#9c8238"},
+      {"id": "focus", "value": "#fbbf24"},
+      {"id": "success", "value": "#22c55e"},
+      {"id": "accent", "value": "#3b82f6"},
+      {"id": "hp", "value": "#991b1b"},
+      {"id": "xp", "value": "#eab308"}
     ]
   },
   "classes": [
@@ -83,7 +95,7 @@
         {"id": "wizard-retreat", "label": "Taktyczny odwrót", "icon": "🛡️", "action_text": "Cofam się na bezpieczniejszą pozycję i obserwuję zamiary przeciwnika.", "intent": "defend", "tested_stat": "agility"},
         {"id": "wizard-guidance", "label": "Wskaż rozwiązanie", "icon": "🤝", "action_text": "Dzielę się swoją wiedzą z sojusznikiem i pomagam mu wykorzystać słabość zagrożenia.", "intent": "support", "tested_stat": "intellect"}
       ],
-      "ability_book": {"kind": "spellbook", "title": "Księga czarów", "icon": "📖", "resource_label": "Zaklęcia", "casting_stat": "intellect", "ability_ids": ["arcane_bolt", "spectral_shield", "detect_magic", "burning_hands", "mirror_image", "lightning_bolt", "phase_step", "meteor"]}
+      "ability_book": {"kind": "spellbook", "title": "Księga czarów", "icon": "📖", "resource_label": "Zaklęcia", "casting_stat": "intellect", "ability_ids": ["arcane_bolt", "spectral_shield", "detect_magic", "burning_hands", "mirror_image", "lightning_bolt", "phase_step", "meteor"], "action_markers": ["czar", "zaklę", "magia", "magicz", "teleport", "przyzyw", "zamraż", "lewit", "niewidzial"]}
     },
     {
       "id": "cleric",
@@ -101,13 +113,13 @@
         {"id": "cleric-guard", "label": "Obrona drużyny", "icon": "🛡️", "action_text": "Zajmuję pozycję między zagrożeniem a drużyną i przygotowuję się do obrony.", "intent": "defend", "tested_stat": "strength"},
         {"id": "cleric-aid", "label": "Pomoc rannemu", "icon": "🤝", "action_text": "Pomagam rannemu sojusznikowi, opatrując jego obrażenia i przywracając go do walki.", "intent": "support", "tested_stat": "charisma"}
       ],
-      "ability_book": {"kind": "prayers_and_miracles", "title": "Modlitwy i cuda", "icon": "☀️", "resource_label": "Święte moce", "casting_stat": "charisma", "ability_ids": ["sacred_flame", "healing_prayer", "blessing", "guardian_ward", "purification", "radiant_burst", "resurrection", "divine_intervention", "divine_judgment"]}
+      "ability_book": {"kind": "prayers_and_miracles", "title": "Modlitwy i cuda", "icon": "☀️", "resource_label": "Święte moce", "casting_stat": "charisma", "ability_ids": ["sacred_flame", "healing_prayer", "blessing", "guardian_ward", "purification", "radiant_burst", "resurrection", "divine_intervention", "divine_judgment"], "action_markers": ["modlitw", "cud", "boska moc", "boska interwenc", "wskrzes", "święty płomień", "święta moc"]}
     }
   ],
   "fallback_class_id": "cleric",
   "abilities": [
     {"id": "arcane_bolt", "name": "Pocisk arkanów", "category": "Czar ofensywny", "required_level": 1, "icon": "✨", "description": "Skupiony pocisk energii uderza jeden widoczny cel.", "action_text": "Rzucam Pocisk arkanów i kieruję skupioną energię w przeciwnika.", "intent": "attack", "tested_stat": "intellect", "target_ref": "boss", "mechanic_key": "damage"},
-    {"id": "spectral_shield", "name": "Widmowa tarcza", "category": "Czar ochronny", "required_level": 1, "icon": "🔷", "description": "Magiczna osłona pomaga odeprzeć nadchodzący atak.", "action_text": "Rzucam Widmową tarczę, tworząc magiczną osłonę przed nadchodzącym atakiem.", "intent": "defend", "tested_stat": "intellect", "mechanic_key": "protect"},
+    {"id": "spectral_shield", "name": "Widmowa tarcza", "category": "Czar ochronny", "required_level": 1, "icon": "🔷", "description": "Magiczna osłona pomaga odeprzeć nadchodzący atak.", "action_text": "Rzucam Widmową tarczę, tworząc magiczną osłonę przed nadchodzącym atakiem.", "intent": "defend", "tested_stat": "intellect", "mechanic_key": "protect", "mechanic_params": [{"key": "ignore_item_claim", "value": "Tarcza"}]},
     {"id": "detect_magic", "name": "Wykrycie magii", "category": "Czar poznania", "required_level": 1, "icon": "👁️", "description": "Ujawnia obecność aktywnej magii, klątw i zaklętych przedmiotów.", "action_text": "Rzucam Wykrycie magii i badam otoczenie pod kątem aur, klątw oraz zaklętych przedmiotów.", "intent": "interact", "tested_stat": "intellect", "mechanic_key": "scan"},
     {"id": "burning_hands", "name": "Płonące dłonie", "category": "Czar ofensywny", "required_level": 2, "icon": "🔥", "description": "Stożek płomieni razi przeciwników stojących blisko czarodzieja.", "action_text": "Rzucam Płonące dłonie, posyłając przed siebie gwałtowny stożek ognia.", "intent": "attack", "tested_stat": "intellect", "target_ref": "boss", "mechanic_key": "damage"},
     {"id": "mirror_image", "name": "Lustrzane odbicia", "category": "Czar ochronny", "required_level": 3, "icon": "🪞", "description": "Zwodnicze kopie utrudniają przeciwnikowi trafienie czarodzieja.", "action_text": "Rzucam Lustrzane odbicia, otaczając się zwodniczymi kopiami własnej postaci.", "intent": "defend", "tested_stat": "intellect", "mechanic_key": "protect"},
@@ -120,31 +132,100 @@
     {"id": "guardian_ward", "name": "Opiekuńcza pieczęć", "category": "Cud ochronny", "required_level": 2, "icon": "🛡️", "description": "Święty znak osłania kleryka lub zagrożonego sojusznika.", "action_text": "Przywołuję Opiekuńczą pieczęć, aby osłonić najbardziej zagrożonego członka drużyny.", "intent": "defend", "tested_stat": "charisma", "mechanic_key": "protect"},
     {"id": "purification", "name": "Rytuał oczyszczenia", "category": "Modlitwa", "required_level": 3, "icon": "💧", "description": "Pomaga przełamać klątwę, truciznę albo nieczysty wpływ.", "action_text": "Odprawiam Rytuał oczyszczenia, prosząc o usunięcie klątwy, trucizny lub nieczystego wpływu.", "intent": "support", "tested_stat": "charisma", "mechanic_key": "cleanse"},
     {"id": "radiant_burst", "name": "Wybuch światłości", "category": "Cud ofensywny", "required_level": 5, "icon": "☀️", "description": "Fala blasku razi wrogów i rozprasza otaczający mrok.", "action_text": "Wzywam Wybuch światłości, zalewając przeciwników falą świętego blasku.", "intent": "attack", "tested_stat": "charisma", "target_ref": "boss", "mechanic_key": "damage"},
-    {"id": "resurrection", "name": "Wskrzeszenie", "category": "Rytuał życia", "required_level": 7, "icon": "🕊️", "description": "Przywraca poległego sojusznika do życia; zwykły sukces odnawia 25% HP, krytyczny 50% HP.", "action_text": "Odprawiam Wskrzeszenie nad poległym sojusznikiem i wzywam jego duszę z powrotem do ciała.", "intent": "support", "tested_stat": "charisma", "mechanic_key": "revive"},
+    {"id": "resurrection", "name": "Wskrzeszenie", "category": "Rytuał życia", "required_level": 7, "icon": "🕊️", "description": "Przywraca poległego sojusznika do życia; zwykły sukces odnawia 25% HP, krytyczny 50% HP.", "action_text": "Odprawiam Wskrzeszenie nad poległym sojusznikiem i wzywam jego duszę z powrotem do ciała.", "intent": "support", "tested_stat": "charisma", "mechanic_key": "revive", "mechanic_params": [{"key": "success_percent", "value": 25}, {"key": "critical_percent", "value": 50}]},
     {"id": "divine_intervention", "name": "Boska interwencja", "category": "Cud mistrzowski", "required_level": 8, "icon": "🌟", "description": "Rozpaczliwa prośba o potężną, lecz ściśle sytuacyjną pomoc bóstwa.", "action_text": "Błagam o Boską interwencję w obliczu obecnego zagrożenia dla całej drużyny.", "intent": "support", "tested_stat": "charisma", "mechanic_key": "support"},
     {"id": "divine_judgment", "name": "Sąd boży", "category": "Cud mistrzowski", "required_level": 10, "icon": "⚖️", "description": "Potężna manifestacja wiary uderza w szczególnie groźnego przeciwnika.", "action_text": "Wzywam Sąd boży, kierując pełnię świętej mocy przeciw najgroźniejszemu przeciwnikowi.", "intent": "attack", "tested_stat": "charisma", "target_ref": "boss", "mechanic_key": "damage"}
   ],
   "loot_tables": [
-    {
-      "id": "dark_fantasy_core",
-      "entries": [
-        {"id": "weapon", "label": "Broń", "item_type": "weapon", "target_stat": "strength"},
-        {"id": "armor", "label": "Pancerz", "item_type": "armor", "target_stat": "strength"},
-        {"id": "trinket", "label": "Talizman", "item_type": "accessory", "target_stat": "charisma"},
-        {"id": "potion", "label": "Mikstura", "item_type": "consumable", "target_stat": "none"}
-      ]
-    }
+    {"id": "strength", "entries": [
+      {"id": "mercenary_sword", "label": "Miecz Najemnika", "description": "Dobrze wyważone ostrze nie cofa się przed pancerzem.", "item_type": "weapon", "target_stat": "strength", "hands_required": 1},
+      {"id": "guardian_axe", "label": "Topór Strażnika", "description": "Ciężkie ostrze pomaga przełamywać obronę przeciwnika.", "item_type": "weapon", "target_stat": "strength", "hands_required": 2},
+      {"id": "scale_armor", "label": "Pancerz Łuskowy", "description": "Nachodzące na siebie płytki rozpraszają siłę uderzeń.", "item_type": "armor", "target_stat": "strength"},
+      {"id": "strongman_bracer", "label": "Karwasz Siłacza", "description": "Usztywnia nadgarstek podczas mocnych cięć i pchnięć.", "item_type": "accessory", "target_stat": "strength"}
+    ]},
+    {"id": "agility", "entries": [
+      {"id": "scout_dagger", "label": "Sztylet Zwiadowcy", "description": "Lekkie ostrze błyskawicznie odnajduje luki w obronie.", "item_type": "weapon", "target_stat": "agility"},
+      {"id": "ashen_bow", "label": "Łuk Popielnego Gaju", "description": "Sprężyste ramiona łuku pomagają posyłać celne strzały.", "item_type": "weapon", "target_stat": "agility", "hands_required": 2},
+      {"id": "silent_cloak", "label": "Płaszcz Cichego Kroku", "description": "Miękki materiał tłumi ruch i nie krępuje uników.", "item_type": "armor", "target_stat": "agility"},
+      {"id": "reflex_ring", "label": "Pierścień Refleksu", "description": "Chłodny metal wyostrza reakcję w chwili zagrożenia.", "item_type": "accessory", "target_stat": "agility"}
+    ]},
+    {"id": "intellect", "entries": [
+      {"id": "extinguished_rune_staff", "label": "Kostur Zgaszonej Runy", "description": "Przewodzi skupioną energię przez wyryte w drewnie znaki.", "item_type": "weapon", "target_stat": "intellect", "hands_required": 2},
+      {"id": "arcanist_lens", "label": "Soczewka Arkanisty", "description": "Ułatwia dostrzeganie wzorów ukrytych w magii i materii.", "item_type": "accessory", "target_stat": "intellect"},
+      {"id": "whisper_amulet", "label": "Amulet Szeptów", "description": "Pomaga zachować jasność myśli pośród nadnaturalnego chaosu.", "item_type": "accessory", "target_stat": "intellect"},
+      {"id": "ash_codex", "label": "Kodeks Popiołów", "description": "Zapisane marginesy podpowiadają rozwiązania dawnych zagadek.", "item_type": "misc", "target_stat": "intellect"}
+    ]},
+    {"id": "charisma", "entries": [
+      {"id": "pilgrim_mace", "label": "Buława Pielgrzyma", "description": "Ceremonialny oręż dodaje powagi słowom właściciela.", "item_type": "weapon", "target_stat": "charisma"},
+      {"id": "envoy_signet", "label": "Sygnet Poselstwa", "description": "Stary herb wzbudza respekt nawet u nieufnych rozmówców.", "item_type": "accessory", "target_stat": "charisma"},
+      {"id": "standard_bearer_cloak", "label": "Płaszcz Chorążego", "description": "Wyprostowana sylwetka przyciąga wzrok sprzymierzeńców.", "item_type": "armor", "target_stat": "charisma"},
+      {"id": "oath_reliquary", "label": "Relikwiarz Przysięgi", "description": "Przypomina słuchaczom, że wypowiedziane obietnice mają wagę.", "item_type": "misc", "target_stat": "charisma"}
+    ]},
+    {"id": "perception", "entries": [
+      {"id": "falcon_glass", "label": "Sokole Szkło", "description": "Wyostrza obraz i pomaga wypatrzyć ruch w półmroku.", "item_type": "accessory", "target_stat": "perception"},
+      {"id": "watcher_hood", "label": "Kaptur Czujnego Strażnika", "description": "Tłumi rozproszenia i ułatwia nasłuchiwanie zagrożeń.", "item_type": "armor", "target_stat": "perception"},
+      {"id": "whisper_compass", "label": "Kompas Szeptów", "description": "Drży, gdy w pobliżu porusza się coś ukrytego.", "item_type": "misc", "target_stat": "perception"},
+      {"id": "tracker_monocle", "label": "Monokl Tropiciela", "description": "Pomaga odróżnić świeże ślady od starego kurzu.", "item_type": "accessory", "target_stat": "perception"}
+    ]}
   ],
+  "loot_rarities": [
+    {"id": "common", "suffix": "z Żelaznego Szlaku", "rank": 1, "normal_weight": 70, "reward_weight": 30},
+    {"id": "rare", "suffix": "z Runicznym Splotem", "rank": 2, "normal_weight": 25, "reward_weight": 55},
+    {"id": "relic", "suffix": "z Echem Reliktu", "rank": 3, "normal_weight": 5, "reward_weight": 15}
+  ],
+  "consumable_loot": {"name": "Eliksir Żywotności", "description_template": "Odnawia {healing} punktów życia.", "chance_denominator": 7, "base_healing": 8, "healing_per_level": 2, "healing_per_rarity": 2, "healing_cap": 30},
+  "crafting_profile": {"result_prefix": "Ulepszenie", "description_template": "Rzemieślnicze wzmocnienie poprawia {stat_label} przedmiotu.", "workshop_unavailable_message": "Warsztat jest niedostępny. Crafting otwiera się na jedną turę po pokonaniu głównego przeciwnika.", "ignored_name_parts": ["magicz", "runicz", "starozy", "wzmocn", "krasnol", "mistrz", "ognia", "cienia"], "object_markers": ["miecz", "sztylet", "topor", "luk", "kostur", "zbroj", "pancerz", "tarc", "amulet", "piersc", "relik", "helm", "but"]},
   "item_vocabulary": [
-    {"id": "sword", "label": "miecz", "aliases": ["miecz", "ostrze", "szabla"]},
-    {"id": "bow", "label": "łuk", "aliases": ["łuk", "luk", "kusza"]},
-    {"id": "staff", "label": "kostur", "aliases": ["kostur", "laska"]},
-    {"id": "mace", "label": "buława", "aliases": ["buława", "bulawa", "młot", "mlot"]}
+    {"id": "shield", "label": "Tarcza", "aliases": ["tarcza", "pawęż", "puklerz"], "item_types": ["shield"]},
+    {"id": "sword", "label": "Miecz", "aliases": ["miecz", "szabla", "rapier"], "item_types": ["weapon"]},
+    {"id": "dagger", "label": "Sztylet", "aliases": ["sztylet", "nóż"], "item_types": ["weapon"]},
+    {"id": "axe", "label": "Topór", "aliases": ["topór", "siekiera"], "item_types": ["weapon"]},
+    {"id": "bow", "label": "Łuk", "aliases": ["łuk", "kusza"], "item_types": ["weapon"]},
+    {"id": "staff", "label": "Kostur", "aliases": ["kostur", "laska", "różdżka"], "item_types": ["weapon"]},
+    {"id": "hammer", "label": "Młot", "aliases": ["młot", "buława"], "item_types": ["weapon"]},
+    {"id": "spear", "label": "Włócznia", "aliases": ["włócznia", "oszczep"], "item_types": ["weapon"]},
+    {"id": "armor", "label": "Zbroja", "aliases": ["zbroja", "pancerz"], "item_types": ["armor"]}
+  ],
+  "attack_status_cues": [
+    {"markers": ["ogien", "plomien", "podpal", "zar"], "status_effect": "burning", "duration": 2},
+    {"markers": ["truj", "truciz", "zatrut", "jad", "toksyn"], "status_effect": "poisoned", "duration": 3},
+    {"markers": ["lod", "mroz", "zamraz", "szron"], "status_effect": "frozen", "duration": 2}
+  ],
+  "status_presentations": [
+    {"id": "burning", "label": "Poparzony", "icon": "🔥", "description": "Otrzymuje obrażenia od ognia na początku kolejnej tury.", "tone": "orange"},
+    {"id": "poisoned", "label": "Zatruty", "icon": "☠️", "description": "Otrzymuje obrażenia i ma karę do testów.", "tone": "green"},
+    {"id": "frozen", "label": "Zamrożony", "icon": "❄️", "description": "Ma obniżoną obronę; następny silny cios rozbija lód.", "tone": "cyan"},
+    {"id": "stunned", "label": "Oszołomiony", "icon": "💫", "description": "Najbliższy atak zadaje więcej obrażeń, a odpowiedź przeciwnika jest słabsza.", "tone": "yellow"},
+    {"id": "exposed", "label": "Odsłonięty", "icon": "🎯", "description": "Otrzymuje o 25% więcej obrażeń.", "tone": "rose"},
+    {"id": "guarded", "label": "Osłonięty", "icon": "🛡️", "description": "Redukuje obrażenia następnego ataku.", "tone": "blue"},
+    {"id": "enraged", "label": "Rozwścieczony", "icon": "😡", "description": "Ataki głównego przeciwnika są silniejsze w tej fazie.", "tone": "rose"}
   ],
   "enemy_profile": {
+    "id": "major_enemy",
     "role_label": "przeciwnik",
+    "role_label_plural": "przeciwnicy",
+    "icon": "👑",
+    "lore_category_id": "boss",
     "defeated_label": "pokonany",
-    "status_labels": ["aktywny", "osłabiony", "pokonany"]
+    "active_label": "aktywny",
+    "next_attack_label": "Nadchodzący atak",
+    "manual_trigger_description": "Ogromny trójgłowy demon lawy",
+    "status_labels": ["aktywny", "osłabiony", "pokonany"],
+    "default_status_effect": "burning",
+    "status_cues": [
+      {"markers": ["lod", "mroz", "szron"], "status_effect": "frozen"},
+      {"markers": ["jad", "truciz", "toksyn"], "status_effect": "poisoned"}
+    ],
+    "features": [
+      {"id": "unstable_pillar", "name": "Niestabilny filar", "icon": "🗿", "description": "Przewrócenie filaru rani i oszałamia głównego przeciwnika.", "required_stat": "strength", "dc_offset": 1, "damage_percent": 12, "effect": "stunned"},
+      {"id": "runic_seal", "name": "Runiczna pieczęć", "icon": "🔮", "description": "Złamanie pieczęci odsłania słaby punkt przeciwnika.", "required_stat": "intellect", "dc_offset": 1, "damage_percent": 0, "effect": "exposed"},
+      {"id": "broken_battlement", "name": "Kamienna osłona", "icon": "🧱", "description": "Zajęcie pozycji osłania bohatera przed kolejnym ciosem.", "required_stat": "agility", "dc_offset": 0, "damage_percent": 0, "effect": "guarded", "reusable": true}
+    ],
+    "attacks": [
+      {"phase": 1, "name": "Miażdżące natarcie", "icon": "⚠️", "description": "Główny przeciwnik szykuje potężny cios w jednego z bohaterów."},
+      {"phase": 2, "name": "Rozdarcie areny", "icon": "⚠️", "description": "Przeciwnik zamierza uderzyć z większą siłą; osłona ograniczy obrażenia."},
+      {"phase": 3, "name": "Ostatnia furia", "icon": "⚠️", "description": "Desperacki atak przeciwnika będzie znacznie silniejszy."}
+    ]
   },
   "map_profile": {
     "generator_id": "dark_fantasy_dungeon",
@@ -152,32 +233,45 @@
     "start_location_name": "Brama Wyprawy",
     "finale_location_name": "Sanktuarium Cienia",
     "hidden_location_name": "Ukryty Skarbiec",
+    "undiscovered_location_name": "Nieodkryta lokacja",
     "room_types": [
-      {"id": "entrance", "label": "Wejście"},
-      {"id": "finale", "label": "Finał"},
-      {"id": "gallery", "label": "Galeria"},
-      {"id": "crypt", "label": "Krypta"},
-      {"id": "library", "label": "Archiwum"},
-      {"id": "armory", "label": "Zbrojownia"},
-      {"id": "shrine", "label": "Sanktuarium"},
-      {"id": "hall", "label": "Sala"},
-      {"id": "bridge", "label": "Most"},
-      {"id": "prison", "label": "Cele"},
-      {"id": "well", "label": "Studnia"},
-      {"id": "forge", "label": "Kuźnia"},
-      {"id": "chamber", "label": "Komnata"},
-      {"id": "crossroads", "label": "Rozdroże"},
-      {"id": "treasury", "label": "Skarbiec"},
-      {"id": "cave", "label": "Grota"},
-      {"id": "study", "label": "Pracownia"},
-      {"id": "tomb", "label": "Grobowiec"},
-      {"id": "guardroom", "label": "Strażnica"}
+      {"id": "entrance", "label": "Wejście", "names": ["Brama Wyprawy"], "description": "Kamienny próg prowadzący w głąb wyprawy.", "contents": ["ślady drużyny", "główne wejście"]},
+      {"id": "finale", "label": "Finał", "names": ["Sanktuarium Cienia"], "description": "Najgłębsza część kompleksu, w której zbiegają się ślady głównego zagrożenia.", "contents": ["stare pieczęcie", "źródło niepokoju"]},
+      {"id": "gallery", "label": "Galeria", "names": ["Galeria Milczących Posągów"], "description": "Długi trakt otoczony nieruchomymi posągami.", "contents": ["kamienne figury", "zakurzone nisze"]},
+      {"id": "crypt", "label": "Krypta", "names": ["Krypta Zapomnianych"], "description": "Chłodna krypta z rzędami zapomnianych grobów.", "contents": ["sarkofagi", "wyblakłe epitafia"]},
+      {"id": "library", "label": "Archiwum", "names": ["Archiwum Popiołów"], "description": "Pozostałości archiwum, którego zbiory przetrwały tylko częściowo.", "contents": ["zwęglone księgi", "pulpity"]},
+      {"id": "armory", "label": "Zbrojownia", "names": ["Zardzewiała Zbrojownia"], "description": "Dawna zbrojownia nosząca ślady gwałtownego opuszczenia.", "contents": ["stojaki na broń", "zardzewiałe pancerze"]},
+      {"id": "shrine", "label": "Sanktuarium", "names": ["Kaplica Gasnącego Światła"], "description": "Niewielkie miejsce kultu o niepewnym przeznaczeniu.", "contents": ["ołtarz", "wygasłe świece"], "branch_names": ["Boczne Sanktuarium"]},
+      {"id": "hall", "label": "Sala", "names": ["Sala Pękniętych Kolumn"], "description": "Rozległa sala podtrzymywana przez popękane filary.", "contents": ["rumowisko", "kamienne kolumny"]},
+      {"id": "bridge", "label": "Most", "names": ["Kamienny Most"], "description": "Wąska przeprawa nad ciemną rozpadliną.", "contents": ["kamienna balustrada", "przepaść"]},
+      {"id": "prison", "label": "Cele", "names": ["Opuszczone Cele"], "description": "Rząd wilgotnych cel zamkniętych ciężkimi kratami.", "contents": ["kraty", "zerwane łańcuchy"]},
+      {"id": "well", "label": "Studnia", "names": ["Studnia Szeptów"], "description": "Stara studnia, z której głębi wraca każde echo.", "contents": ["kamienna cembrowina", "ciemna toń"]},
+      {"id": "forge", "label": "Kuźnia", "names": ["Wygasła Kuźnia"], "description": "Wygasły warsztat pokryty sadzą i metalowym pyłem.", "contents": ["palenisko", "kowadło"]},
+      {"id": "chamber", "label": "Komnata", "names": ["Komnata Starych Pieczęci"], "description": "Zamknięta komnata oznaczona śladami dawnych pieczęci.", "contents": ["runiczne znaki", "zamknięte wnęki"]},
+      {"id": "crossroads", "label": "Rozdroże", "names": ["Rozdroże Podziemi"], "description": "Kilka korytarzy spotyka się w jednym, łatwym do obrony punkcie.", "contents": ["drogowskazy", "ślady przejścia"]},
+      {"id": "treasury", "label": "Skarbiec", "names": ["Ukryty Skarbiec"], "description": "Ukryte pomieszczenie przeznaczone niegdyś na kosztowności.", "contents": ["puste skrzynie", "zamki i okucia"], "branch": true},
+      {"id": "cave", "label": "Grota", "names": ["Zawalona Grota"], "description": "Naturalna grota przebijająca się przez starsze mury.", "contents": ["osypisko", "skalna szczelina"], "branch": true},
+      {"id": "study", "label": "Pracownia", "names": ["Pracownia Kartografa"], "description": "Mała pracownia pełna narzędzi i fragmentów planów.", "contents": ["stół kreślarski", "mapy"], "branch": true},
+      {"id": "tomb", "label": "Grobowiec", "names": ["Bezimienny Grobowiec"], "description": "Samotny grobowiec pozbawiony czytelnego imienia.", "contents": ["kamienna płyta", "grobowe dary"], "branch": true},
+      {"id": "guardroom", "label": "Strażnica", "names": ["Strażnica Bez Wartowników"], "description": "Opuszczona strażnica kontrolująca pobliskie przejścia.", "contents": ["ławki straży", "otwory obserwacyjne"], "branch": true}
     ]
   },
-  "lore_categories": ["boss", "location", "npc", "weapon_artifact", "team_attack"],
+  "lore_categories": [
+    {"id": "boss", "label": "Bossowie", "icon": "👑"},
+    {"id": "location", "label": "Miejsca", "icon": "🏰"},
+    {"id": "npc", "label": "Napotkani NPC", "icon": "🧙"},
+    {"id": "weapon", "label": "Oręż i artefakty", "icon": "🗡️"},
+    {"id": "attack", "label": "Ataki drużynowe", "icon": "💥"}
+  ],
   "narrative_profile": {
     "default_title": "Cienie Nad Przeklętą Kryptą",
     "setting_theme": "Dark Fantasy / Gotycki Horror",
+    "lobby_title_template": "Wyprawa: {scenario_type}",
+    "lobby_prompt": "Drużyna zbiera się w karczmie przed wyruszeniem na wyprawę...",
+    "scenario_options": ["Krasnoludzka Twierdza opanowana przez demony ognia", "Krypta Pradawnego Króla Lichów", "Nawiedzony Przeklęty Las Cieni", "Wieża Plugawego Nekromanty na Krwawym Wzgórzu", "Wrak Widmowego Galeonu na Północnych Lodowcach"],
+    "named_weapon_description_template": "Nie wybacza błędów i nosi imię nadane przez {character_name}",
+    "loot_search_action": {"id": "search-loot", "label": "Szukaj łupu", "icon": "🎒", "action_text": "Dokładnie przeszukuję tę lokację w poszukiwaniu wartościowego łupu.", "intent": "interact", "tested_stat": "perception"},
+    "loot_search_markers": ["przeszuk", "pladruj", "ograb", "szukam lupu", "szukam przedmiot", "zbieram lup", "sprawdzam cial", "przegladam cial", "otwieram skrzyn", "przeswietlam skrzyn"],
     "campaign_intro": "Krople lodowatej wody spadają ze sklepienia prastarej krypty, rozbijając się o kamienne płyty. Wasza czwórka przekroczyła próg zniszczonych wrót, uciekając przed szalejącą na powierzchni nawałnicą cieni. W mroku przed wami rozbrzmiewa metaliczny zgrzyt oręża i ciche, gardłowe warczenie. Pochodnia oświetla ołtarz z czarnego obsydianu, na którym spoczywa starożytny relikwiarz, strzeżony przez ożywione kościotrupy strażników.",
     "first_challenge": "Szkielety unoszą zardzewiałe miecze, a w ich pustych oczodołach płonie błękitny ogień. Co robicie?",
     "suggested_actions": [
@@ -186,6 +280,12 @@
       "🔍 Ścieżka Wiedzy: Zbadanie run relikwiarza i mechanizmu ożywiającego kości."
     ],
     "image_art_direction": "Mroczne malarstwo fantasy, gotycki horror, dramatyczne światło i filmowa kompozycja.",
-    "initial_image_prompt": "Dark fantasy oil painting of four fantasy adventurers entering a Gothic crypt with glowing blue-eyed skeletal guardians, atmospheric torchlight and mist, cinematic composition"
+    "initial_image_prompt": "Dark fantasy oil painting of four fantasy adventurers entering a Gothic crypt with glowing blue-eyed skeletal guardians, atmospheric torchlight and mist, cinematic composition",
+    "narrator_instructions": "Prowadź mroczną przygodę fantasy w stylu gotyckiego horroru. Buduj napięcie, opisuj materialne konsekwencje i nie wprowadzaj elementów z innych gatunków.",
+    "offline_resolution_close": "Powietrze gęstnieje od pyłu i zapachu żelaza. Oddechy bohaterów są ciężkie, a sytuacja uległa gwałtownej zmianie.",
+    "offline_next_challenge": "Z mroku wyłaniają się nowe zarysy, słychać metaliczny szczęk i echo kroków w głębi traktu. Czas na reakcję kurczy się nieubłaganie. Co robicie?",
+    "offline_suggested_actions": ["⚔️ Natarcie bezpośrednie z wykorzystaniem impetu i osłabienia przeciwnika", "🛡️ Przegrupowanie, osłona rannych i przygotowanie pozycji obronnej", "🔍 Wykorzystanie nowego otoczenia, zbadanie przejścia lub manewr z flanki"],
+    "offline_enemy_description": "Olbrzymi czempion ciemności o płonących ślepiach i okutym runami toporze",
+    "offline_enemy_naming_prompt": "Pradawna bestia staje na waszej drodze. Jak nazwiesz tego potężnego wroga?"
   }
 }

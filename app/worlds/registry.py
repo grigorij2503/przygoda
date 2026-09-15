@@ -105,7 +105,9 @@ class WorldPackRegistry:
             worlds=tuple(WorldPackSummary.from_pack(pack) for pack in self.list()),
         )
 
-    def resolve_class(self, pack: WorldPack, value: str) -> WorldClassDefinition:
+    def resolve_class(
+        self, pack: WorldPack, value: str, *, fallback: bool = True
+    ) -> WorldClassDefinition:
         normalized_value = _normalized(value)
         words = re.findall(r"[a-z0-9_]+", normalized_value)
         for class_definition in pack.classes:
@@ -116,11 +118,11 @@ class WorldPackRegistry:
                 for candidate in candidates
             ):
                 return class_definition
-        return next(
-            class_definition
-            for class_definition in pack.classes
-            if class_definition.id == pack.fallback_class_id
-        )
+        if not fallback:
+            raise WorldPackNotFoundError(
+                f"unknown class {value} in world pack {pack.key}"
+            )
+        return self.get_class(pack, pack.fallback_class_id)
 
     def get_class(self, pack: WorldPack, class_id: str) -> WorldClassDefinition:
         try:
