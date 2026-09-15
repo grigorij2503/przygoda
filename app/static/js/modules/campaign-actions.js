@@ -125,7 +125,7 @@
         }
         this.showIntroModal = false;
         this.resetConfirmation = '';
-        this.addToast('🏰 Otwarto Zbiórkę Drużyny dla nowego scenariusza!', 'success');
+        this.addToast('Nowe lobby kampanii jest gotowe.', 'success');
         await this.fetchSession();
       } catch (err) {
         this.addToast(err.message, 'error');

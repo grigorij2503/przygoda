@@ -11,10 +11,12 @@ from app.worlds.models import WorldPack
 from app.worlds.registry import WORLD_PACK_REGISTRY, WorldPackNotFoundError
 
 
-def test_registry_contains_only_versioned_dark_fantasy_pack():
+def test_registry_contains_two_versioned_packs_with_dark_fantasy_default():
     packs = WORLD_PACK_REGISTRY.list()
 
-    assert [pack.key for pack in packs] == ["dark_fantasy@1"]
+    assert [pack.key for pack in packs] == [
+        "dark_fantasy@1", "neokatowice_3077@1"
+    ]
     assert WORLD_PACK_REGISTRY.default is packs[0]
     assert packs[0].ruleset_id == "d20_v1"
     assert [attribute.id for attribute in packs[0].attributes] == [
@@ -84,7 +86,7 @@ def test_active_campaign_rejects_world_pack_change():
     )
 
     with pytest.raises(HTTPException) as error:
-        resolve_requested_world_pack(session, "cyberpunk_3078", 1)
+        resolve_requested_world_pack(session, "neokatowice_3077", 1)
 
     assert error.value.status_code == 409
 
@@ -113,7 +115,7 @@ def test_ability_id_accepts_legacy_alias_but_rejects_conflicts():
 
 
 @pytest.mark.asyncio
-async def test_world_catalog_exposes_public_summaries_without_selection():
+async def test_world_catalog_exposes_both_public_summaries():
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
@@ -127,7 +129,11 @@ async def test_world_catalog_exposes_public_summaries_without_selection():
         "version": 1,
         "key": "dark_fantasy@1",
     }
-    assert [world["key"] for world in payload["worlds"]] == ["dark_fantasy@1"]
+    assert [world["key"] for world in payload["worlds"]] == [
+        "dark_fantasy@1", "neokatowice_3077@1"
+    ]
+    assert payload["worlds"][1]["display_name"] == "NeoKatowice 3077"
+    assert payload["worlds"][1]["theme"]["shape_id"] == "cut_corner"
     assert [attribute["id"] for attribute in payload["worlds"][0]["attributes"]] == [
         "strength",
         "agility",

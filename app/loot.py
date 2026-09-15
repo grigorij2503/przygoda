@@ -139,7 +139,7 @@ def validate_special_action(
     if crafting and searching:
         return "Jedna tura obejmuje jeden główny zamiar. Wybierz crafting albo przeszukiwanie."
     if uses_magic and (crafting or searching):
-        return "Rzucenie zdolności, crafting i przeszukiwanie są osobnymi akcjami. Wybierz jedną z nich."
+        return "Użycie zdolności, crafting i przeszukiwanie są osobnymi akcjami. Wybierz jedną z nich."
     normalized_action = normalize_game_text(action_text)
     includes_combat_action = _has_token_stem(normalized_action, COMBAT_ACTION_KEYWORDS)
     includes_movement = _has_token_stem(normalized_action, MOVEMENT_ACTION_KEYWORDS)

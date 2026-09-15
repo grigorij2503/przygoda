@@ -49,11 +49,21 @@ def serialize_world_runtime(pack: WorldPack) -> dict:
             for class_definition in pack.classes
         ],
         "enemy_profile": pack.enemy_profile.model_dump(mode="json"),
+        "map_room_icons": {
+            room.id: room.icon for room in pack.map_profile.room_types if room.icon
+        },
         "loot_search_action": (
             pack.narrative_profile.loot_search_action.model_dump(mode="json")
         ),
         "scenario_options": list(pack.narrative_profile.scenario_options),
         "setting_theme": pack.narrative_profile.setting_theme,
+        "ui_copy": {
+            "lobby_empty_message": pack.narrative_profile.lobby_empty_message,
+            "lobby_ready_message": pack.narrative_profile.lobby_ready_message,
+            "character_selection_heading": pack.narrative_profile.character_selection_heading,
+            "first_character_message": pack.narrative_profile.first_character_message,
+            "lobby_create_first_message": pack.narrative_profile.lobby_create_first_message,
+        },
         "ability_action_phrases": list(dict.fromkeys(
             phrase for phrase in (
                 *(

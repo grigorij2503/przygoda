@@ -1,0 +1,215 @@
+{
+  "id": "neokatowice_3077",
+  "version": 1,
+  "display_name": "NeoKatowice 3077",
+  "ruleset_id": "d20_v1",
+  "terminology": {"campaign": "operacja", "hero": "operator", "party": "ekipa", "ability_book": "katalog protokołów", "enemy": "zagrożenie", "location": "sektor"},
+  "attributes": [
+    {"id": "strength", "label": "Siła", "abbreviation": "STR", "description": "Moc ciała i egzoszkieletu, wytrzymałość oraz walka wręcz."},
+    {"id": "agility", "label": "Zręczność", "abbreviation": "AGI", "description": "Refleks, precyzja, skradanie i manewry w ciasnej zabudowie."},
+    {"id": "intellect", "label": "Intelekt", "abbreviation": "INT", "description": "Programowanie, analiza danych, planowanie i obsługa technologii."},
+    {"id": "charisma", "label": "Charyzma", "abbreviation": "CHA", "description": "Negocjacje, wpływy, reputacja i dowodzenie ekipą."},
+    {"id": "perception", "label": "Percepcja", "abbreviation": "PER", "description": "Spostrzegawczość, czujniki, słuch i wykrywanie ukrytych sygnałów; nie zastępuje analizy danych."}
+  ],
+  "action_stat_cues": [
+    {"marker": "skanuję otoczenie", "stat": "perception", "weight": 3},
+    {"marker": "nasłuchuję sygnału", "stat": "perception", "weight": 3},
+    {"marker": "analizuję kod", "stat": "intellect", "weight": 3},
+    {"marker": "łamię szyfr", "stat": "intellect", "weight": 3},
+    {"marker": "negocjuję", "stat": "charisma", "weight": 2},
+    {"marker": "celuję", "stat": "agility", "weight": 2}
+  ],
+  "theme_id": "neo_katowice",
+  "theme": {
+    "id": "neo_katowice", "color_scheme": "dark", "typography_id": "modern", "texture_id": "grid", "icon_set_id": "neutral", "shape_id": "cut_corner",
+    "tokens": [
+      {"id": "background", "value": "#07131b"}, {"id": "surface", "value": "#102530"},
+      {"id": "surface_raised", "value": "#183540"}, {"id": "primary", "value": "#39e5d5"},
+      {"id": "danger", "value": "#f86c86"}, {"id": "text", "value": "#eaf9fc"},
+      {"id": "text_muted", "value": "#b3d4db"}, {"id": "border", "value": "#318a9c"},
+      {"id": "focus", "value": "#ffe580"}, {"id": "success", "value": "#60d9a0"},
+      {"id": "accent", "value": "#c692fa"}, {"id": "hp", "value": "#a92749"},
+      {"id": "xp", "value": "#f7cf59"}
+    ]
+  },
+  "classes": [
+    {
+      "id": "hacker", "name": "Haker", "aliases": ["haker", "netrunner"], "icon": "💻", "primary_stat": "intellect",
+      "starter_items": [
+        {"name": "Cyberdeck Silesia", "description": "Terminal do pracy w sieciach miejskich.", "item_type": "accessory", "target_stat": "intellect", "stat_bonus": 1, "is_equipped": true},
+        {"name": "Pistolet impulsowy", "description": "Lekka broń na niebezpieczne spotkania poza siecią.", "item_type": "weapon", "target_stat": "agility", "stat_bonus": 1, "is_equipped": true},
+        {"name": "Stymulant medyczny", "description": "Odnawia 10 punktów życia.", "item_type": "consumable", "target_stat": "none", "stat_bonus": 10}
+      ],
+      "quick_actions": [
+        {"id": "hacker-code", "label": "Analizuj kod", "icon": "⌘", "action_text": "Analizuję kod terminala i szukam podatności w zabezpieczeniach.", "intent": "interact", "tested_stat": "intellect"},
+        {"id": "hacker-cover", "label": "Zmień pozycję", "icon": "▣", "action_text": "Wycofuję się za osłonę i obserwuję drogi podejścia wroga.", "intent": "defend", "tested_stat": "agility"}
+      ],
+      "ability_book": {"kind": "hack_catalog", "title": "Księga hacków", "icon": "⌘", "resource_label": "Hacki", "casting_stat": "intellect", "ability_ids": ["network_breach", "signal_jam", "drone_takeover", "blackout_protocol"], "action_markers": ["Włamanie do sieci", "Zakłócenie sygnału", "Przejęcie drona", "Protokół blackout"]}
+    },
+    {
+      "id": "neurotechnician", "name": "Neurotechnik", "aliases": ["neurotechnik", "neuromancer"], "icon": "🧠", "primary_stat": "perception",
+      "starter_items": [
+        {"name": "Interfejs sensoryczny", "description": "Wyłapuje subtelne zmiany otoczenia i sygnały implantów.", "item_type": "accessory", "target_stat": "perception", "stat_bonus": 1, "is_equipped": true},
+        {"name": "Pistolet impulsowy", "description": "Broń awaryjna do bliskiej obrony.", "item_type": "weapon", "target_stat": "agility", "stat_bonus": 1, "is_equipped": true},
+        {"name": "Stymulant medyczny", "description": "Odnawia 10 punktów życia.", "item_type": "consumable", "target_stat": "none", "stat_bonus": 10}
+      ],
+      "quick_actions": [
+        {"id": "neuro-listen", "label": "Nasłuch czujników", "icon": "◉", "action_text": "Nasłuchuję sygnału i obserwuję ślady pozostawione przez implanty.", "intent": "interact", "tested_stat": "perception"},
+        {"id": "neuro-triage", "label": "Ocena obrażeń", "icon": "+", "action_text": "Oceniam stan rannego sojusznika i wskazuję bezpieczny sposób udzielenia pomocy.", "intent": "support", "tested_stat": "intellect"}
+      ],
+      "ability_book": {"kind": "neuro_protocols", "title": "Księga neuroprotokołów", "icon": "◉", "resource_label": "Neuroprotokoły", "casting_stat": "perception", "ability_ids": ["sensory_scan", "medical_reboot", "neural_overload", "emergency_reconstruction"], "action_markers": ["Skan sensoryczny", "Reboot medyczny", "Przeciążenie neuronowe", "Rekonstrukcja awaryjna"]}
+    },
+    {
+      "id": "exo_guard", "name": "Egzoochroniarz", "aliases": ["egzoochroniarz", "ochroniarz", "egzo"], "icon": "🦾", "primary_stat": "strength",
+      "starter_items": [
+        {"name": "Egzoszkielet Górnik", "description": "Wspomaga ruch i osłania operatora.", "item_type": "armor", "target_stat": "strength", "stat_bonus": 1, "is_equipped": true},
+        {"name": "Karabin impulsowy", "description": "Broń do ochrony ekipy w miejskich korytarzach.", "item_type": "weapon", "target_stat": "agility", "stat_bonus": 1, "hands_required": 2, "is_equipped": true},
+        {"name": "Implant siłowy", "description": "Monitoruje przeciążenia egzoszkieletu.", "item_type": "accessory", "target_stat": "strength", "stat_bonus": 1, "is_equipped": true},
+        {"name": "Stymulant medyczny", "description": "Odnawia 10 punktów życia.", "item_type": "consumable", "target_stat": "none", "stat_bonus": 10}
+      ],
+      "quick_actions": [
+        {"id": "exo-push", "label": "Przełam linię", "icon": "▸", "action_text": "Nacieram i przełamuję linię obrony przeciwnika siłą egzoszkieletu.", "intent": "attack", "tested_stat": "strength", "target_ref": "boss"},
+        {"id": "exo-cover", "label": "Osłoń ekipę", "icon": "▣", "action_text": "Staję między zagrożeniem a ekipą i przyjmuję pozycję obronną.", "intent": "defend", "tested_stat": "strength"}
+      ],
+      "ability_book": {"kind": "combat_systems", "title": "Księga systemów bojowych", "icon": "▣", "resource_label": "Systemy bojowe", "casting_stat": "strength", "ability_ids": ["exo_guard_field", "pulse_burst", "implant_overload", "shock_line"], "action_markers": ["Pole ochronne", "Seria impulsowa", "Przeciążenie implantów", "Linia wstrząsowa"]}
+    },
+    {
+      "id": "fixer", "name": "Fixer", "aliases": ["fixer", "pośrednik", "posrednik"], "icon": "🤝", "primary_stat": "charisma",
+      "starter_items": [
+        {"name": "Szyfrowany komunikator", "description": "Łączy z zaufanymi kontaktami z całej aglomeracji.", "item_type": "accessory", "target_stat": "charisma", "stat_bonus": 1, "is_equipped": true},
+        {"name": "Pistolet impulsowy", "description": "Broń na czas, gdy negocjacje zawodzą.", "item_type": "weapon", "target_stat": "agility", "stat_bonus": 1, "is_equipped": true},
+        {"name": "Stymulant medyczny", "description": "Odnawia 10 punktów życia.", "item_type": "consumable", "target_stat": "none", "stat_bonus": 10}
+      ],
+      "quick_actions": [
+        {"id": "fixer-talk", "label": "Negocjuj", "icon": "◈", "action_text": "Negocjuję z rozmówcą, wykorzystując lokalne kontakty i reputację ekipy.", "intent": "interact", "tested_stat": "charisma"},
+        {"id": "fixer-route", "label": "Znajdź drogę", "icon": "↗", "action_text": "Wskazuję ekipie bezpieczniejszą drogę przez kontrolowany sektor.", "intent": "other", "tested_stat": "perception"}
+      ],
+      "ability_book": {"kind": "contact_network", "title": "Księga kontaktów", "icon": "◈", "resource_label": "Kontakty", "casting_stat": "charisma", "ability_ids": ["street_contacts", "negotiation_scan", "street_extraction", "crew_morale"], "action_markers": ["Sieć kontaktów", "Rozpoznanie układu", "Ewakuacja uliczna", "Morale ekipy"]}
+    }
+  ],
+  "fallback_class_id": "fixer",
+  "abilities": [
+    {"id": "network_breach", "name": "Włamanie do sieci", "category": "Hack", "required_level": 1, "icon": "⌘", "description": "Ujawnia zabezpieczenia i cyfrowe słabości celu.", "action_text": "Uruchamiam Włamanie do sieci i odczytuję podatności wrogiego węzła.", "intent": "interact", "tested_stat": "intellect", "mechanic_key": "scan"},
+    {"id": "signal_jam", "name": "Zakłócenie sygnału", "category": "Hack", "required_level": 1, "icon": "⌁", "description": "Przerywa komunikację i chwilowo oszałamia zagrożenie.", "action_text": "Uruchamiam Zakłócenie sygnału, odcinając łączność przeciwnika.", "intent": "interact", "tested_stat": "intellect", "mechanic_key": "jam", "mechanic_params": [{"key": "duration", "value": 2}]},
+    {"id": "drone_takeover", "name": "Przejęcie drona", "category": "Hack", "required_level": 3, "icon": "◇", "description": "Przejmuje ruchy wrogiego drona lub jego przekaźnika.", "action_text": "Uruchamiam Przejęcie drona i przełączam jego kanał dowodzenia.", "intent": "interact", "tested_stat": "intellect", "mechanic_key": "jam"},
+    {"id": "blackout_protocol", "name": "Protokół blackout", "category": "Hack", "required_level": 7, "icon": "◼", "description": "Wygasza wrogą telemetrię i odsłania słaby punkt systemu.", "action_text": "Uruchamiam Protokół blackout, gasząc telemetrię zagrożenia.", "intent": "interact", "tested_stat": "intellect", "mechanic_key": "scan", "mechanic_params": [{"key": "potency", "value": 3}]},
+    {"id": "sensory_scan", "name": "Skan sensoryczny", "category": "Neuroprotokół", "required_level": 1, "icon": "◉", "description": "Wyostrza zmysły i wykrywa ukryte implanty oraz sygnały.", "action_text": "Uruchamiam Skan sensoryczny i wychwytuję ukryte sygnały w otoczeniu.", "intent": "interact", "tested_stat": "perception", "mechanic_key": "scan"},
+    {"id": "medical_reboot", "name": "Reboot medyczny", "category": "Neuroprotokół", "required_level": 1, "icon": "+", "description": "Stabilizuje i wspiera rannego sojusznika.", "action_text": "Uruchamiam Reboot medyczny, by ustabilizować rannego sojusznika.", "intent": "support", "tested_stat": "perception", "mechanic_key": "heal", "mechanic_params": [{"key": "base_healing", "value": 8}]},
+    {"id": "neural_overload", "name": "Przeciążenie neuronowe", "category": "Neuroprotokół", "required_level": 3, "icon": "⚡", "description": "Razi cel i zakłóca pracę implantów.", "action_text": "Uruchamiam Przeciążenie neuronowe przeciw widocznemu przeciwnikowi.", "intent": "attack", "tested_stat": "perception", "target_ref": "boss", "mechanic_key": "damage", "mechanic_params": [{"key": "status_type", "value": "stunned"}]},
+    {"id": "emergency_reconstruction", "name": "Rekonstrukcja awaryjna", "category": "Neuroprotokół", "required_level": 7, "icon": "✚", "description": "Przywraca poległego sojusznika; sukces odnawia 25% HP, krytyk 50% HP.", "action_text": "Uruchamiam Rekonstrukcję awaryjną dla poległego sojusznika.", "intent": "support", "tested_stat": "perception", "mechanic_key": "revive", "mechanic_params": [{"key": "success_percent", "value": 25}, {"key": "critical_percent", "value": 50}]},
+    {"id": "exo_guard_field", "name": "Pole ochronne", "category": "System bojowy", "required_level": 1, "icon": "▣", "description": "Rozkłada ruchomą osłonę na czas ataku.", "action_text": "Uruchamiam Pole ochronne i przyjmuję uderzenie na egzoszkielet.", "intent": "defend", "tested_stat": "strength", "mechanic_key": "protect"},
+    {"id": "pulse_burst", "name": "Seria impulsowa", "category": "System bojowy", "required_level": 1, "icon": "▸", "description": "Skupiona seria razi główne zagrożenie.", "action_text": "Uruchamiam Serię impulsową przeciw widocznemu przeciwnikowi.", "intent": "attack", "tested_stat": "strength", "target_ref": "boss", "mechanic_key": "damage"},
+    {"id": "implant_overload", "name": "Przeciążenie implantów", "category": "System bojowy", "required_level": 3, "icon": "⚡", "description": "Przeciąża własne siłowniki i uderza z maksymalną siłą.", "action_text": "Uruchamiam Przeciążenie implantów i uderzam w główne zagrożenie.", "intent": "attack", "tested_stat": "strength", "target_ref": "boss", "mechanic_key": "damage"},
+    {"id": "shock_line", "name": "Linia wstrząsowa", "category": "System bojowy", "required_level": 7, "icon": "⌁", "description": "Fala uderzeniowa odsłania cel i zadaje obrażenia.", "action_text": "Uruchamiam Linię wstrząsową przeciw zagrożeniu.", "intent": "attack", "tested_stat": "strength", "target_ref": "boss", "mechanic_key": "damage", "mechanic_params": [{"key": "status_type", "value": "exposed"}]},
+    {"id": "street_contacts", "name": "Sieć kontaktów", "category": "Kontakty", "required_level": 1, "icon": "◈", "description": "Daje sojusznikowi wsparcie lokalnych informatorów.", "action_text": "Aktywuję Sieć kontaktów i kieruję informatora do rannego sojusznika.", "intent": "support", "tested_stat": "charisma", "mechanic_key": "support"},
+    {"id": "negotiation_scan", "name": "Rozpoznanie układu", "category": "Kontakty", "required_level": 1, "icon": "◇", "description": "Odkrywa relacje i słaby punkt lokalnego zagrożenia.", "action_text": "Aktywuję Rozpoznanie układu i wypytuję o słabości zagrożenia.", "intent": "interact", "tested_stat": "charisma", "mechanic_key": "scan"},
+    {"id": "street_extraction", "name": "Ewakuacja uliczna", "category": "Kontakty", "required_level": 3, "icon": "↗", "description": "Zapewnia ekipie drogę odwrotu przez zaułki miasta.", "action_text": "Aktywuję Ewakuację uliczną i prowadzę ekipę bezpiecznym przejściem.", "intent": "other", "tested_stat": "charisma", "mechanic_key": "move"},
+    {"id": "crew_morale", "name": "Morale ekipy", "category": "Kontakty", "required_level": 7, "icon": "✦", "description": "Mobilizuje ekipę przed trudnym starciem.", "action_text": "Aktywuję Morale ekipy i wspieram zagrożonego sojusznika.", "intent": "support", "tested_stat": "charisma", "mechanic_key": "support", "mechanic_params": [{"key": "potency", "value": 3}]}
+  ],
+  "loot_tables": [
+    {"id": "strength", "entries": [
+      {"id": "servo_glove", "label": "Rękawica serwomotorowa", "description": "Wzmacnia uścisk i cios.", "item_type": "accessory", "target_stat": "strength"},
+      {"id": "exo_armor", "label": "Pancerz egzoszkieletu", "description": "Modułowa ochrona siłowników.", "item_type": "armor", "target_stat": "strength"}]},
+    {"id": "agility", "entries": [
+      {"id": "pulse_pistol", "label": "Pistolet impulsowy", "description": "Precyzyjna broń z kondensatorem.", "item_type": "weapon", "target_stat": "agility"},
+      {"id": "pulse_carbine", "label": "Karabin impulsowy", "description": "Stabilna broń do walki w korytarzach.", "item_type": "weapon", "target_stat": "agility", "hands_required": 2}]},
+    {"id": "intellect", "entries": [
+      {"id": "deck_module", "label": "Moduł cyberdecku", "description": "Rozszerza pamięć i analizę szyfrów.", "item_type": "accessory", "target_stat": "intellect"},
+      {"id": "logic_core", "label": "Rdzeń analityczny", "description": "Pomaga rozwiązywać problemy sieciowe.", "item_type": "misc", "target_stat": "intellect"}]},
+    {"id": "charisma", "entries": [
+      {"id": "encrypted_link", "label": "Szyfrowany komunikator", "description": "Podtrzymuje kontakty na ulicy.", "item_type": "accessory", "target_stat": "charisma"},
+      {"id": "contact_chip", "label": "Chip kontaktów", "description": "Lista zaufanych pośredników i kryjówek.", "item_type": "misc", "target_stat": "charisma"}]},
+    {"id": "perception", "entries": [
+      {"id": "sensory_interface", "label": "Interfejs sensoryczny", "description": "Wychwytuje anomalie i ukryty ruch.", "item_type": "accessory", "target_stat": "perception"},
+      {"id": "optical_implant", "label": "Implant optyczny", "description": "Rozróżnia ślady w słabym świetle.", "item_type": "accessory", "target_stat": "perception"}]}
+  ],
+  "loot_rarities": [
+    {"id": "street", "suffix": "z ulic NeoKatowic", "rank": 1, "normal_weight": 70, "reward_weight": 30},
+    {"id": "corporate", "suffix": "z korporacyjnej serii", "rank": 2, "normal_weight": 25, "reward_weight": 55},
+    {"id": "prototype", "suffix": "z serii prototypowej", "rank": 3, "normal_weight": 5, "reward_weight": 15}
+  ],
+  "consumable_loot": {"name": "Stymulant medyczny", "description_template": "Odnawia {healing} punktów życia.", "chance_denominator": 7, "base_healing": 8, "healing_per_level": 2, "healing_per_rarity": 2, "healing_cap": 30},
+  "crafting_profile": {"result_prefix": "Moduł", "description_template": "Warsztat wzmocnił {stat_label} przedmiotu.", "workshop_unavailable_message": "Warsztat serwisowy jest niedostępny. Otwiera się na jedną turę po pokonaniu głównego zagrożenia.", "ignored_name_parts": ["impulsow", "szyfrowan", "serwomotor", "prototyp", "korporacyjn", "modul"], "object_markers": ["pistolet", "karabin", "cyberdeck", "implant", "pancerz", "egzoszkielet", "komunikator", "chip", "modul", "rekawic"]},
+  "item_vocabulary": [
+    {"id": "pistol", "label": "Pistolet", "aliases": ["pistolet", "rewolwer"], "item_types": ["weapon"]},
+    {"id": "rifle", "label": "Karabin", "aliases": ["karabin"], "item_types": ["weapon"]},
+    {"id": "cyberdeck", "label": "Cyberdeck", "aliases": ["cyberdeck", "terminal hakera"], "item_types": ["accessory", "misc"]},
+    {"id": "implant", "label": "Implant", "aliases": ["implant", "interfejs sensoryczny"], "item_types": ["accessory", "armor"]},
+    {"id": "exo", "label": "Egzoszkielet", "aliases": ["egzoszkielet", "pancerz"], "item_types": ["armor"]},
+    {"id": "communicator", "label": "Komunikator", "aliases": ["komunikator"], "item_types": ["accessory", "misc"]}
+  ],
+  "attack_status_cues": [
+    {"markers": ["termicz", "plomien", "podpal", "zar"], "status_effect": "burning", "duration": 2},
+    {"markers": ["toksyn", "chemicz", "zatrut"], "status_effect": "poisoned", "duration": 3},
+    {"markers": ["kriogenic", "chlod", "zamroz"], "status_effect": "frozen", "duration": 2}
+  ],
+  "status_presentations": [
+    {"id": "burning", "label": "Przegrzany", "icon": "♨", "description": "Otrzymuje obrażenia termiczne na początku kolejnej tury.", "tone": "orange"},
+    {"id": "poisoned", "label": "Skażony", "icon": "☣", "description": "Otrzymuje obrażenia i karę do testów.", "tone": "green"},
+    {"id": "frozen", "label": "Wychłodzony", "icon": "❄", "description": "Ma obniżoną obronę; następny silny cios przełamuje chłód.", "tone": "cyan"},
+    {"id": "stunned", "label": "Zakłócony", "icon": "⌁", "description": "Najbliższy atak jest silniejszy, odpowiedź zagrożenia słabsza.", "tone": "yellow"},
+    {"id": "exposed", "label": "Namierzony", "icon": "◎", "description": "Otrzymuje o 25% więcej obrażeń.", "tone": "rose"},
+    {"id": "guarded", "label": "Osłonięty", "icon": "▣", "description": "Redukuje obrażenia następnego ataku.", "tone": "blue"},
+    {"id": "enraged", "label": "W trybie szturmowym", "icon": "⚠", "description": "Ataki głównego zagrożenia są silniejsze w tej fazie.", "tone": "rose"}
+  ],
+  "enemy_profile": {
+    "id": "corporate_enforcer", "role_label": "główne zagrożenie", "role_label_plural": "główne zagrożenia", "icon": "⬡", "lore_category_id": "boss", "defeated_label": "zneutralizowany", "active_label": "aktywny", "next_attack_label": "Następny ruch zagrożenia", "manual_trigger_description": "Korporacyjny egzekutor z implantami bojowymi i autonomicznymi dronami", "status_labels": ["aktywny", "osłabiony", "zneutralizowany"], "default_status_effect": "burning",
+    "status_cues": [
+      {"markers": ["kriogenic", "chlod", "zamroz"], "status_effect": "frozen"},
+      {"markers": ["toksyn", "chemicz", "skazen"], "status_effect": "poisoned"}
+    ],
+    "features": [
+      {"id": "relay_antenna", "name": "Przekaźnik antenowy", "icon": "⌁", "description": "Przejęcie przekaźnika zakłóca ruchy egzekutora.", "required_stat": "intellect", "dc_offset": 1, "damage_percent": 12, "effect": "stunned"},
+      {"id": "implant_port", "name": "Port implantów", "icon": "◎", "description": "Wykrycie wadliwego portu odsłania słabość pancerza.", "required_stat": "perception", "dc_offset": 1, "damage_percent": 0, "effect": "exposed"},
+      {"id": "service_barrier", "name": "Bariera serwisowa", "icon": "▣", "description": "Zajęcie pozycji za osłoną zmniejsza obrażenia.", "required_stat": "agility", "dc_offset": 0, "damage_percent": 0, "effect": "guarded", "reusable": true}
+    ],
+    "attacks": [
+      {"phase": 1, "name": "Seria impulsowa", "icon": "⚠", "description": "Egzekutor przygotowuje precyzyjną serię przeciw operatorowi."},
+      {"phase": 2, "name": "Neuroatak", "icon": "⚠", "description": "Implanty egzekutora zakłócają sygnały i zwiększają presję."},
+      {"phase": 3, "name": "Impuls obszarowy", "icon": "⚠", "description": "Autonomiczne drony szykują desperacki atak na całą ekipę."}
+    ]
+  },
+  "map_profile": {
+    "generator_id": "neokatowice_sectors", "generator_version": 1,
+    "start_location_name": "Przystanek pod Spodkiem", "finale_location_name": "Rdzeń sieci Silesia", "hidden_location_name": "Ukryty magazyn danych", "undiscovered_location_name": "Nieodkryty sektor",
+    "room_types": [
+      {"id": "entrance", "label": "Punkt startowy", "icon": "⇥", "names": ["Przystanek pod Spodkiem"], "description": "Neonowe wejście do strefy operacyjnej.", "contents": ["przystanek", "ścieżka ekipy"]},
+      {"id": "finale", "label": "Rdzeń", "icon": "⬡", "names": ["Rdzeń sieci Silesia"], "description": "Centrum nadzoru nad aglomeracją.", "contents": ["główny serwer", "autonomiczne zabezpieczenia"]},
+      {"id": "nikisz", "label": "Osiedle", "icon": "▦", "names": ["Nikiszowiec 7", "Podwórza Nikiszowca"], "description": "Ceglane podwórza przecięte przewodami i neonami.", "contents": ["lokalni informatorzy", "kamery"]},
+      {"id": "szopienice", "label": "Zakłady", "icon": "♨", "names": ["Huta Szopienice", "Targ modułów Szopienice"], "description": "Dawna strefa przemysłowa pełna warsztatów.", "contents": ["części implantów", "strażnicy dzielnicy"]},
+      {"id": "ligota", "label": "Węzeł", "icon": "⌁", "names": ["Węzeł Ligota", "Tunel Ligota"], "description": "Przejście transportowe i sieciowe pod miastem.", "contents": ["szyny", "punkty dostępu"]},
+      {"id": "brynow", "label": "Blok", "icon": "▣", "names": ["Blok Brynów", "Serwerownia Brynów"], "description": "Wysokie bloki skrywają zamknięte przekaźniki.", "contents": ["patrole", "terminale"]},
+      {"id": "giszowiec", "label": "Dzielnica", "icon": "◇", "names": ["Ogrody Giszowca", "Plac Giszowiec"], "description": "Zielone enklawy sąsiadują z przemysłową zabudową.", "contents": ["mieszkańcy", "ukryte anteny"]},
+      {"id": "silesia_link", "label": "Łącze", "icon": "≡", "names": ["Łącze Silesia"], "description": "Wąskie dojście do głównego rdzenia.", "contents": ["firewall", "bramki identyfikacyjne"], "branch_names": ["Boczny uplink"]},
+      {"id": "data_cache", "label": "Magazyn", "icon": "▤", "names": ["Ukryty magazyn danych"], "description": "Schowek z porzuconymi nośnikami.", "contents": ["dyski", "szyfry"], "branch": true},
+      {"id": "underground", "label": "Podziemie", "icon": "⌂", "names": ["Podziemia Spodka"], "description": "Zapomniany ciąg serwisowy.", "contents": ["okablowanie", "drony"], "branch": true},
+      {"id": "relay", "label": "Przekaźnik", "icon": "◎", "names": ["Przekaźnik Załęże"], "description": "Utrzymuje nielegalny ruch sieciowy.", "contents": ["antena", "ślady włamania"], "branch": true},
+      {"id": "workshop", "label": "Warsztat", "icon": "⚙", "names": ["Serwis Bogucice"], "description": "Niepozorny warsztat implantów.", "contents": ["narzędzia", "części"], "branch": true}
+    ]
+  },
+  "lore_categories": [
+    {"id": "boss", "label": "Główne zagrożenia", "icon": "⬡"},
+    {"id": "location", "label": "Sektory miasta", "icon": "▦"},
+    {"id": "npc", "label": "Kontakty i mieszkańcy", "icon": "◈"},
+    {"id": "weapon", "label": "Sprzęt i prototypy", "icon": "▸"},
+    {"id": "attack", "label": "Akcje ekipy", "icon": "⚡"}
+  ],
+  "narrative_profile": {
+    "default_title": "Sygnał spod Spodka", "setting_theme": "Cyberpunk / fikcyjna Polska 3077", "lobby_empty_message": "Przystanek pod Spodkiem jest pusty – ekipa jeszcze się nie zebrała.", "lobby_ready_message": "Cała ekipa jest gotowa! Możecie rozpocząć operację.", "character_selection_heading": "WYBIERZ SWOJEGO OPERATORA", "first_character_message": "Stwórz pierwszego operatora, by zebrać ekipę!", "lobby_create_first_message": "Stwórz pierwszego operatora, by zacząć!", "lobby_title_template": "Operacja: {scenario_type}", "lobby_prompt": "Ekipa spotyka się pod Spodkiem, gdzie zniknął jeden z kurierów danych...",
+    "scenario_options": ["Zaginiony kurier z Nikiszowca", "Awaria sieci pod Spodkiem", "Nielegalny implant w Szopienicach", "Autonomiczne drony nad Ligotą", "Zbuntowany neurokonstrukt w Brynowie", "Sekret rdzenia Silesia"],
+    "named_weapon_description_template": "Prototyp oznaczony imieniem nadanym przez {character_name}", "named_weapon_target_stat": "agility", "party_presence_prefix": "W operacji uczestniczą:", "prologue_party_noun": "ekipy", "prologue_character_noun": "operatora", "prologue_action_qualifier": "niespecjalne",
+    "loot_search_action": {"id": "search-tech", "label": "Szukaj sprzętu", "icon": "▤", "action_text": "Przeszukuję sektor w poszukiwaniu sprzętu, nośników i użytecznych części.", "intent": "interact", "tested_stat": "perception"},
+    "loot_search_markers": ["przeszuk", "szukam sprzet", "zbieram czesci", "sprawdzam magazyn", "przegladam nosniki", "otwieram schowek"],
+    "campaign_intro": "NeoKatowice, rok 3077. Nad Spodkiem wiszą reklamy świetlne, a pod ziemią biegnie sieć, której korporacje nie pokazują mieszkańcom. Wasza ekipa odbiera zaszyfrowaną wiadomość od kuriera z Nikiszowca. Ostatni ślad prowadzi do przystanku pod Spodkiem, gdzie awaria kamer zbiegła się z ruchem autonomicznych dronów. W ulicznym tłumie ktoś rozpoznaje wasz komunikator i znika w bocznym przejściu.",
+    "first_challenge": "Drony zamykają wyjścia, a na terminalu pojawia się krótki impuls z adresem ukrytego przekaźnika. Co robi ekipa?",
+    "suggested_actions": ["▸ Siła: Osłonić przechodniów i przełamać blokadę dronów.", "⌘ Intelekt: Odczytać impuls i znaleźć drogę do przekaźnika.", "◉ Percepcja: Wypatrzyć operatora ukrytego w tłumie."],
+    "image_art_direction": "Oryginalny futurystyczny Śląsk: ceglane dzielnice Katowic, Spodek, deszcz, grafit, turkusowe i magentowe neony; bez cudzych marek i znaków.",
+    "initial_image_prompt": "Original cinematic cyberpunk illustration of fictional Katowice in Poland in 3077, the Spodek arena above a rainy neon transit stop, brick industrial streets, four distinct operators facing autonomous drones, teal and magenta lighting, no logos or franchise references",
+    "narrator_instructions": "Prowadź oryginalną przygodę cyberpunkową w fikcyjnych NeoKatowicach w Polsce roku 3077. Wykorzystuj dzielnice i lokalne napięcia społeczne, korporacje, gangi oraz autonomiczne systemy jako fikcyjne siły. Nie wprowadzaj czarów, elfów, fantasy ani istniejących marek i postaci z cudzych franczyz. Percepcja służy wykrywaniu sygnałów, intelekt analizie danych. Opisuj materialne konsekwencje decyzji ekipy.",
+    "offline_resolution_close": "Deszcz stuka o blachę przystanku, a kolejne reklamy gasną na kilka sekund. Sytuacja w sektorze właśnie się zmieniła.",
+    "offline_next_challenge": "Na pobliskim ekranie pojawia się nowy sygnał, a patrol dronów zmienia trasę. Macie chwilę na reakcję. Co robicie?",
+    "offline_suggested_actions": ["▸ Przejąć inicjatywę i uderzyć w słaby punkt patrolu", "▣ Osłonić rannych i zabezpieczyć przejście", "⌘ Odczytać sygnał lub znaleźć boczne połączenie"],
+    "offline_enemy_description": "Korporacyjny egzekutor z implantami bojowymi i autonomicznymi dronami",
+    "offline_enemy_naming_prompt": "Korporacyjny egzekutor blokuje drogę ekipy. Jak nazwiesz to zagrożenie?"
+  }
+}

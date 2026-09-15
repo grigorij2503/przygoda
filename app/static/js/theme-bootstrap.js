@@ -12,6 +12,7 @@
     typography_id: 'modern',
     texture_id: 'grid',
     icon_set_id: 'neutral',
+    shape_id: 'cut_corner',
     tokens: [
       ['background', '#07121b'], ['surface', '#112633'],
       ['surface_raised', '#173240'], ['primary', '#31e5d7'],
@@ -28,6 +29,7 @@
     typography_id: root.dataset.typeface || 'classic',
     texture_id: root.dataset.texture || 'runes',
     icon_set_id: root.dataset.iconSet || 'classic',
+    shape_id: root.dataset.shape || 'rounded',
     tokens: tokenIds.map(id => ({
       id,
       value: root.style.getPropertyValue(`--ui-${id.replace('_', '-')}`).trim()
@@ -58,6 +60,7 @@
     root.dataset.typeface = theme.typography_id;
     root.dataset.texture = theme.texture_id;
     root.dataset.iconSet = theme.icon_set_id;
+    root.dataset.shape = theme.shape_id === 'cut_corner' ? 'cut_corner' : 'rounded';
     root.classList.toggle('dark', theme.color_scheme === 'dark');
     document.querySelector('meta[name="theme-color"]')?.setAttribute(
       'content', values.get('background')

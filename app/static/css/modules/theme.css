@@ -17,6 +17,19 @@
   color: var(--ui-primary);
 }
 
+/* A controlled angular silhouette; keep focusable controls unclipped. */
+:root[data-shape="cut_corner"] .fantasy-card,
+:root[data-shape="cut_corner"] .ui-preview-controls,
+:root[data-shape="cut_corner"] :is(.inventory-item, .lore-entry, .equipment-panel) {
+  border-radius: 2px !important;
+  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px),
+    calc(100% - 14px) 100%, 0 100%, 0 14px);
+}
+
+:root[data-shape="cut_corner"] :is(button, input, select, textarea, .map-control) {
+  border-radius: 2px !important;
+}
+
 :root[data-typeface="modern"] .font-fantasy,
 :root[data-typeface="modern"] .font-decorative,
 :root[data-typeface="modern"] .story-narration::first-letter {

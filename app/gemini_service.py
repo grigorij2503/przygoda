@@ -117,16 +117,16 @@ async def generate_party_prologue_ai(
 
     prompt = (
         f"{profile.narrator_instructions}\n"
-        f"Stwórz wciągający prolog dla następującej drużyny:\n"
+        f"Stwórz wciągający prolog dla następującej {profile.prologue_party_noun}:\n"
         f"{party_text}\n\n"
         f"Sceneria / Tematyka kampanii: {scenario_type}\n"
         f"Klimat: {effective_tone}\n"
         f"Świat: {world_pack.display_name}\n\n"
         f"WYMAGANIA DLA PROLOGU:\n"
-        f"1. Wymień każdego bohatera z imienia i klasy, bez zmieniania danych postaci.\n"
+        f"1. Wymień każdego {profile.prologue_character_noun} z imienia i klasy, bez zmieniania danych postaci.\n"
         f"2. Osadź zdarzenie inicjujące i drogę do pierwszego wyzwania w podanej scenerii.\n"
         f"3. Nie wprowadzaj motywów sprzecznych z instrukcjami aktywnego świata.\n"
-        f"4. Zwróć dokładnie 3 niemagiczne, klasowo neutralne suggested_actions, "
+        f"4. Zwróć dokładnie 3 {profile.prologue_action_qualifier}, klasowo neutralne suggested_actions, "
         f"które nie zakładają posiadania konkretnego przedmiotu. Zdolności klasowe wybiera się osobno.\n"
         f"5. first_challenge ma bezpośrednio otwierać Turę 1."
     )
@@ -136,7 +136,7 @@ async def generate_party_prologue_ai(
         return PrologueResponse(
             title=profile.default_title,
             setting_theme=effective_tone,
-            prologue_story=f"{profile.campaign_intro}\n\nW wyprawie uczestniczą: {names}.",
+            prologue_story=f"{profile.campaign_intro}\n\n{profile.party_presence_prefix} {names}.",
             suggested_actions=list(profile.suggested_actions),
             first_challenge=profile.first_challenge,
         )
@@ -672,6 +672,21 @@ def _generate_fallback_svg(
     world_pack = world_pack or get_default_world_pack()
     colors = {token.id: token.value for token in world_pack.theme.tokens}
     escaped_prompt = html.escape(prompt, quote=True)
+    angular = world_pack.theme.shape_id == "cut_corner"
+    center_motif = (
+        '520,160 680,160 760,300 680,440 520,440 440,300'
+        if angular else '600,160 720,380 480,380'
+    )
+    frame_motif = (
+        f'<polygon points="380,120 820,120 940,300 820,480 380,480 260,300" '
+        f'fill="none" stroke="{colors["primary"]}" stroke-width="2" '
+        f'stroke-dasharray="8 4" opacity="0.3"/>'
+        if angular else
+        f'<circle cx="600" cy="300" r="180" fill="none" '
+        f'stroke="{colors["primary"]}" stroke-width="2" '
+        f'stroke-dasharray="8 4" opacity="0.3"/>'
+    )
+    font_family = "Arial, sans-serif" if angular else "Georgia, serif"
     svg_filename = f"turn_{turn_id}_{int(time.time())}.svg"
     svg_filepath = UPLOADS_DIR / svg_filename
     svg_content = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" width="1200" height="675">
@@ -687,12 +702,12 @@ def _generate_fallback_svg(
         </linearGradient>
       </defs>
       <rect width="100%" height="100%" fill="url(#vignette)"/>
-       <circle cx="600" cy="300" r="180" fill="none" stroke="{colors['primary']}" stroke-width="2" stroke-dasharray="8 4" opacity="0.3"/>
-      <polygon points="600,160 720,380 480,380" fill="none" stroke="url(#gold)" stroke-width="3" opacity="0.6"/>
-       <text x="600" y="320" font-family="Georgia, serif" font-size="28" fill="{colors['primary']}" text-anchor="middle" letter-spacing="4">MISTRZ GRY • ILUSTRACJA</text>
-       <text x="600" y="360" font-family="Georgia, serif" font-size="16" fill="{colors['text']}" text-anchor="middle" letter-spacing="2">SCENA Z TURY #{turn_id}</text>
+       {frame_motif}
+      <polygon points="{center_motif}" fill="none" stroke="url(#gold)" stroke-width="3" opacity="0.6"/>
+       <text x="600" y="320" font-family="{font_family}" font-size="28" fill="{colors['primary']}" text-anchor="middle" letter-spacing="4">MISTRZ GRY • ILUSTRACJA</text>
+       <text x="600" y="360" font-family="{font_family}" font-size="16" fill="{colors['text']}" text-anchor="middle" letter-spacing="2">SCENA Z TURY #{turn_id}</text>
       <foreignObject x="150" y="440" width="900" height="180">
-         <div xmlns="http://www.w3.org/1999/xhtml" style="color: {colors['text']}; font-family: Georgia, serif; font-style: italic; font-size: 17px; text-align: center; line-height: 1.5; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">
+         <div xmlns="http://www.w3.org/1999/xhtml" style="color: {colors['text']}; font-family: {font_family}; font-style: italic; font-size: 17px; text-align: center; line-height: 1.5; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">
            „{escaped_prompt}”
         </div>
       </foreignObject>

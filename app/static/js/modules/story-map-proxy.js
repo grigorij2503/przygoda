@@ -276,6 +276,8 @@
     },
 
     mapNodeIcon(type) {
+      const packIcon = this.session?.world_pack?.map_room_icons?.[type];
+      if (packIcon) return packIcon;
       return {
         entrance: '⇥', finale: '☠', treasury: '$', shrine: '†', crypt: '☗',
         library: '≡', armory: '⚔', bridge: '═', prison: '#', well: '○',

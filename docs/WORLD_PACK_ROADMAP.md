@@ -278,7 +278,7 @@ zdolności i po odświeżeniu sprawdzić, że akcja zawiera zgodne `ability_id` 
 
 ### Etap 6 - generalizacja zawartości
 
-Status: zaimplementowany 2026-09-15; użytkownik odbierze go zbiorczo z etapem 7.
+Status: zaimplementowany i odebrany ręcznie z etapem 7 dnia 2026-09-15.
 
 `dark_fantasy@1` pozostaje jedynym zarejestrowanym światem. Próbny, niepublikowany
 pakiet jest sprawdzany przez kontrakt `tests/test_stage6_world_content.py` na
@@ -316,10 +316,9 @@ oraz upewnić się, że dotychczasowy wygląd Dark Fantasy jest niezmieniony.
 
 ### Etap 7 - motywy i wybór świata
 
-Status: zaimplementowany 2026-09-15; oczekuje na wspólny ręczny odbiór etapów
-6 i 7. Rejestr nadal publikuje tylko `dark_fantasy@1`. Wybór pakietu w
-narzędziach MG jest gotowy na następne światy, a Neon to wyłącznie lokalny
-podgląd kontrolowanego motywu, nie grywalna kampania.
+Status: zaimplementowany i odebrany ręcznie z etapem 6 dnia 2026-09-15.
+W chwili odbioru rejestr publikował tylko `dark_fantasy@1`, a Neon był lokalnym
+podglądem. W etapie 8 do tego mechanizmu dołączono grywalny drugi pakiet.
 
 - semantyczne tokeny kolorów, typografii, powierzchni i stanów;
 - `data-theme` na korzeniu aplikacji;
@@ -353,28 +352,45 @@ tekstury `runes`, `grid`, `none`; zestawy ikon `classic`, `neutral`. Pakiet poda
 wyłącznie kontrolowane ID i trzynaście kolorów `#RRGGBB`; nie może wskazywać
 zewnętrznych fontów, adresów assetów ani dowolnego CSS.
 
-### Etap 8 - pilot Neonowa Polska 3078
+### Etap 8 - pilot NeoKatowice 3077
+
+Status: zaimplementowany 2026-09-15; oczekuje na ręczny odbiór użytkownika.
+Publikowany pakiet `neokatowice_3077@1` przedstawia fikcyjne Katowice w Polsce
+roku 3077. `dark_fantasy@1` pozostaje domyślnym i zachowuje stary wygląd.
 
 - klasy: Haker, Neurotechnik, Egzoochroniarz i Fixer;
 - księgi: katalog hacków, protokoły neuro, systemy bojowe i sieć kontaktów;
 - zdolności: włamanie, skan, zakłócenie, przejęcie drona, przeciążenie implantu
   i medyczny reboot;
 - cyberdecki, wszczepy, broń impulsowa, pancerze i stymulanty;
-- mapa futurystycznych dzielnic Polski oraz węzłów sieci;
+- mapa futurystycznych dzielnic Katowic (m.in. Nikiszowiec, Szopienice,
+  Ligota, Brynów) oraz węzłów sieci, z ikonami z pakietu;
 - korporacje, gangi, autonomiczne systemy i konstrukty neuro;
-- grafitowy motyw z cyjanem i magentą;
-- osobny profil narracji oraz ilustracji.
+- grafitowy motyw z turkusem i magentą oraz kontrolowanymi ściętymi narożnikami
+  kart zamiast mocnych zaokrągleń;
+- osobny profil narracji oraz ilustracji, w tym geometryczny fallback offline
+  i krótkie teksty lobby bez karczmy.
 
 Kryterium zakończenia: pełny cykl lobby, tury, zdolności, walki, łupu, mapy,
 awansu i ilustracji działa dla pilota oraz nie zmienia Dark Fantasy.
 
-Test lokalny: wymagany jako pełna krótka kampania na czystej bazie. Wybrać
-Neonową Polskę 3078, utworzyć kolejno Hakera, Neurotechnika, Egzoochroniarza i
-Fixera, sprawdzić ich startery oraz księgi, wykonać hack, skan Percepcją, wsparcie
-i zwykły atak, zakończyć starcie, zdobyć łup, przejść po mapie i wygenerować
-ilustrację. Po restarcie aplikacji kampania musi zachować świat, motyw i klasy.
-Na końcu utworzyć osobną kampanię Dark Fantasy i sprawdzić, że nie przejęła
-cyberpunkowych nazw, przedmiotów ani kolorów.
+Test lokalny: wymagany jako pełna krótka kampania na **czystej osobnej bazie
+SQLite lub kopii**, nigdy na aktywnym zapisie. Nie ma osobnego buildu frontendu:
+uruchomić aplikację lokalnie albo zbudować własny kontener wskazujący tę bazę.
+W narzędziach MG wybrać `NeoKatowice 3077 • v1`, wpisać `RESETUJ` i potwierdzić
+nowe lobby. Stworzyć Hakera, Neurotechnika, Egzoochroniarza i Fixera, sprawdzić
+startery oraz cztery różne księgi. W turach użyć Włamania do sieci, Skanu
+sensorycznego testującego Percepcję, wsparcia Rebootem medycznym ze wskazanym
+sojusznikiem i ataku Egzoochroniarza; niedostępna zdolność wyższego poziomu ma
+być odrzucona. Nazwać zagrożenie, rozegrać starcie i obejrzeć fazy/statusy,
+znaleźć łup, otworzyć warsztat i przejść do sąsiedniego sektora mapy. Sprawdzić
+śląskie nazwy, ikony sektorów, kronikę, ścięte narożniki kart, kanciastsze
+przyciski, fokus i czytelność modali także na telefonie. Bez klucza API sprawdzić
+prolog, narrację i fallback ilustracji; z kluczem także wygenerowaną ilustrację
+bez elementów fantasy. Po restarcie aplikacji kampania ma zachować świat, motyw
+i klasy. Na osobnej kopii utworzyć nową kampanię Dark Fantasy i sprawdzić, że
+nie przejęła cyberpunkowych nazw, starterów, mapy ani kolorów. Próba zmiany
+świata w aktywnej kampanii bez potwierdzonego resetu ma pozostać zablokowana.
 
 ### Etap 9 - pozostałe światy
 
@@ -401,13 +417,14 @@ Każdy pakiet otrzymuje walidację kontraktu treści i własny profil akceptacyj
 Ostatnia partia celowo sprawdza space grimdark, brutalne dark action RPG oraz
 spokojną przygodę, w której walka nie jest dominującą aktywnością.
 
-Test lokalny: wymagany osobno dla każdego dodanego pakietu. Minimalna ścieżka to
+Test lokalny: wymagany osobno dla każdego dodanego pakietu na czystej osobnej
+bazie SQLite lub kopii, nigdy na aktywnej kampanii. Minimalna ścieżka to
 wybór świata, obejrzenie wszystkich klas i pięciu cech, utworzenie dwóch różnych
 postaci, użycie jednej zwykłej i jednej specjalnej zdolności, akcja Percepcji,
 jedna zmiana lokacji, łup oraz restart aplikacji. Dla Norek pod Zielonym
 Wzgórzem trzeba dodatkowo rozwiązać turę bez walki, aby potwierdzić, że narrator
 i progresja nie wymuszają przeciwnika. Po każdej partii wykonać też krótki odbiór
-Dark Fantasy oraz Neonowej Polski 3078 pod kątem przenikania treści i motywów.
+Dark Fantasy oraz NeoKatowic 3077 pod kątem przenikania treści i motywów.
 
 ## Zasady kompatybilności
 

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pl" class="{{ 'dark' if theme.color_scheme == 'dark' else '' }}" data-theme="{{ theme.id }}" data-typeface="{{ theme.typography_id }}" data-texture="{{ theme.texture_id }}" data-icon-set="{{ theme.icon_set_id }}" data-world-key="{{ world_key }}" style="{{ theme_style }}">
+<html lang="pl" class="{{ 'dark' if theme.color_scheme == 'dark' else '' }}" data-theme="{{ theme.id }}" data-typeface="{{ theme.typography_id }}" data-texture="{{ theme.texture_id }}" data-icon-set="{{ theme.icon_set_id }}" data-shape="{{ theme.shape_id }}" data-world-key="{{ world_key }}" style="{{ theme_style }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
@@ -23,7 +23,7 @@
   <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
 
   <!-- Runs before CSS so the local theme preview does not flash on reload. -->
-  <script src="/static/js/theme-bootstrap.js?v=31"></script>
+  <script src="/static/js/theme-bootstrap.js?v=32"></script>
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -48,14 +48,14 @@
   </script>
 
   <!-- Frontend assets load in dependency order before Alpine initializes. -->
-  <link rel="stylesheet" href="/static/css/style.css?v=21">
+  <link rel="stylesheet" href="/static/css/style.css?v=22">
   <script defer src="/static/js/modules/core.js?v=31"></script>
   <script defer src="/static/js/modules/pwa-notifications.js?v=31"></script>
   <script defer src="/static/js/modules/auth-admin.js?v=31"></script>
   <script defer src="/static/js/modules/session-character.js?v=31"></script>
-  <script defer src="/static/js/modules/story-map-proxy.js?v=31"></script>
+  <script defer src="/static/js/modules/story-map-proxy.js?v=32"></script>
   <script defer src="/static/js/modules/realtime-chat.js?v=31"></script>
-  <script defer src="/static/js/modules/campaign-actions.js?v=31"></script>
+  <script defer src="/static/js/modules/campaign-actions.js?v=32"></script>
   <script defer src="/static/js/modules/equipment-images.js?v=31"></script>
   <script defer src="/static/js/modules/local-components.js?v=31"></script>
   <script defer src="/static/js/app.js?v=31"></script>

@@ -687,7 +687,7 @@ async def name_entity(payload: NameEntityRequest, db: AsyncSession = Depends(get
                 character_name=char_name
             ),
             item_type="weapon",
-            target_stat="strength",
+            target_stat=world_pack.narrative_profile.named_weapon_target_stat,
             stat_bonus=2,
             damage_power=5,
             hands_required=1,

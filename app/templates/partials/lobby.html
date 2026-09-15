@@ -143,8 +143,8 @@
         </div>
 
         <div x-show="session?.characters?.length === 0" class="text-center py-12 bg-slate-900/40 rounded-xl border border-dashed border-slate-800">
-          <p class="text-gray-400 text-sm mb-2">Karczma jest pusta – nikt jeszcze nie dołączył do zbiórki.</p>
-          <button @click="showCharModal = true" class="text-xs text-amber-400 hover:underline font-fantasy">
+          <p class="text-gray-400 text-sm mb-2" x-text="session?.world_pack?.ui_copy?.lobby_empty_message || 'Karczma jest pusta – nikt jeszcze nie dołączył do zbiórki.'">Karczma jest pusta – nikt jeszcze nie dołączył do zbiórki.</p>
+          <button @click="showCharModal = true" class="text-xs text-amber-400 hover:underline font-fantasy" x-text="session?.world_pack?.ui_copy?.lobby_create_first_message || 'Stwórz pierwszego bohatera, by zacząć!'">
             Stwórz pierwszego bohatera, by zacząć!
           </button>
         </div>
@@ -164,7 +164,7 @@
           </template>
           <template x-if="lobbyAliveCharacters.length > 0 && allLobbyCharactersReady">
             <p class="text-xs text-emerald-400 font-semibold flex items-center justify-center gap-1.5">
-              <span>✨</span> Cała drużyna jest gotowa! Możecie wyruszyć na wyprawę.
+              <span>✨</span> <span x-text="session?.world_pack?.ui_copy?.lobby_ready_message || 'Cała drużyna jest gotowa! Możecie wyruszyć na wyprawę.'">Cała drużyna jest gotowa! Możecie wyruszyć na wyprawę.</span>
             </p>
           </template>
         </div>

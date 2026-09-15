@@ -53,7 +53,7 @@ def test_stylesheet_imports_exist_and_keep_declared_order():
         "./modules/lore.css?v=21",
         "./modules/feedback.css?v=21",
         "./modules/responsive.css?v=21",
-        "./modules/theme.css?v=21",
+        "./modules/theme.css?v=22",
     ]
     assert all((STYLE_PATH.parent / urlsplit(url).path).is_file() for url in local_imports)
 
@@ -63,16 +63,16 @@ def test_local_frontend_assets_are_precached_and_scripts_load_before_alpine():
     service_worker = SERVICE_WORKER_PATH.read_text(encoding="utf-8")
     local_assets = set(re.findall(r'(?:src|href)="(/static/[^"]+)', index_source))
     local_assets.update(
-        f"/static/css/modules/{path.name}?v=21"
+        f"/static/css/modules/{path.name}?v={22 if path.name == 'theme.css' else 21}"
         for path in (STATIC_ROOT / "css" / "modules").glob("*.css")
     )
 
     assert all(f"'{url}'" in service_worker for url in local_assets)
-    assert "const CACHE_NAME = 'ttrpg-gemini-v33';" in service_worker
+    assert "const CACHE_NAME = 'ttrpg-gemini-v34';" in service_worker
 
     scripts = re.findall(r'<script[^>]+src="([^"]+)"', index_source)
     app_index = scripts.index("/static/js/app.js?v=31")
-    assert scripts.index("/static/js/theme-bootstrap.js?v=31") < scripts.index(
+    assert scripts.index("/static/js/theme-bootstrap.js?v=32") < scripts.index(
         "/static/js/modules/core.js?v=31"
     )
     alpine_index = scripts.index(

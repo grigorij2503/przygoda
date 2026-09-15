@@ -136,6 +136,7 @@ class ThemeProfile(WorldModel):
     typography_id: Literal["classic", "modern"]
     texture_id: Literal["runes", "grid", "none"]
     icon_set_id: Literal["classic", "neutral"]
+    shape_id: Literal["rounded", "cut_corner"] = "rounded"
     tokens: tuple[ThemeToken, ...]
 
 
@@ -239,6 +240,7 @@ class EnemyProfile(WorldModel):
 class MapRoomDefinition(WorldModel):
     id: Identifier = Field(pattern=r"^[a-z][a-z0-9_]*$")
     label: str = Field(min_length=1)
+    icon: str | None = Field(default=None, min_length=1, max_length=2)
     names: tuple[str, ...] = Field(min_length=1)
     description: str = Field(min_length=1)
     contents: tuple[str, ...] = ()
@@ -259,10 +261,20 @@ class MapProfile(WorldModel):
 class NarrativeProfile(WorldModel):
     default_title: str = Field(min_length=1)
     setting_theme: str = Field(min_length=1)
+    lobby_empty_message: str = Field(default="Karczma jest pusta – nikt jeszcze nie dołączył do zbiórki.", min_length=1, max_length=180)
+    lobby_ready_message: str = Field(default="Cała drużyna jest gotowa! Możecie wyruszyć na wyprawę.", min_length=1, max_length=180)
+    character_selection_heading: str = Field(default="WYBIERZ SWOJEGO BOHATERA", min_length=1, max_length=90)
+    first_character_message: str = Field(default="Stwórz pierwszego bohatera, by poprowadzić drużynę!", min_length=1, max_length=180)
+    lobby_create_first_message: str = Field(default="Stwórz pierwszego bohatera, by zacząć!", min_length=1, max_length=180)
     lobby_title_template: str = Field(min_length=1)
     lobby_prompt: str = Field(min_length=1)
     scenario_options: tuple[str, ...]
     named_weapon_description_template: str = Field(min_length=1)
+    named_weapon_target_stat: AttributeId = "strength"
+    party_presence_prefix: str = Field(default="W wyprawie uczestniczą:", min_length=1, max_length=90)
+    prologue_party_noun: str = Field(default="drużyny", min_length=1, max_length=40)
+    prologue_character_noun: str = Field(default="bohatera", min_length=1, max_length=40)
+    prologue_action_qualifier: str = Field(default="niemagiczne", min_length=1, max_length=60)
     loot_search_action: QuickActionDefinition
     loot_search_markers: tuple[str, ...]
     campaign_intro: str = Field(min_length=1)

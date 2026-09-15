@@ -1,6 +1,6 @@
 # Inwentarz zależności obecnej kampanii od świata
 
-Dokument jest punktem odniesienia dla etapów 2-7. Oznaczenie `silnik` oznacza
+Dokument jest punktem odniesienia dla etapów 2–8. Oznaczenie `silnik` oznacza
 zachowanie wspólne dla wszystkich światów, a `pakiet` treść, która docelowo
 powinna pochodzić z wersjonowanego `WorldPack`.
 
@@ -18,14 +18,14 @@ powinna pochodzić z wersjonowanego `WorldPack`.
 
 ## Backend i mechanika
 
-Po etapie 6 `app/main.py` składa aplikację i rejestruje routery bez gałęzi
-zależnych od świata. `dark_fantasy@1` jest nadal jedynym opublikowanym pakietem.
+Po etapie 8 `app/main.py` składa aplikację i rejestruje routery bez gałęzi
+zależnych od świata. Publikowane są `dark_fantasy@1` i `neokatowice_3077@1`.
 Klasy, startery, szybkie akcje, księgi zdolności, wskazówki cechy w opisie akcji,
 słowniki wyposażenia i przeszukiwania,
 łup/crafting, profil głównego przeciwnika i statusów, mapa, etykiety kroniki,
 komunikaty lobby, narrator, ilustracje i fallback offline czytają przypięty
 pakiet. Pozostałe nazwy `boss_*`/`magic_*` są adapterami kontraktu historycznej
-kampanii, a kolorystyka i CSS nadal czekają na etap 7.
+kampanii. Kolorystyka i CSS korzystają z kontrolowanych profili motywów.
 
 | Plik / obszar | Zależności od Dark Fantasy | Kierunek ekstrakcji |
 |---|---|---|
@@ -107,6 +107,19 @@ Pydantic, API, rozpoznawania akcji, modyfikatorów przedmiotów, kontekstu narra
 kreatora, kart, awansu i narzędzi MG. Historyczne rekordy otrzymują wartość `0`.
 Nowe światy będą mogły wyświetlać ją jako Percepcję, Czujność, Obserwację lub
 Sensory, zachowując kanoniczne ID `perception`.
+
+## Pilot NeoKatowice 3077
+
+Drugi opublikowany pakiet używa tych samych ID rulesetu, cech, statusów i
+kategorii kroniki. Własne klasy, księgi, przedmioty, sektory Katowic, opisy
+zagrożeń i kierunek ilustracji pozostają w deklaratywnym JSON. Kontrolowane
+`shape_id=cut_corner` zmienia wyłącznie sylwetkę kart/przycisków, a
+`map_room_icons` dostarcza znaki mapy bez gałęzi według ID świata. Bezpieczne
+`ui_copy` zastępuje karczmę tekstami o ekipie i operatorach, a fallback SVG
+zmienia geometrię według kontrolowanego kształtu. Broń nazwana
+przez kronikę korzysta z `named_weapon_target_stat` (Dark Fantasy: domyślne
+`strength`, NeoKatowice: `agility`). Pól `magic_*` i `boss_*` nie usuwamy ze
+zapisów ani publicznego API w tym etapie.
 
 ## Reguły przeglądu kolejnych etapów
 
