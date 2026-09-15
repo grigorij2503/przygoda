@@ -60,6 +60,55 @@
   filter: drop-shadow(0 0 10px rgba(230, 195, 92, 0.58));
 }
 
+.welcome-back-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 0.65rem auto;
+  width: 3.5rem;
+  height: 3.5rem;
+}
+
+.welcome-back-icon {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 0 14px rgba(245, 158, 11, 0.65));
+  animation: welcome-back-dice-spin 2.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes welcome-back-dice-spin {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) rotate(-360deg);
+    filter: drop-shadow(0 0 4px rgba(245, 158, 11, 0.2));
+  }
+  22% {
+    opacity: 1;
+    transform: scale(1.15) rotate(0deg);
+    filter: drop-shadow(0 0 22px rgba(245, 158, 11, 0.95)) drop-shadow(0 0 8px rgba(56, 189, 248, 0.8));
+  }
+  32% {
+    transform: scale(1) rotate(15deg);
+    filter: drop-shadow(0 0 14px rgba(245, 158, 11, 0.7));
+  }
+  52% {
+    transform: scale(1.06) rotate(180deg);
+    filter: drop-shadow(0 0 18px rgba(56, 189, 248, 0.85)) drop-shadow(0 0 10px rgba(245, 158, 11, 0.7));
+  }
+  72% {
+    opacity: 1;
+    transform: scale(1) rotate(360deg);
+    filter: drop-shadow(0 0 14px rgba(245, 158, 11, 0.7));
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.85) rotate(450deg) translateY(-0.35rem);
+    filter: drop-shadow(0 0 2px rgba(245, 158, 11, 0));
+  }
+}
+
 .welcome-back-title {
   color: #fde68a;
   font-family: 'Cinzel', serif;

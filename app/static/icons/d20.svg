@@ -1,14 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
   <defs>
-    <!-- Background Gradient: Deep Cosmic Obsidian -->
-    <radialGradient id="bgGrad" cx="50%" cy="42%" r="62%">
-      <stop offset="0%" stop-color="#191e30" />
-      <stop offset="55%" stop-color="#0e111a" />
-      <stop offset="100%" stop-color="#06070a" />
-    </radialGradient>
-
     <!-- Edge Leyline Gradient: Mythic Gold transitioning to Electric Cyan/Violet -->
-    <linearGradient id="edgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="d20EdgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#fef08a" />
       <stop offset="40%" stop-color="#f59e0b" />
       <stop offset="75%" stop-color="#d97706" />
@@ -16,14 +9,14 @@
     </linearGradient>
 
     <!-- Edge Highlight for Top Lighted Edges -->
-    <linearGradient id="edgeLight" x1="0%" y1="0%" x2="100%" y2="0%">
+    <linearGradient id="d20EdgeLight" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95" />
       <stop offset="45%" stop-color="#fef08a" stop-opacity="0.85" />
       <stop offset="100%" stop-color="#f59e0b" stop-opacity="0.7" />
     </linearGradient>
 
     <!-- Number 20 Fill Gradient -->
-    <linearGradient id="numGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+    <linearGradient id="d20NumGrad" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#ffffff" />
       <stop offset="28%" stop-color="#fef08a" />
       <stop offset="70%" stop-color="#f59e0b" />
@@ -32,161 +25,134 @@
 
     <!-- Facet Shading Gradients (Calculated from 3D Normal Lighting) -->
     <!-- 1. Center Face: Radiant Void Core -->
-    <radialGradient id="facetCenter" cx="50%" cy="40%" r="65%">
+    <radialGradient id="d20FacetCenter" cx="50%" cy="40%" r="65%">
       <stop offset="0%" stop-color="#2a2436" />
       <stop offset="65%" stop-color="#181524" />
       <stop offset="100%" stop-color="#0f0d18" />
     </radialGradient>
 
-    <!-- 2. Top-Left High-Light Facets (catching main ambient light) -->
-    <linearGradient id="fInnerTopLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+    <!-- 2. Top-Left High-Light Facets -->
+    <linearGradient id="d20FInnerTopLeft" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#3c455c" />
       <stop offset="100%" stop-color="#242a3a" />
     </linearGradient>
 
-    <linearGradient id="fOuterTopLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="d20FOuterTopLeft" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#464f69" />
       <stop offset="100%" stop-color="#2b3246" />
     </linearGradient>
 
-    <linearGradient id="fOuterTopRight" x1="100%" y1="0%" x2="0%" y2="100%">
+    <linearGradient id="d20FOuterTopRight" x1="100%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#343d52" />
       <stop offset="100%" stop-color="#1d2230" />
     </linearGradient>
 
-    <linearGradient id="fInnerTopRight" x1="100%" y1="0%" x2="0%" y2="100%">
+    <linearGradient id="d20FInnerTopRight" x1="100%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#2c3447" />
       <stop offset="100%" stop-color="#181d28" />
     </linearGradient>
 
-    <linearGradient id="fOuterLeft" x1="0%" y1="50%" x2="100%" y2="50%">
+    <linearGradient id="d20FOuterLeft" x1="0%" y1="50%" x2="100%" y2="50%">
       <stop offset="0%" stop-color="#2d3548" />
       <stop offset="100%" stop-color="#181d2a" />
     </linearGradient>
 
     <!-- 3. Bottom & Shadow Facets -->
-    <linearGradient id="fInnerBottom" x1="50%" y1="0%" x2="50%" y2="100%">
+    <linearGradient id="d20FInnerBottom" x1="50%" y1="0%" x2="50%" y2="100%">
       <stop offset="0%" stop-color="#1d212f" />
       <stop offset="100%" stop-color="#10131e" />
     </linearGradient>
 
-    <linearGradient id="fOuterBottomLeft" x1="0%" y1="100%" x2="100%" y2="0%">
+    <linearGradient id="d20FOuterBottomLeft" x1="0%" y1="100%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#181c28" />
       <stop offset="100%" stop-color="#0e1017" />
     </linearGradient>
 
-    <linearGradient id="fOuterRight" x1="100%" y1="50%" x2="0%" y2="50%">
+    <linearGradient id="d20FOuterRight" x1="100%" y1="50%" x2="0%" y2="50%">
       <stop offset="0%" stop-color="#191d29" />
       <stop offset="100%" stop-color="#0c0e14" />
     </linearGradient>
 
-    <linearGradient id="fOuterBottomRight" x1="100%" y1="100%" x2="0%" y2="0%">
+    <linearGradient id="d20FOuterBottomRight" x1="100%" y1="100%" x2="0%" y2="0%">
       <stop offset="0%" stop-color="#13151f" />
       <stop offset="100%" stop-color="#07080c" />
     </linearGradient>
 
     <!-- Glow & Shadow Filters -->
-    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+    <filter id="d20Glow" x="-20%" y="-20%" width="140%" height="140%">
       <feGaussianBlur stdDeviation="5" result="blur" />
       <feComposite in="SourceGraphic" in2="blur" operator="over" />
     </filter>
 
-    <filter id="subtleGlow" x="-30%" y="-30%" width="160%" height="160%">
+    <filter id="d20SubtleGlow" x="-30%" y="-30%" width="160%" height="160%">
       <feGaussianBlur stdDeviation="12" result="blur" />
       <feComposite in="SourceGraphic" in2="blur" operator="over" />
     </filter>
-
-    <filter id="d20Shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#000000" flood-opacity="0.75" />
-    </filter>
   </defs>
 
-  <!-- Base App Tile: Rounded Squircle -->
-  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
-  <rect width="508" height="508" x="2" y="2" rx="110" fill="none" stroke="#f59e0b" stroke-opacity="0.18" stroke-width="1.5" />
+  <!-- Ambient Aura Behind D20 -->
+  <circle cx="256" cy="256" r="140" fill="#f59e0b" opacity="0.12" filter="url(#d20SubtleGlow)" />
+  <circle cx="256" cy="225" r="90" fill="#38bdf8" opacity="0.08" filter="url(#d20SubtleGlow)" />
 
-  <!-- Ambient Astrolabe & Cyber Reticle System -->
-  <g opacity="0.65">
-    <circle cx="256" cy="256" r="232" stroke="#38bdf8" stroke-opacity="0.14" stroke-width="1" fill="none" />
-    <circle cx="256" cy="256" r="222" stroke="#f59e0b" stroke-opacity="0.22" stroke-width="1.5" stroke-dasharray="4,8" fill="none" />
-
-    <!-- Cardinal Coordinates / Compass Ticks -->
-    <line x1="256" y1="18" x2="256" y2="30" stroke="#f59e0b" stroke-opacity="0.45" stroke-width="1.5" />
-    <line x1="256" y1="482" x2="256" y2="494" stroke="#f59e0b" stroke-opacity="0.45" stroke-width="1.5" />
-    <line x1="18" y1="256" x2="30" y2="256" stroke="#f59e0b" stroke-opacity="0.45" stroke-width="1.5" />
-    <line x1="482" y1="256" x2="494" y2="256" stroke="#f59e0b" stroke-opacity="0.45" stroke-width="1.5" />
-
-    <!-- Reticle Micro-Nodes -->
-    <circle cx="96" cy="96" r="1.5" fill="#38bdf8" opacity="0.5" />
-    <circle cx="416" cy="96" r="1.5" fill="#f59e0b" opacity="0.5" />
-    <circle cx="96" cy="416" r="1.5" fill="#f59e0b" opacity="0.5" />
-    <circle cx="416" cy="416" r="1.5" fill="#38bdf8" opacity="0.5" />
-  </g>
-
-  <!-- Ambient Atmospheric Aura Behind D20 -->
-  <circle cx="256" cy="256" r="140" fill="#f59e0b" opacity="0.09" filter="url(#subtleGlow)" />
-  <circle cx="256" cy="225" r="90" fill="#38bdf8" opacity="0.06" filter="url(#subtleGlow)" />
-
-  <!-- D20 Polyhedron System (Exact Mathematical Orthogonal Projection) -->
-  <g filter="url(#d20Shadow)">
-
+  <!-- D20 Polyhedron (Exact Mathematical Orthogonal Projection) -->
+  <g>
     <!-- 10 Facets -->
     <!-- 1. Central Face (Equilateral Triangle, pointing UP, centered at 256,256) -->
     <polygon points="256.0,147.8 162.3,310.1 349.7,310.1"
-             fill="url(#facetCenter)" />
+             fill="url(#d20FacetCenter)" />
 
-    <!-- 2. Inner Ring Facets (sharing edges with central face) -->
+    <!-- 2. Inner Ring Facets -->
     <!-- Inner Top-Left -->
     <polygon points="256.0,147.8 162.3,310.1 104.5,168.5"
-             fill="url(#fInnerTopLeft)" />
+             fill="url(#d20FInnerTopLeft)" />
 
     <!-- Inner Top-Right -->
     <polygon points="256.0,147.8 349.7,310.1 407.6,168.5"
-             fill="url(#fInnerTopRight)" />
+             fill="url(#d20FInnerTopRight)" />
 
     <!-- Inner Bottom -->
     <polygon points="162.3,310.1 349.7,310.1 256.0,431.0"
-             fill="url(#fInnerBottom)" />
+             fill="url(#d20FInnerBottom)" />
 
-    <!-- 3. Outer Rim Facets (completing the regular hexagon) -->
+    <!-- 3. Outer Rim Facets -->
     <!-- Outer Top-Left -->
     <polygon points="256.0,147.8 104.5,168.5 256.0,81.0"
-             fill="url(#fOuterTopLeft)" />
+             fill="url(#d20FOuterTopLeft)" />
 
     <!-- Outer Top-Right -->
     <polygon points="256.0,147.8 407.6,168.5 256.0,81.0"
-             fill="url(#fOuterTopRight)" />
+             fill="url(#d20FOuterTopRight)" />
 
     <!-- Outer Left -->
     <polygon points="162.3,310.1 104.5,168.5 104.5,343.5"
-             fill="url(#fOuterLeft)" />
+             fill="url(#d20FOuterLeft)" />
 
     <!-- Outer Bottom-Left -->
     <polygon points="162.3,310.1 256.0,431.0 104.5,343.5"
-             fill="url(#fOuterBottomLeft)" />
+             fill="url(#d20FOuterBottomLeft)" />
 
     <!-- Outer Right -->
     <polygon points="349.7,310.1 407.6,168.5 407.6,343.5"
-             fill="url(#fOuterRight)" />
+             fill="url(#d20FOuterRight)" />
 
     <!-- Outer Bottom-Right -->
     <polygon points="349.7,310.1 256.0,431.0 407.6,343.5"
-             fill="url(#fOuterBottomRight)" />
+             fill="url(#d20FOuterBottomRight)" />
 
     <!-- Wireframe Edges (High Precision Bevel Lines) -->
-    <g stroke="url(#edgeGrad)" stroke-width="4" stroke-linejoin="round" stroke-linecap="round" fill="none">
+    <g stroke="url(#d20EdgeGrad)" stroke-width="4" stroke-linejoin="round" stroke-linecap="round" fill="none">
       <!-- Outer Hexagon Silhouette -->
       <polygon points="256.0,81.0 407.6,168.5 407.6,343.5 256.0,431.0 104.5,343.5 104.5,168.5"
                stroke-width="4.5" />
 
       <!-- Inner Central Triangle (with crisp top-light gradient) -->
       <polygon points="256.0,147.8 162.3,310.1 349.7,310.1"
-               stroke="url(#edgeLight)" stroke-width="3.5" />
+               stroke="url(#d20EdgeLight)" stroke-width="3.5" />
 
       <!-- Radial Interior Edges -->
-      <line x1="256.0" y1="147.8" x2="256.0" y2="81.0" stroke="url(#edgeLight)" stroke-width="3" />
-      <line x1="256.0" y1="147.8" x2="104.5" y2="168.5" stroke="url(#edgeLight)" stroke-width="3" />
-      <line x1="256.0" y1="147.8" x2="407.6" y2="168.5" stroke="url(#edgeLight)" stroke-width="3" />
+      <line x1="256.0" y1="147.8" x2="256.0" y2="81.0" stroke="url(#d20EdgeLight)" stroke-width="3" />
+      <line x1="256.0" y1="147.8" x2="104.5" y2="168.5" stroke="url(#d20EdgeLight)" stroke-width="3" />
+      <line x1="256.0" y1="147.8" x2="407.6" y2="168.5" stroke="url(#d20EdgeLight)" stroke-width="3" />
       <line x1="162.3" y1="310.1" x2="104.5" y2="168.5" stroke-width="3" />
       <line x1="162.3" y1="310.1" x2="104.5" y2="343.5" stroke-width="3" />
       <line x1="162.3" y1="310.1" x2="256.0" y2="431.0" stroke-width="3" />
@@ -195,8 +161,8 @@
       <line x1="349.7" y1="310.1" x2="256.0" y2="431.0" stroke-width="3" />
     </g>
 
-    <!-- Glowing Vertex Nodes (Constellation / Arcane Circuitry Points) -->
-    <g fill="#ffffff" filter="url(#glow)">
+    <!-- Glowing Vertex Nodes -->
+    <g fill="#ffffff" filter="url(#d20Glow)">
       <circle cx="256.0" cy="81.0" r="3.5" />
       <circle cx="407.6" cy="168.5" r="3" />
       <circle cx="407.6" cy="343.5" r="2.5" opacity="0.8" />
@@ -210,7 +176,6 @@
     </g>
 
     <!-- Center '20' - Bold, Modern Heroic Typography -->
-    <!-- Drop shadow for 20 text -->
     <text x="256" y="278"
           font-family="system-ui, -apple-system, 'Segoe UI', Roboto, 'Cinzel', Montserrat, sans-serif"
           font-size="76"
@@ -222,19 +187,18 @@
           letter-spacing="-1.5px"
           transform="translate(0, 3)">20</text>
 
-    <!-- Main 20 Text with Radiant Gold Gradient and Subtle Glow -->
     <text x="256" y="278"
           font-family="system-ui, -apple-system, 'Segoe UI', Roboto, 'Cinzel', Montserrat, sans-serif"
           font-size="76"
           font-weight="900"
-          fill="url(#numGrad)"
+          fill="url(#d20NumGrad)"
           text-anchor="middle"
           dominant-baseline="central"
           letter-spacing="-1.5px"
-          filter="url(#glow)">20</text>
+          filter="url(#d20Glow)">20</text>
 
     <!-- Critical Success Spark Pinpoint above 20 -->
     <path d="M 256,188 L 258.5,195.5 L 266,198 L 258.5,200.5 L 256,208 L 253.5,200.5 L 246,198 L 253.5,195.5 Z"
-          fill="#ffffff" opacity="0.95" filter="url(#glow)" />
+          fill="#ffffff" opacity="0.95" filter="url(#d20Glow)" />
   </g>
 </svg>

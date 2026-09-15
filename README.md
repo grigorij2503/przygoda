@@ -34,7 +34,7 @@ Wieloosobowy silnik rozgrywek turowych z opublikowanymi światami **Dark Fantasy
    - Pasek postępu doświadczenia (XP) i automatyczny **Level Up** (wyższe HP i rozwój atrybutów).
    - Zarządzanie ekwipunkiem: zakładanie/zdejmowanie oręża oraz picie mikstur leczących.
 6. **Brama Pokoju i Kreator Postaci:**
-   - Dostęp do pokoju po podaniu hasła (`ROOM_PASSWORD`).
+   - Dostęp do pokoju po podaniu hasła (`ROOM_PASSWORD`), zintegrowane nowoczesne wektorowe logo d20 oraz instalacja PWA.
    - Wybór istniejącej postaci lub kreator z alokacją punktów atrybutów i startowym ekwipunkiem.
    - Generator Wstępu do Kampanii AI (wybór scenariusza i motywu, generowanie wstępu i natychmiastowy reset stołu).
 7. **Powiadomienia Web Push bez Firebase:**
@@ -122,7 +122,7 @@ Wieloosobowy silnik rozgrywek turowych z opublikowanymi światami **Dark Fantasy
 │   │   ├── js/modules/        # Stan, PWA, auth/MG, sesja/postać, mapa/historia, realtime/czat, akcje i ekwipunek
 │   │   ├── manifest.json      # Neutralny manifest instalowalnej PWA
 │   │   ├── sw.js              # Service worker, cache modułów i obsługa Web Push
-│   │   └── icons/             # Ikony aplikacji
+│   │   └── icons/             # Wektorowe logo d20 i komplet ikon PWA (192, 512, maskable, apple-touch, favicon)
 │   └── templates/
 │       ├── index.html         # Szkielet dokumentu i kolejność zasobów
 │       └── partials/          # Brama, lobby, stół, panele funkcjonalne i osobne modale Jinja
