@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ttrpg-gemini-v38';
+const CACHE_NAME = 'ttrpg-gemini-v39';
 const PRECACHE_ASSETS = [
   '/',
   '/static/css/style.css?v=24',
