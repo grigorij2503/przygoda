@@ -537,6 +537,7 @@ async def setup_scenario(
     turn1.status = "waiting_for_actions"
     turn1.gm_narration = ""
     turn1.next_turn_prompt = narrative_profile.lobby_prompt
+    turn1.challenge_tier = "standard"
     turn1.suggested_actions = []
     turn1.image_prompt = narrative_profile.initial_image_prompt
 
@@ -602,6 +603,7 @@ async def start_prologue(payload: PrologueRequest, db: AsyncSession = Depends(ge
 
     turn1.gm_narration = prologue_data.prologue_story
     turn1.next_turn_prompt = prologue_data.first_challenge
+    turn1.challenge_tier = "standard"
     turn1.suggested_actions = prologue_data.suggested_actions
     turn1.status = "waiting_for_actions"
     turn1.image_prompt = get_session_world_pack(session).narrative_profile.initial_image_prompt

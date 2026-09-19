@@ -539,6 +539,20 @@ NeoKatowic 3077: ich klasy, księgi, mapy, kolory i zapis kampanii nie mogą
 przejmować treści nowego świata. Próba przełączenia aktywnej kampanii bez
 potwierdzonego resetu nadal ma być blokowana.
 
+### Odbiór skalowania trudności
+
+Na osobnej bazie odbiorowej lub kopii kampanii uruchomić starcie najpierw jedną,
+a potem czterema żywymi postaciami o porównywalnym poziomie i wyposażeniu.
+Nowy przeciwnik powinien mieć więcej HP dla czwórki i odpowiadać na dwóch
+różnych bohaterów w turze; samotnej postaci zadaje słabszy pojedynczy cios.
+Po rozpoczęciu starcia zmiana składu drużyny nie przelicza jego maksymalnego HP
+ani zapisanej liczby ataków, ale wróg nie wybiera więcej celów niż jest żywych
+postaci. W tej samej kopii sprawdzić, że zwykła przeszkoda nadal ma DC 12,
+trudna i kulminacyjna otrzymują wyższy próg przy wyższych poziomach, a atak na
+aktywnego wroga używa jego DC obrony. Przy włączonym fallbacku offline tura 3
+oznacza trudną próbę, a tura 5 kulminacyjną. Nie wykonywać tych zmian stanu na
+aktywnej bazie kampanii.
+
 ## Zasady kompatybilności
 
 - świata nie można zmieniać w połowie kampanii;

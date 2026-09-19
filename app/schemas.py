@@ -281,6 +281,10 @@ class GeminiTurnResolutionSchema(BaseModel):
     player_consequences: List[PlayerConsequenceSchema] = Field(description="Szczegółowe skutki mechaniczne i fabularne dla każdego gracza")
     scene_image_prompt: str = Field(description="Precyzyjny prompt w języku angielskim dla modelu obrazu, zgodny z kierunkiem artystycznym aktywnego świata")
     next_turn_prompt: str = Field(description="Sytuacja wyjściowa i wyzwanie na otwarcie kolejnej tury")
+    next_challenge_tier: Literal["standard", "hard", "climactic"] = Field(
+        default="standard",
+        description="Trudność następnego wyzwania: zwykła, trudna lub kulminacyjna",
+    )
     suggested_actions: List[str] = Field(
         default_factory=list,
         description="Dokładnie 3 konkretne, zróżnicowane, niemagiczne ścieżki działania dostępne dla każdej klasy (np. natarcie, spryt/flanka, analiza otoczenia)"

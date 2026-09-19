@@ -65,6 +65,7 @@ async def init_db():
             ("inventory_items", "hands_required", "INTEGER NOT NULL DEFAULT 1"),
             ("inventory_items", "damage_power", "INTEGER NOT NULL DEFAULT 0"),
             ("turns", "suggested_actions", "TEXT"),
+            ("turns", "challenge_tier", "VARCHAR(20) NOT NULL DEFAULT 'standard'"),
             ("turns", "mechanics_resolved_at", "DATETIME"),
             ("turns", "combat_events", "JSON"),
             ("player_actions", "intent", "VARCHAR(30)"),

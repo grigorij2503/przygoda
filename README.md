@@ -19,6 +19,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
    - Podgląd interpretacji działa przez osobny endpoint, a formularz czytelnie obsługuje zarówno błędy JSON, jak i tekstowe odpowiedzi serwera przy zatwierdzaniu akcji.
    - Dynamiczne kalkulowanie modyfikatorów cech oraz założonego ekwipunku ($\text{Wynik} = d20 + \text{Cecha} + \text{Ekwipunek}$).
    - Klasyfikacja: *Krytyczny Sukces* (nat 20), *Sukces* ($\ge$ DC), *Częściowy Sukces* (DC-2 do DC-1), *Porażka*, *Krytyczna Porażka* (nat 1); domyślny próg to DC 12, lecz mechanika może go zmienić.
+   - Wyzwania poza walką mają zapisany poziom: zwykłe DC 12, trudne DC `min(25, 15 + średni poziom drużyny // 2)`, kulminacyjne DC `min(30, 18 + średni poziom drużyny // 2)`. Gemini wybiera poziom dla opisanego wyzwania, a serwer wylicza próg. W trybie offline trudniejsza próba przypada co trzecią turę, a kulminacyjna co piątą.
 3. **Turn Gating (Blokada Tury):**
    - Tura rozstrzyga się dopiero, gdy **wszyscy żywi gracze** w pokoju zatwierdzą swoje akcje.
    - Licznik gotowości w czasie rzeczywistym (`X/Y graczy gotowych`).
@@ -45,7 +46,8 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
    - Historia odkrytych miejsc jest przechowywana w bazie i synchronizowana między graczami.
    - Widok automatycznie kadruje odkryty obszar, obsługuje powiększanie, pomniejszanie, przeciąganie oraz szybki powrót do pozycji drużyny.
 9. **Starcia i Efekty Statusu:**
-   - Skalowane HP, pancerz, DC obrony, fazy, cechy specjalne i zapowiadane akcje głównego zagrożenia; spokojniejsze kampanie mogą prowadzić tury bez starcia.
+   - HP nowego głównego zagrożenia odpowiada około 3–4 turam oczekiwanych obrażeń żywej drużyny, z uwzględnieniem trafień k20, wyposażenia i pancerza. Parametry starcia są ustalane przy jego rozpoczęciu; pancerz, DC obrony, fazy, cechy specjalne i zapowiadane akcje nadal działają. Spokojniejsze kampanie mogą prowadzić tury bez starcia.
+   - Wróg odpowiada raz przy 1–2 żywych graczach, dwa razy przy 3–4 i trzy razy przy co najmniej 5; wybiera różne cele. Samotny bohater otrzymuje słabszy pojedynczy cios. Trwające wcześniej starcia bez zapisanego licznika zachowują jedną odpowiedź na turę.
    - Osobne rozstrzyganie ataku, obrony, wsparcia wskazanego sojusznika i efektów czasowych postaci oraz przeciwnika.
    - Jawne stany `agonia → stabilny / śmierć`: postać w agonii otrzymuje jedną porażkę śmierci na turę, trzecia oznacza zgon; wsparcie może stabilizować lub podnieść bohatera.
 10. **Zdolności Klasowe:**
@@ -92,7 +94,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │   ├── models.py              # Modele ORM sesji (w tym limit ilustracji), postaci, tur, nazwanych elementów świata, czatu, mapy, push i głosowań
 │   ├── schemas.py             # Schematy Pydantic i Structured Output JSON dla Gemini
 │   ├── dice.py                # Serwerowe rzuty d20 i dedukcja atrybutów z kontrolowanymi wskazówkami pakietu
-│   ├── combat.py              # Ogólny profil głównego przeciwnika, zdolności, wsparcie, agonia/śmierć i statusy
+│   ├── combat.py              # Skalowanie zagrożenia i DC wyzwań, zdolności, wsparcie, agonia/śmierć i statusy
 │   ├── inventory.py           # Sloty, zajęte ręce i aktywny ekwipunek
 │   ├── loot.py                # Łup, przeszukiwanie i crafting według pakietu świata
 │   ├── magic.py               # Ogólne księgi zdolności i adaptery dawnej magii
@@ -131,6 +133,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │       └── partials/          # Brama, lobby, stół, panele funkcjonalne i osobne modale Jinja
 ├── tests/
 │   ├── test_combat.py         # Testy walki, wyposażenia i efektów statusu
+│   ├── test_encounter_difficulty.py # HP i odpowiedzi wroga oraz poziomy DC przeszkód
 │   ├── test_current_world_contract.py # Kontrakt regresyjny bieżącego świata, tras, klas, ksiąg, mapy i UI
 │   ├── test_dice.py           # Testy rzutów kośćmi i modyfikatorów
 │   ├── test_frontend_module_contract.py # Partiale, zasoby, kaskada CSS, kolejność skryptów i cache PWA
@@ -152,7 +155,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │       └── 0001-versioned-world-packs.md # Decyzja o deklaratywnych pakietach świata
 ├── uploads/                   # Katalog na wygenerowane obrazy z Imagen 3
 ├── data/                      # Katalog na plik bazy SQLite (w Dockerze)
-├── alembic/                   # Środowisko i wersjonowane migracje schematu bazy
+├── alembic/                   # Migracje 0001 światów i 0002 poziomu trudności tury
 ├── alembic.ini                # Konfiguracja migracji korzystająca z DATABASE_URL
 ├── Dockerfile                 # Zoptymalizowany obraz produkcyjny Python 3.12-slim
 ├── docker-compose.yml         # Konfiguracja uruchomieniowa kontenera
@@ -161,7 +164,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 └── README.md                  # Dokumentacja techniczna
 ```
 
-Etapy 6–9 nie dodają zmiennych `.env` ani osobnego buildu frontendu. Domyślny
+Etapy 6–9 i skalowanie trudności nie dodają zmiennych `.env` ani osobnego buildu frontendu. Domyślny
 pozostaje `dark_fantasy@1`; pozostałe 14 światów wybiera się dla nowej kampanii,
 a lokalne podglądy motywów nie zmieniają świata zapisanego w kampanii. Weryfikacja resetu,
 tworzenia postaci i tur musi korzystać z osobnej bazy przez `DATABASE_URL` lub
@@ -249,6 +252,7 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 W systemach Linux/macOS środowisko aktywuje polecenie `source .venv/bin/activate`, a plik konfiguracyjny tworzy `cp .env.example .env`.
 
 Aplikacja będzie dostępna pod adresem: `http://localhost:8000`.
+Migracja `0002_encounter_difficulty` dodaje poziom trudności do tur; istniejące tury zachowują zwykły poziom DC 12. Przed migracją istniejącej kampanii wykonaj kopię bazy SQLite.
 
 ---
 
@@ -350,6 +354,8 @@ Zakres testów:
   - Lokalizuje finał mapy przez stabilne `final_node_id`, niezależnie od kolejności dopisanych odnóg.
 - `tests/test_combat.py`:
   - Rozpoznawanie dominującej intencji, w tym zdań zawierających mylące przysłowia lub wzmianki o innym typie akcji, skalowanie bossów, obrażenia, efekty statusu oraz walidacja używanego ekwipunku z polskimi znakami.
+- `tests/test_encounter_difficulty.py`:
+  - Zależność HP od szansy trafienia, pancerza i wyposażenia, osobne cele odpowiedzi wroga, utrwalenie liczby ataków oraz serwerowe DC trzech poziomów wyzwania.
 - `tests/test_dice.py`:
   - Dedukcja atrybutów z treści deklaracji gracza (Siła, Zręczność, Rozum, Charyzma i Percepcja), z ignorowaniem słabych ozdobników narracyjnych przy fizycznym ataku oraz rozdzieleniem obserwacji od analizy.
   - Obliczanie modyfikatorów z aktywnego ekwipunku.
@@ -378,7 +384,7 @@ Zakres testów:
 - `tests/test_stage9_world_recipes.py`:
   - Komplet 13 nowych pakietów, ekspansja przepisu do `WorldPack`, księgi, motywy, mapa, spokojne fallbacki i odrzucanie niedozwolonych danych.
 - `tests/test_world_migration.py`:
-  - Uruchomienie Alembic na historycznej bazie i kontrola backfillu świata, klasy, Percepcji oraz ogólnego ID zdolności bez zmiany postępu postaci.
+  - Uruchomienie Alembic na historycznej bazie i kontrola backfillu świata, klasy, Percepcji oraz ogólnego ID zdolności bez zmiany postępu postaci; nowa migracja dodaje domyślny poziom trudności do istniejących tur.
 
 ---
 

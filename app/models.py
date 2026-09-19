@@ -135,6 +135,7 @@ class Turn(Base):
     status = Column(String(50), default="waiting_for_actions")  # waiting_for_actions, resolving, completed
     gm_narration = Column(Text, default="")
     next_turn_prompt = Column(Text, default="")
+    challenge_tier = Column(String(20), nullable=False, default="standard")
     suggested_actions = Column(JSON, default=list)
     image_prompt = Column(Text, default="")
     image_url = Column(String(500), nullable=True)

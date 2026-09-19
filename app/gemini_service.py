@@ -371,6 +371,7 @@ async def resolve_turn_with_gemini(
         "1. gm_story_narration: Głęboka, barwna i kinowa narracja Mistrza Gry w języku polskim podsumowująca akcje graczy i zmieniającą się sytuację (min. 3-5 soczystych zdań).\n"
         "2. player_consequences: Dla KAŻDEGO gracza: individual_summary, hp_delta, xp_gained (50-120 XP), new_items=[] oraz removed_item_names. Podczas aktywnego encounteru nie dodawaj własnych zmian HP; dla wsparcia hp_delta_from_combat_engine opisuje leczenie celu wskazanego w combat_events.\n"
         "3. next_turn_prompt: Nowa sytuacja fabularna i konkretne, bezpośrednie wyzwanie rzucone drużynie na otwarcie kolejnej tury (zawsze kończące się pytaniem 'Co robicie?').\n"
+        "3a. next_challenge_tier: Wybierz standard dla zwykłego wyzwania, hard dla poważnej przeszkody albo climactic dla wyjątkowej próby o dużą stawkę. Poziom musi wynikać z opisu next_turn_prompt; nie oznaczaj każdej tury jako hard lub climactic. Serwer wyznaczy DC.\n"
         "4. suggested_actions: Dokładnie 3 zróżnicowane i konkretne ścieżki działania na otwarcie kolejnej tury. Każda ma być dostępna dla każdej klasy, nie może zakładać przedmiotu ani zdolności klasowej.\n"
         "5. scene_image_prompt: Sugestywny prompt po angielsku dla modelu generującego obraz (Gemini 2.5 Flash Image)...\n"
         f"6. naming_opportunity (opcjonalne): Jeśli drużyna odkryła coś wyjątkowego, zaproponuj nazwę. Użyj wyłącznie jednej z kategorii: {', '.join(category.id for category in world_pack.lore_categories)}. Nie powtarzaj active_lore_entities.\n"
@@ -559,6 +560,15 @@ def _generate_rich_offline_resolution(
     )
 
     next_challenge = narrative_profile.offline_next_challenge
+    next_turn_number = turn.turn_number + 1
+    next_challenge_tier = (
+        "climactic" if next_turn_number % 5 == 0 else
+        "hard" if next_turn_number % 3 == 0 else "standard"
+    )
+    if next_challenge_tier == "climactic":
+        next_challenge = f"Stawka tej próby jest wyjątkowo wysoka. {next_challenge}"
+    elif next_challenge_tier == "hard":
+        next_challenge = f"Sytuacja staje się trudniejsza. {next_challenge}"
     suggested = list(narrative_profile.offline_suggested_actions)
 
     naming_opp = None
@@ -604,6 +614,7 @@ def _generate_rich_offline_resolution(
             f"'{session.title}', turn {turn.turn_number}."
         ),
         next_turn_prompt=next_challenge,
+        next_challenge_tier=next_challenge_tier,
         suggested_actions=suggested,
         naming_opportunity=naming_opp,
         map_update=map_update,

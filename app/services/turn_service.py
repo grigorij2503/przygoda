@@ -441,13 +441,22 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             # 1. Mechanika tury jest zapisywana dokładnie raz. Retry ponawia wyłącznie narrację.
             actions_with_rolls = []
             if turn.mechanics_resolved_at is None:
+                living_characters = [character for character in characters if character.is_alive]
+                average_level = (
+                    sum(character.level for character in living_characters) / len(living_characters)
+                    if living_characters else 1
+                )
                 for action in turn.actions:
                     char = char_map.get(action.character_id)
                     if not char:
                         continue
 
                     action.intent = infer_action_intent(action.action_text, action.intent)
-                    dc, tested_stat_override = action_dc(session, action)
+                    dc, tested_stat_override = action_dc(
+                        session, action,
+                        challenge_tier=turn.challenge_tier,
+                        average_level=average_level,
+                    )
                     action_ability_id = action.ability_id or action.magic_ability_id
                     action_ability = get_ability(world_pack, char.class_id, action_ability_id)
                     if action_ability:
@@ -712,6 +721,7 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                 status="waiting_for_actions",
                 gm_narration="",
                 next_turn_prompt=gemini_result.next_turn_prompt,
+                challenge_tier=gemini_result.next_challenge_tier,
                 suggested_actions=gemini_result.suggested_actions,
                 image_prompt="",
             )

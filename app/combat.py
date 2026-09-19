@@ -5,6 +5,7 @@ import unicodedata
 from typing import Iterable
 
 from app.inventory import get_effectively_equipped_items
+from app.dice import calculate_item_modifier
 from app.magic import get_ability
 from app.models import Character, GameSession, InventoryItem, PlayerAction
 from app.worlds.models import WorldPack
@@ -183,13 +184,37 @@ def offensive_item(character: Character, tested_stat: str) -> InventoryItem | No
     return max(candidates, key=infer_item_damage_power, default=None)
 
 
-def estimate_character_damage(character: Character) -> float:
-    equipped = get_effectively_equipped_items(character.inventory)
-    item = max(equipped, key=infer_item_damage_power, default=None)
-    weapon_power = infer_item_damage_power(item) if item else 2
-    best_stat = max(character.strength, character.agility, character.intellect)
-    average_success_damage = weapon_power + best_stat + character.level // 2 + 3.5
-    return max(6.0, average_success_damage * 0.75)
+def estimate_character_damage(character: Character, defense_dc: int, armor: int) -> float:
+    """Expected damage from one attack, including d20 odds and enemy armor."""
+    estimates = []
+    for tested_stat in ("strength", "agility", "intellect", "charisma", "perception"):
+        stat_value = int(getattr(character, tested_stat, 0) or 0)
+        item_bonus = calculate_item_modifier(character, tested_stat)
+        item = offensive_item(character, tested_stat)
+        weapon_power = infer_item_damage_power(item) if item else 2
+        base_damage = weapon_power + stat_value + character.level // 2
+        expected = 0.0
+        for roll in range(1, 21):
+            if roll == 1:
+                continue
+            multiplier = (
+                1.75 if roll == 20 else
+                1.0 if roll + stat_value + item_bonus >= defense_dc else
+                0.5 if roll + stat_value + item_bonus >= defense_dc - 2 else 0.0
+            )
+            if multiplier:
+                expected += sum(
+                    max(1, round((base_damage + damage_roll) * multiplier) - armor)
+                    for damage_roll in range(1, 7)
+                ) / 120
+        estimates.append(expected)
+    return max(estimates, default=0.0)
+
+
+def attack_telegraph_description(description: str, attack_count: int) -> str:
+    if attack_count <= 1:
+        return description
+    return f"{description} Zagrożenie może uderzyć w maksymalnie {attack_count} różne postacie."
 
 
 def build_enemy_encounter(
@@ -201,10 +226,14 @@ def build_enemy_encounter(
     profile = world_pack.enemy_profile
     party = [character for character in characters if character.is_alive]
     average_level = sum(character.level for character in party) / len(party) if party else 1
-    expected_turn_damage = sum(estimate_character_damage(character) for character in party) or 15
-    max_hp = max(60, int(math.ceil((expected_turn_damage * 4) / 5) * 5))
     armor = max(1, min(4, int(average_level // 2)))
     defense_dc = 11 + min(4, int(average_level // 2))
+    expected_turn_damage = sum(
+        estimate_character_damage(character, defense_dc, armor) for character in party
+    )
+    minimum_hp = 20 + 10 * len(party) if party else 60
+    max_hp = max(minimum_hp, int(math.ceil(expected_turn_damage * 3.5 / 5) * 5))
+    attack_count = min(3, max(1, (len(party) + 1) // 2))
     normalized_description = normalize_text(description)
     status_effect = next(
         (
@@ -233,8 +262,9 @@ def build_enemy_encounter(
         "telegraph": {
             "name": first_attack.name,
             "icon": first_attack.icon,
-            "description": first_attack.description,
-            "base_damage": 5 + int(average_level),
+            "description": attack_telegraph_description(first_attack.description, attack_count),
+            "base_damage": max(1, round((5 + int(average_level)) * (0.7 if len(party) == 1 else 1))),
+            "attack_count": attack_count,
             "status_effect": status_effect,
         },
         "description": description,
@@ -286,7 +316,13 @@ def infer_action_intent(action_text: str, explicit_intent: str | None = None) ->
     return str(infer_action_intent_details(action_text, explicit_intent)["intent"])
 
 
-def action_dc(session: GameSession, action: PlayerAction) -> tuple[int, str | None]:
+def action_dc(
+    session: GameSession,
+    action: PlayerAction,
+    *,
+    challenge_tier: str = "standard",
+    average_level: float = 1,
+) -> tuple[int, str | None]:
     intent = infer_action_intent(action.action_text, action.intent)
     if intent == "attack" and session.active_boss_hp and session.active_boss_hp > 0:
         return int(session.active_boss_defense_dc or 12), None
@@ -300,6 +336,12 @@ def action_dc(session: GameSession, action: PlayerAction) -> tuple[int, str | No
         )
         if feature and feature.get("state") == "active":
             return int(feature.get("dc", 12)), str(feature.get("required_stat") or "") or None
+    if session.active_boss_hp and session.active_boss_hp > 0:
+        return 12, None
+    if challenge_tier == "hard":
+        return min(25, 15 + int(average_level // 2)), None
+    if challenge_tier == "climactic":
+        return min(30, 18 + int(average_level // 2)), None
     return 12, None
 
 
@@ -715,53 +757,58 @@ def _resolve_boss_response(
     if not alive:
         return
     action_by_character = {action.character_id: action for action in actions}
-    target = alive[(session.current_turn_number - 1) % len(alive)]
-    target_action = action_by_character.get(target.id)
-    if not target_action:
-        return
     telegraph = dict(session.active_boss_telegraph or {})
+    attack_count = min(len(alive), max(1, int(telegraph.get("attack_count", 1))))
+    first_target = (session.current_turn_number - 1) % len(alive)
+    targets = [alive[(first_target + offset) % len(alive)] for offset in range(attack_count)]
     damage = int(telegraph.get("base_damage", 6)) + max(0, int(session.active_boss_phase or 1) - 1) * 2
     boss_effects = status_list(session.active_boss_effects)
     if has_status(boss_effects, "stunned"):
         damage = max(1, damage // 2)
         session.active_boss_effects = consume_status(boss_effects, "stunned")
-    guarded = next(
-        (effect for effect in status_list(target.status_effects) if effect.get("type") == "guarded"),
-        None,
-    )
-    if guarded:
-        damage = max(0, damage - max(1, int(guarded.get("potency", 1))))
-        target.status_effects = consume_status(status_list(target.status_effects), "guarded")
     defenders = [
         action for action in actions
         if action.intent == "defend" and action.outcome_tier in {"success", "critical_success"}
     ]
-    if defenders:
-        damage = max(0, damage - (5 if any(a.outcome_tier == "critical_success" for a in defenders) else 3))
-    applied = _apply_hp_delta(target, -damage, target_action)
-    applied_effect = None
-    if applied < 0 and int(session.active_boss_phase or 1) >= 2:
-        applied_effect = str(
-            telegraph.get("status_effect") or world_pack.enemy_profile.default_status_effect
+    defense_reduction = (
+        5 if any(action.outcome_tier == "critical_success" for action in defenders)
+        else 3 if defenders else 0
+    )
+    for target in targets:
+        target_action = action_by_character.get(target.id)
+        if not target_action:
+            continue
+        target_damage = damage
+        guarded = next(
+            (effect for effect in status_list(target.status_effects) if effect.get("type") == "guarded"),
+            None,
         )
-        target.status_effects = add_status(
-            status_list(target.status_effects),
-            make_status(
-                applied_effect, 3, 1,
-                session.active_boss_name or world_pack.enemy_profile.role_label,
-                world_pack,
-            ),
-        )
-    events.append({
-        "type": "boss_attack",
-        "boss": session.active_boss_name,
-        "attack": telegraph.get(
-            "name", world_pack.enemy_profile.attacks[0].name
-        ),
-        "target": target.name,
-        "damage": abs(applied),
-        "effect": applied_effect,
-    })
+        if guarded:
+            target_damage = max(0, target_damage - max(1, int(guarded.get("potency", 1))))
+            target.status_effects = consume_status(status_list(target.status_effects), "guarded")
+        target_damage = max(0, target_damage - defense_reduction)
+        applied = _apply_hp_delta(target, -target_damage, target_action)
+        applied_effect = None
+        if applied < 0 and int(session.active_boss_phase or 1) >= 2:
+            applied_effect = str(
+                telegraph.get("status_effect") or world_pack.enemy_profile.default_status_effect
+            )
+            target.status_effects = add_status(
+                status_list(target.status_effects),
+                make_status(
+                    applied_effect, 3, 1,
+                    session.active_boss_name or world_pack.enemy_profile.role_label,
+                    world_pack,
+                ),
+            )
+        events.append({
+            "type": "boss_attack",
+            "boss": session.active_boss_name,
+            "attack": telegraph.get("name", world_pack.enemy_profile.attacks[0].name),
+            "target": target.name,
+            "damage": abs(applied),
+            "effect": applied_effect,
+        })
 
 
 def _update_boss_phase(
@@ -788,11 +835,13 @@ def _update_boss_phase(
         if definition.phase == new_phase
     )
     current_base = int((session.active_boss_telegraph or {}).get("base_damage", 6))
+    attack_count = int((session.active_boss_telegraph or {}).get("attack_count", 1))
     session.active_boss_telegraph = {
         "name": attack.name,
         "icon": attack.icon,
-        "description": attack.description,
+        "description": attack_telegraph_description(attack.description, attack_count),
         "base_damage": current_base,
+        "attack_count": attack_count,
         "status_effect": (session.active_boss_telegraph or {}).get(
             "status_effect", world_pack.enemy_profile.default_status_effect
         ),
