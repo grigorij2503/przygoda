@@ -288,6 +288,7 @@ class NarrativeProfile(WorldModel):
     offline_suggested_actions: tuple[str, ...]
     offline_enemy_description: str = Field(min_length=1)
     offline_enemy_naming_prompt: str = Field(min_length=1)
+    offline_auto_enemy_naming: bool = True
 
 
 class LoreCategoryDefinition(WorldModel):

@@ -562,7 +562,8 @@ def _generate_rich_offline_resolution(
     suggested = list(narrative_profile.offline_suggested_actions)
 
     naming_opp = None
-    if turn.turn_number == 2 and not session.active_boss_name:
+    if (turn.turn_number == 2 and not session.active_boss_name
+            and narrative_profile.offline_auto_enemy_naming):
         naming_opp = NamingOpportunitySchema(
             category=enemy_profile.lore_category_id,
             description=narrative_profile.offline_enemy_description,

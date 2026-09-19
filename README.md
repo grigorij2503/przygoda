@@ -1,6 +1,6 @@
 # ⚔️ Gemini TTRPG Master (Multiplayer Turn-Based Web Game)
 
-Wieloosobowy silnik rozgrywek turowych z opublikowanymi światami **Dark Fantasy** i **NeoKatowice 3077** (fikcyjny cyberpunk w Polsce), prowadzony przez sztuczną inteligencję (**Gemini 3.8 Flash** jako Mistrz Gry). Backend odpowiada za rzuty, walkę, rozwój postaci, ekwipunek i stan kampanii, a klienci synchronizują się w czasie rzeczywistym. Aplikacja obsługuje również mapę kampanii, kategoryzowaną kronikę, zdolności klasowe, łup, crafting, czat, Web Push i generowanie ilustracji na żądanie (**Imagen 3**).
+Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w tym **Dark Fantasy**, **NeoKatowice 3077** (fikcyjny cyberpunk w Polsce), horrorem kosmicznym, zagadką detektywistyczną i humorystycznym RPG. Rozgrywkę prowadzi sztuczna inteligencja (**Gemini 3.8 Flash** jako Mistrz Gry). Backend odpowiada za rzuty, walkę, rozwój postaci, ekwipunek i stan kampanii, a klienci synchronizują się w czasie rzeczywistym. Aplikacja obsługuje również mapę kampanii, kategoryzowaną kronikę, zdolności klasowe, łup, crafting, czat, Web Push i generowanie ilustracji na żądanie (**Imagen 3**).
 
 ---
 
@@ -28,7 +28,7 @@ Wieloosobowy silnik rozgrywek turowych z opublikowanymi światami **Dark Fantasy
    - Przycisk *„🎨 Generuj ilustrację z tej tury”* przy każdej ukończonej turze.
    - Każda kampania może wygenerować jedną ilustrację w ciągu dnia kalendarzowego; trwały, atomowo egzekwowany limit odnawia się o północy w strefie `Europe/Warsaw` i jest widoczny w interfejsie jako czas pozostały do kolejnej generacji.
    - Generowanie panoramicznych grafik 16:9 z podglądem pełnoekranowym (Lightbox).
-   - Gotowy fallback na grafiki runiczne w trybie testowym bez klucza API.
+   - Fallback ilustracji zgodny z motywem świata, dostępny bez klucza API.
 5. **Karta Postaci w Czasie Rzeczywistym:**
    - Animowany pasek życia (HP) z pulsującym efektem krwi.
    - Pasek postępu doświadczenia (XP) i automatyczny **Level Up** (wyższe HP i rozwój atrybutów).
@@ -44,12 +44,12 @@ Wieloosobowy silnik rozgrywek turowych z opublikowanymi światami **Dark Fantasy
    - Proceduralna mapa powiązana z sesją, odkrywanie lokacji i przechodzenie wyłącznie pomiędzy sąsiednimi węzłami.
    - Historia odkrytych miejsc jest przechowywana w bazie i synchronizowana między graczami.
    - Widok automatycznie kadruje odkryty obszar, obsługuje powiększanie, pomniejszanie, przeciąganie oraz szybki powrót do pozycji drużyny.
-9. **Walka z Bossami i Efekty Statusu:**
-   - Skalowane HP, pancerz, DC obrony, fazy, cechy specjalne i zapowiadane akcje bossa.
+9. **Starcia i Efekty Statusu:**
+   - Skalowane HP, pancerz, DC obrony, fazy, cechy specjalne i zapowiadane akcje głównego zagrożenia; spokojniejsze kampanie mogą prowadzić tury bez starcia.
    - Osobne rozstrzyganie ataku, obrony, wsparcia wskazanego sojusznika i efektów czasowych postaci oraz przeciwnika.
    - Jawne stany `agonia → stabilny / śmierć`: postać w agonii otrzymuje jedną porażkę śmierci na turę, trzecia oznacza zgon; wsparcie może stabilizować lub podnieść bohatera.
-10. **Magia Klasowa:**
-    - Księga czarów Czarodzieja oraz modlitwy i cuda Kleryka.
+10. **Zdolności Klasowe:**
+    - Każda klasa używa księgi właściwej swojemu światu: od czarów Czarodzieja i modlitw Kleryka po hacki, dedukcję lub komediowe sztuczki.
     - Zdolności odblokowywane poziomami, walidowane po stronie backendu i powiązane z właściwą cechą postaci.
     - Szybkie akcje są dopasowane do klasy wybranego bohatera; Wojownik i Łotrzyk nie otrzymują propozycji czarów, a Czarodziej i Kleryk widzą wśród skrótów wyłącznie odblokowane zdolności ze swojej księgi lub modlitw.
     - Drużynowe podpowiedzi Gemini pozostają niemagiczne i dostępne dla każdej klasy; magia jest deklarowana wyłącznie przez wybór konkretnej zdolności klasowej.
@@ -63,18 +63,20 @@ Wieloosobowy silnik rozgrywek turowych z opublikowanymi światami **Dark Fantasy
 12. **Narzędzia Społecznościowe i MG:**
     - Trwały czat drużyny, wzmianki, osobiste notatki oraz wspólne nadawanie nazw elementom świata.
     - Kronika Świata automatycznie porządkuje nazwane odkrycia w działach: bossowie, miejsca, napotkani NPC, oręż i artefakty oraz ataki drużynowe; Gemini może wskazać napotkanego NPC do nazwania przez gracza.
+    - Potwierdzone rozpoczęcie nowego scenariusza lub reset kampanii usuwa wpisy Kroniki Świata z poprzedniej kampanii oraz oczekującą propozycję nazwania; istniejące wpisy bieżącej kampanii pozostają dostępne do czasu resetu.
     - Panel narzędzi administracyjnych jest odblokowywany osobnym `GM_PIN`; zawiera m.in. konfigurację scenariusza, reset kampanii, ponowienie i ręczne rozstrzygnięcie tury.
     - MG może awaryjnie skorygować bazowe atrybuty dowolnej postaci w zakresie `0–12`; panel pokazuje zmianę łącznej puli, wymaga potwierdzenia i synchronizuje korektę z graczami. Bonusy ekwipunku, niewydane punkty awansu i już złożone akcje nie są przeliczane.
     - Interfejs działa jako instalowalna PWA z service workerem, zwijanym nagłówkiem sesji i panelem akcji na telefonach oraz ekranach komputerowych do 1799 px, czytelniejszą typografią, semantycznymi modalami, obsługą klawiatury i trybem ograniczonego ruchu.
     - Po powrocie z uśpionej karty, zminimalizowanej przeglądarki lub zablokowanego urządzenia klient odtwarza WebSocket i pobiera aktualny stan tury; po co najmniej dwóch minutach nieobecności pokazuje krótkie powitanie wybranej postaci.
 13. **Jądro Wersjonowanych Światów:**
     - Deklaratywne, niemutowalne modele Pydantic walidują identyfikatory, wersje, klasy, zdolności, startery, mapę, motyw, terminologię, kronikę, profile przeciwnika, tabele łupu, crafting, statusy i odwołania pakietu przy imporcie aplikacji.
-    - Rejestr zawiera `dark_fantasy@1` i `neokatowice_3077@1` dla rulesetu `d20_v1`; katalog `GET /api/worlds` udostępnia ich bezpieczne podsumowania z motywem i scenariuszami. Narzędzia MG pozwalają wybrać pakiet dla nowego lobby przy potwierdzonym restarcie, ale nie przełączają trwającej rozgrywki w locie.
+    - Rejestr zawiera 15 pakietów `d20_v1`: dotychczasowe `dark_fantasy@1` i `neokatowice_3077@1` oraz 13 nowych konwencji z etapu 9. Katalog `GET /api/worlds` udostępnia ich bezpieczne podsumowania z motywem i scenariuszami. Narzędzia MG pozwalają wybrać pakiet dla nowego lobby przy potwierdzonym restarcie, ale nie przełączają trwającej rozgrywki w locie.
+    - Nowe światy deklaruje zwarty, kontrolowany JSON `recipe_v1`. Loader rozwija go do tego samego niemutowalnego `WorldPack` i waliduje przy starcie; nie wykonuje kodu z pakietu. Każdy ma własne klasy, księgi, mapę, łup, profil narracji i oprawę. Norki pod Zielonym Wzgórzem, Szepty Zatopionej Gwiazdy i Zagadka Gazowej Latarni nie wprowadzają automatycznie wroga w fallbacku offline, więc można prowadzić spokojną lub śledczą turę.
     - Każda kampania jest trwale przypięta do `world_pack_id` i `world_pack_version`, a postacie i zdolności zapisują stabilne `class_id` i `ability_id`. Dotychczasowe `character_class` oraz `magic_ability_id` pozostają adapterami zgodności.
     - Percepcja (`perception`, `PER`) jest piątą pełnoprawną cechą w bazie, API, kreatorze, karcie, lobby, awansie, korekcie MG, ekwipunku i interpretacji działań. Historyczne postacie otrzymują `0`, bez zmiany pozostałych cech, HP, XP ani poziomu.
     - Klasy, startery, szybkie akcje, ogólne księgi zdolności (`ability_book`), wskazówki cechy dla słownictwa świata, profile mapy, łup, rzadkości, crafting, etykiety statusów, prolog, narracja, kierunek ilustracji i fallback offline są pobierane z przypiętej wersji pakietu. `magic_book` i nazwy pól bossa pozostają adapterami dla dotychczasowej gry.
     - Frontend otrzymuje klasy, pięć etykiet cech, startery, księgi i akcje z API. Nieznany identyfikator klasy lub zdolności kończy się błędem bez podstawienia Kleryka. Zmiana świata aktywnej kampanii jest blokowana, a nieznana jawna wersja kończy się błędem.
-    - Motyw pakietu używa trzynastu semantycznych kolorów oraz kontrolowanych ID fontu, tekstury, ikon i kształtu. NeoKatowice mają turkusowo-magentową paletę oraz ścięte narożniki kart; Dark Fantasy zachowuje zaokrąglony styl. Serwer ustawia `data-theme`/`data-shape` i meta `theme-color` przed pobraniem sesji; klient pamięta ostatni motyw dla odświeżenia offline. Lokalny podgląd Neon w narzędziach MG pozostaje prezentacją urządzenia, nie zmienia pakietu kampanii.
+    - Motyw pakietu używa trzynastu semantycznych kolorów oraz kontrolowanych ID fontu, tekstury, ikon i kształtu. Dodatkowy moduł `theme-art.css` nadaje 15 motywom odrębną typografię nagłówków, tekstury i obramowania. Dark Fantasy ma wąskie metalowe okucia i nity w narożnikach kart. NeoKatowice używają rzeczywistego ID motywu `neo_katowice`: prawie czarnych paneli, cienkich turkusowych konturów, neonowej poświaty nagłówków i stonowanego światła narracji. Neutralny znak w nagłówku i lobby oraz ikony akcji zastępują zamkowy/szermierczy motyw poza klasyczną oprawą. Pozostałe światy zachowują oprawy atlasu, archiwum, baśni lub komiksu. Dłuższa narracja ma czytelny krój i ograniczoną szerokość; na telefonie cienie i odstępy nagłówków są łagodniejsze. Serwer ustawia `data-theme`/`data-shape` i meta `theme-color` przed pobraniem sesji; klient pamięta ostatni motyw dla odświeżenia offline. Narzędzia MG pozwalają lokalnie podejrzeć motyw wybranego następnego świata przed resetem oraz podgląd Neon; podgląd nie zmienia kampanii i może zostać przywrócony do jej motywu. Nowe fonty są pobierane z Google Fonts przy dostępie do sieci i mają lokalne kroje zapasowe.
     - Pilot NeoKatowice osadza przygodę w fikcyjnym Śląsku roku 3077. Haker, Neurotechnik, Egzoochroniarz i Fixer mają własne startery, szybkie akcje i księgi hacków, neuroprotokołów, systemów bojowych lub kontaktów. Pakiet dostarcza dzielnice i ikony mapy, cybernetyczny łup, zagrożenia, teksty lobby, prolog, instrukcje narratora oraz kierunek ilustracji bez treści fantasy; fallback SVG używa kanciastego motywu.
     - Manifest PWA opisuje neutralny silnik „Przygoda”, a wersjonowane CSS/JS i service worker cache'ują także motyw. Schemat jest wersjonowany przez Alembic. Kontener wykonuje `alembic upgrade head` przed uruchomieniem serwera; bezpośredni start przez `uvicorn` zachowuje tymczasowy fallback dla starszych lokalnych baz.
 
@@ -113,10 +115,11 @@ Wieloosobowy silnik rozgrywek turowych z opublikowanymi światami **Dark Fantasy
 │   ├── worlds/
 │   │   ├── models.py          # Niemutowalny kontrakt WorldPack i typy składowe
 │   │   ├── registry.py        # Walidowany rejestr oraz kontrolowany fallback
-│   │   └── packs/             # `dark_fantasy_v1.json` i `neokatowice_3077_v1.json`
+│   │   ├── recipes.py         # Kontrolowana deklaracja recipe_v1 -> pełny WorldPack
+│   │   └── packs/             # 2 pełne pakiety v1 oraz 13 deklaratywnych recipe_v1
 │   ├── static/
 │   │   ├── css/style.css      # Punkt wejścia kaskady CSS
-│   │   ├── css/modules/       # Tokeny, baza, komponenty, ekwipunek, mapa, kronika, komunikaty, responsywność i motyw
+│   │   ├── css/modules/       # Tokeny, baza, komponenty, ekwipunek, mapa, kronika, komunikaty, responsywność, motyw i profile artystyczne theme-art.css
 │   │   ├── js/theme-bootstrap.js # Ustawienie motywu i kontrolowanego kształtu przed CSS
 │   │   ├── js/app.js          # Składanie głównego komponentu Alpine `rpgGame`
 │   │   ├── js/modules/        # Stan, PWA, auth/MG, sesja/postać, mapa/historia, realtime/czat, akcje i ekwipunek
@@ -138,6 +141,7 @@ Wieloosobowy silnik rozgrywek turowych z opublikowanymi światami **Dark Fantasy
 │   ├── test_stage6_world_content.py # Próbny pakiet: klasy, księga, mapa, przeciwnik i walidacja mechanik
 │   ├── test_stage7_theme_selection.py # Kontrolowane motywy i wybór świata tylko przy restarcie
 │   ├── test_stage8_neokatowice_pilot.py # Klasy, księgi, startery, mapa, motyw i przypięta wersja pilota
+│   ├── test_stage9_world_recipes.py # Kontrakt 13 nowych światów, map, ksiąg i walidacji przepisów
 │   ├── test_websocket_chat.py # Test komunikacji czatu przez WebSocket
 │   ├── test_world_registry.py # Walidacja pakietów, odwołań, fallbacku i katalogu światów
 │   └── test_world_migration.py # Migracja historycznej kampanii bez zmiany postępu
@@ -157,12 +161,12 @@ Wieloosobowy silnik rozgrywek turowych z opublikowanymi światami **Dark Fantasy
 └── README.md                  # Dokumentacja techniczna
 ```
 
-Etapy 6–8 nie dodają zmiennych `.env` ani osobnego buildu frontendu. Domyślny
-pozostaje `dark_fantasy@1`; `neokatowice_3077@1` jest drugim grywalnym pakietem,
-a podgląd Neon nie zmienia świata zapisanego w kampanii. Weryfikacja resetu,
+Etapy 6–9 nie dodają zmiennych `.env` ani osobnego buildu frontendu. Domyślny
+pozostaje `dark_fantasy@1`; pozostałe 14 światów wybiera się dla nowej kampanii,
+a lokalne podglądy motywów nie zmieniają świata zapisanego w kampanii. Weryfikacja resetu,
 tworzenia postaci i tur musi korzystać z osobnej bazy przez `DATABASE_URL` lub
-z kopii zapisu, nie z aktywnej bazy. Ręczna checklista odbioru etapu 8 jest w
-`docs/WORLD_PACK_ROADMAP.md`.
+z kopii zapisu, nie z aktywnej bazy. Ręczna checklista odbioru etapu 9, z
+osobną ścieżką dla każdego świata i jego motywu, jest w `docs/WORLD_PACK_ROADMAP.md`.
 
 ---
 
@@ -367,10 +371,12 @@ Zakres testów:
 - `tests/test_websocket_chat.py`:
   - Wymiana wiadomości czatu przez WebSocket z obsługą opcjonalnego początkowego snapshotu `CHAT_HISTORY` z wcześniej zapisanej bazy.
 - `tests/test_world_registry.py`:
-  - Ładowanie obu pakietów z domyślnym `dark_fantasy@1`, pięć kanonicznych cech rulesetu i zachowanie obecnych klas, starterów, ksiąg, mapy oraz narracji.
+  - Ładowanie wszystkich 15 pakietów z domyślnym `dark_fantasy@1`, pięć kanonicznych cech rulesetu i zachowanie obecnych klas, starterów, ksiąg, mapy oraz narracji.
   - Odrzucanie nieznanej jawnej wersji i błędnych referencji oraz kontrakt odpowiedzi `GET /api/worlds`.
 - `tests/test_stage8_neokatowice_pilot.py`:
   - Zawartość fikcyjnego Śląska, cztery księgi, startery potrzebne do zdolności, ikony mapy, kontrolowany kształt i przypięcie wersji świata.
+- `tests/test_stage9_world_recipes.py`:
+  - Komplet 13 nowych pakietów, ekspansja przepisu do `WorldPack`, księgi, motywy, mapa, spokojne fallbacki i odrzucanie niedozwolonych danych.
 - `tests/test_world_migration.py`:
   - Uruchomienie Alembic na historycznej bazie i kontrola backfillu świata, klasy, Percepcji oraz ogólnego ID zdolności bez zmiany postępu postaci.
 
@@ -378,15 +384,14 @@ Zakres testów:
 
 ## 🧭 Roadmapa silnika wielu światów
 
-Rozwój w kierunku kampanii cyberpunkowych, pirackich, pustynnych, historyczno-okultystycznych, słowiańskich, wikińskich, westernowych, space-grimdark, infernalnych i pastoralnych jest podzielony na niezależnie odbierane etapy. Pełny plan znajduje się w [`docs/WORLD_PACK_ROADMAP.md`](docs/WORLD_PACK_ROADMAP.md), decyzja architektoniczna w [`docs/adr/0001-versioned-world-packs.md`](docs/adr/0001-versioned-world-packs.md), a aktualne sprzężenia fantasy w [`docs/WORLD_DEPENDENCY_INVENTORY.md`](docs/WORLD_DEPENDENCY_INVENTORY.md).
+Rozwój kampanii cyberpunkowych, pirackich, pustynnych, historyczno-okultystycznych, słowiańskich, wikińskich, westernowych, space-grimdark, infernalnych, pastoralnych, kosmiczno-horrorowych, detektywistycznych i humorystycznych jest podzielony na niezależnie odbierane etapy. Pełny plan i nazwy wszystkich pakietów znajdują się w [`docs/WORLD_PACK_ROADMAP.md`](docs/WORLD_PACK_ROADMAP.md), decyzja architektoniczna w [`docs/adr/0001-versioned-world-packs.md`](docs/adr/0001-versioned-world-packs.md), a granica między silnikiem i światem w [`docs/WORLD_DEPENDENCY_INVENTORY.md`](docs/WORLD_DEPENDENCY_INVENTORY.md).
 
-Etapy 1–7 są zakończone, a etapy 6–7 odebrane ręcznie. Kontrakt
-`dark_fantasy_v1` utrwala obecną rozgrywkę, backend i frontend są podzielone na
-moduły, a walidowany rejestr ładuje `dark_fantasy@1` oraz pilota
-`neokatowice_3077@1`. Kampania zapisuje ID i wersję pakietu, klasy oraz
-zdolności mają stabilne identyfikatory, a Alembic migruje historyczne dane.
-Percepcja działa w całej ścieżce gry. Etap 8 jest zaimplementowany i czeka na
-ręczny odbiór krótkiej kampanii NeoKatowice na osobnej bazie.
+Etapy 1–8 są zakończone; etap 9 jest zaimplementowany i czeka na osobny ręczny
+odbiór 13 nowych światów. Kontrakt `dark_fantasy_v1` utrwala obecną rozgrywkę,
+backend i frontend są podzielone na moduły, a walidowany rejestr ładuje 15
+pakietów. Kampania zapisuje ID i wersję pakietu, klasy oraz zdolności mają
+stabilne identyfikatory, a Alembic migruje historyczne dane. Percepcja działa
+w całej ścieżce gry.
 
 Ruleset używa pięciu kanonicznych atrybutów: Siły, Zręczności, Intelektu, Charyzmy i Percepcji. Migracja nadaje istniejącym postaciom Percepcję `0` bez zmiany pozostałych cech, HP, XP i poziomu. Roadmapa zawiera przy każdym etapie osobną checklistę ręcznego odbioru po lokalnym zbudowaniu aplikacji oraz instrukcję użycia izolowanej bazy `manual_review.db`.
 

@@ -1,5 +1,5 @@
 /* World-neutral RPG stylesheet entrypoint. Keep imports in cascade order. */
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bangers&family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@700&family=Cormorant+Garamond:wght@500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@300;400;500;600;700&family=Rajdhani:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Special+Elite&display=swap');
 @import url('./modules/tokens.css?v=21');
 @import url('./modules/base.css?v=21');
 @import url('./modules/components.css?v=21');
@@ -8,4 +8,5 @@
 @import url('./modules/lore.css?v=21');
 @import url('./modules/feedback.css?v=21');
 @import url('./modules/responsive.css?v=21');
-@import url('./modules/theme.css?v=22');
+@import url('./modules/theme.css?v=24');
+@import url('./modules/theme-art.css?v=2');

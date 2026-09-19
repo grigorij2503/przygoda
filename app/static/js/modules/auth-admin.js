@@ -52,6 +52,7 @@
       this.proxyTargetCharacterId = null;
       this.newInventoryItemIds = [];
       this.inventoryFilter = 'all';
+      window.TTRPG_THEME?.clearWorldPreview();
     },
 
     // --- Narzędzia Mistrza Gry ---
@@ -113,6 +114,7 @@
         this.gmStatCharacterId = null;
         this.gmOriginalStats = null;
         this.gmStatError = '';
+        window.TTRPG_THEME?.clearWorldPreview();
         this.addToast('Narzędzia MG zostały zablokowane.', 'info');
       }
     },
@@ -123,6 +125,13 @@
       this.gmPin = '';
       this.gmAuthError = 'Sesja MG wygasła. Wpisz PIN ponownie.';
       this.showGmAuthModal = true;
+      window.TTRPG_THEME?.clearWorldPreview();
+    },
+
+    closeGmTools() {
+      this.showIntroModal = false;
+      this.resetConfirmation = '';
+      window.TTRPG_THEME?.clearWorldPreview();
     },
 
     async loadWorldCatalog() {
@@ -159,11 +168,22 @@
       if (!selected) return;
       this.scenarioChoice = selected.scenario_options?.[0] || '';
       this.scenarioTone = selected.setting_theme || '';
+      if (window.TTRPG_THEME?.isWorldPreview) {
+        window.TTRPG_THEME.showWorldPreview(selected.theme);
+      }
     },
 
     showNeonThemePreview() {
       window.TTRPG_THEME?.showPreview();
       this.addToast('Podgląd neonowy jest lokalny i nie zmienia świata kampanii.', 'info');
+    },
+
+    showSelectedWorldThemePreview() {
+      if (!window.TTRPG_THEME?.showWorldPreview(this.selectedWorldSummary?.theme)) {
+        this.addToast('Motyw wybranego świata jest niedostępny.', 'error');
+        return;
+      }
+      this.addToast('Motyw wybranego świata jest widoczny tylko na tym urządzeniu.', 'info');
     },
 
     restoreCampaignTheme() {

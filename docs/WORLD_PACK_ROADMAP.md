@@ -328,8 +328,9 @@ podglądem. W etapie 8 do tego mechanizmu dołączono grywalny drugi pakiet.
 - dynamiczny meta `theme-color` i cache zasobów motywu;
 - neutralny manifest PWA reprezentujący silnik, nie pojedynczą kampanię.
 
-Kryterium zakończenia: Dark Fantasy wygląda jak wcześniej, a próbny drugi motyw
-zmienia wygląd bez duplikowania HTML.
+Kryterium historycznego odbioru: Dark Fantasy wyglądało jak wcześniej, a próbny
+drugi motyw zmieniał wygląd bez duplikowania HTML. Późniejsza aktualizacja
+oprawy dodała małe metalowe okucia Dark Fantasy i neon NeoKatowic.
 
 Test lokalny: wymagany na komputerze, telefonie i w trybie z ograniczonym ruchem,
 na osobnej bazie SQLite albo kopii kampanii. Otworzyć narzędzia MG i sprawdzić,
@@ -338,7 +339,8 @@ na osobnej bazie SQLite albo kopii kampanii. Otworzyć narzędzia MG i sprawdzi�
 powinna nastąpić dopiero przy tym potwierdzonym restarcie, nie podczas aktywnej
 tury. W narzędziach MG włączyć lokalny podgląd Neon, obejrzeć karty, przyciski,
 focus/kontrast, modale, paski HP/XP, statusy, mapę, kronikę i Percepcję; wrócić
-przyciskiem „Motyw kampanii” i potwierdzić stary wygląd Dark Fantasy. Podgląd
+przyciskiem „Motyw kampanii” i potwierdzić wygląd Dark Fantasy z drobnymi
+metalowymi okuciami kart. Podgląd
 nie może zmienić pakietu ani widoku innego gracza. Odświeżyć stronę z włączonym
 podglądem, a także po przywróceniu motywu kampanii: nie powinno być błysku
 innej palety, `data-theme` i meta `theme-color` muszą odpowiadać widocznemu
@@ -354,9 +356,10 @@ zewnętrznych fontów, adresów assetów ani dowolnego CSS.
 
 ### Etap 8 - pilot NeoKatowice 3077
 
-Status: zaimplementowany 2026-09-15; oczekuje na ręczny odbiór użytkownika.
+Status: zaimplementowany 2026-09-15 i odebrany ręcznie przez użytkownika przed etapem 9.
 Publikowany pakiet `neokatowice_3077@1` przedstawia fikcyjne Katowice w Polsce
-roku 3077. `dark_fantasy@1` pozostaje domyślnym i zachowuje stary wygląd.
+roku 3077. `dark_fantasy@1` pozostaje domyślnym; jego późniejsza aktualizacja
+wizualna dodała cienkie metalowe okucia bez zmiany pakietu.
 
 - klasy: Haker, Neurotechnik, Egzoochroniarz i Fixer;
 - księgi: katalog hacków, protokoły neuro, systemy bojowe i sieć kontaktów;
@@ -384,8 +387,9 @@ sensorycznego testującego Percepcję, wsparcia Rebootem medycznym ze wskazanym
 sojusznikiem i ataku Egzoochroniarza; niedostępna zdolność wyższego poziomu ma
 być odrzucona. Nazwać zagrożenie, rozegrać starcie i obejrzeć fazy/statusy,
 znaleźć łup, otworzyć warsztat i przejść do sąsiedniego sektora mapy. Sprawdzić
-śląskie nazwy, ikony sektorów, kronikę, ścięte narożniki kart, kanciastsze
-przyciski, fokus i czytelność modali także na telefonie. Bez klucza API sprawdzić
+śląskie nazwy, ikony sektorów, kronikę, ścięte narożniki kart, cienkie neonowe
+obrysy przycisków, poświatę nagłówków, fokus i czytelność modali także na
+telefonie. Bez klucza API sprawdzić
 prolog, narrację i fallback ilustracji; z kluczem także wygenerowaną ilustrację
 bez elementów fantasy. Po restarcie aplikacji kampania ma zachować świat, motyw
 i klasy. Na osobnej kopii utworzyć nową kampanię Dark Fantasy i sprawdzić, że
@@ -393,6 +397,13 @@ nie przejęła cyberpunkowych nazw, starterów, mapy ani kolorów. Próba zmiany
 świata w aktywnej kampanii bez potwierdzonego resetu ma pozostać zablokowana.
 
 ### Etap 9 - pozostałe światy
+
+Status: zaimplementowany 2026-09-19; oczekuje na osobny ręczny odbiór użytkownika.
+W rejestrze jest teraz 15 grywalnych pakietów: dwa wcześniejsze oraz 13 nowych.
+Każdy nowy świat ma oryginalną nazwę i treść, minimum trzy klasy z własnymi
+księgami, scenariusze, wyposażenie, łup, mapę, profil zagrożenia, narratora,
+kierunek ilustracji i kontrolowany motyw. To warianty istniejącego `d20_v1`,
+nie odrębne systemy reguł.
 
 Partia map i eksploracji:
 
@@ -413,18 +424,120 @@ Partia skrajnych tonów:
 - Katedry Popiołu;
 - Norki pod Zielonym Wzgórzem.
 
-Każdy pakiet otrzymuje walidację kontraktu treści i własny profil akceptacyjny.
-Ostatnia partia celowo sprawdza space grimdark, brutalne dark action RPG oraz
-spokojną przygodę, w której walka nie jest dominującą aktywnością.
+Partia śledztwa i humoru, dopisana na życzenie użytkownika:
 
-Test lokalny: wymagany osobno dla każdego dodanego pakietu na czystej osobnej
-bazie SQLite lub kopii, nigdy na aktywnej kampanii. Minimalna ścieżka to
-wybór świata, obejrzenie wszystkich klas i pięciu cech, utworzenie dwóch różnych
-postaci, użycie jednej zwykłej i jednej specjalnej zdolności, akcja Percepcji,
-jedna zmiana lokacji, łup oraz restart aplikacji. Dla Norek pod Zielonym
-Wzgórzem trzeba dodatkowo rozwiązać turę bez walki, aby potwierdzić, że narrator
-i progresja nie wymuszają przeciwnika. Po każdej partii wykonać też krótki odbiór
-Dark Fantasy oraz NeoKatowic 3077 pod kątem przenikania treści i motywów.
+- Szepty Zatopionej Gwiazdy — autorski horror kosmiczny inspirowany konwencją
+  Lovecrafta, bez zapożyczania jego postaci i nazw;
+- Zagadka Gazowej Latarni — detektyw doradczy, zagadka z uczciwymi wskazówkami,
+  inspirowana konwencją Sherlocka bez powielania jego konkretnych spraw;
+- Lochy, Łup i Kłopoty — lekkie, humorystyczne RPG o absurdalnym łupie,
+  inspirowane komediową konwencją Munchkina bez kopiowania kart i zasad.
+
+Nowe JSON-y używają ściśle walidowanego formatu `recipe_v1`. Loader rozwija
+go przy starcie do pełnego, niemutowalnego `WorldPack`; dopiero taki pakiet trafia
+do rejestru. Przepis deklaruje treść i identyfikatory kontrolowanych mechanik,
+bez kodu, CSS, HTML i URL zasobów. Dark Fantasy oraz NeoKatowice zachowują swoje
+dotychczasowe pełne JSON-y bez zmiany kontraktów i pozostają przypięte do v1.
+Trzy spokojniejsze światy (Norki, Szepty, Zagadka) wyłączają wyłącznie
+automatyczne wprowadzanie nazwanego wroga przez fallback offline; ręczne
+rozpoczęcie starcia przez MG nadal jest możliwe. Ten znacznik jest cechą
+profilu narracji, nie warunkiem zależnym od ID świata.
+
+### Kierunek wizualny 15 światów
+
+Własny moduł `theme-art.css` rozwija palety świata w typografię nagłówków,
+teksturę tła i cienkie obramowanie kart. Zachowuje semantyczne kolory pakietu,
+a dane `recipe_v1` i ich materializacja pozostają bez zmian. Wspólne kroje i
+motywy tworzą rodziny, ale każda oprawa ma własny akcent. Długą narrację
+składa czytelny krój o ograniczonej szerokości; na małym ekranie tekstury i
+cienie pozostają lekkie.
+
+| Świat | Motyw wizualny |
+|---|---|
+| Dark Fantasy | Klasyczna ciemna karta, cienkie metalowe okucia i nity w czterech narożnikach, subtelny złoty akcent. |
+| NeoKatowice 3077 | Motyw `neo_katowice`: Rajdhani w nagłówkach, Space Grotesk w treści, prawie czarne panele, świetlisty turkus, cienkie kontury i małe ścięte narożniki. |
+| Archipelag Korsarzy | Cormorant Garamond, subtelne linie atlasu i mosiężna karta. |
+| Piaski Ekspedycji | Cormorant, promienie słońca i warstwice wydm. |
+| Słowiańska Gromada | Cinzel, oszczędny motyw plecionki i drewna. |
+| Front 1944: Relikty Nocy | Special Elite, linie akt i pasek teczki polowej. |
+| Wiedźmy Pogranicza | Cormorant, ziołowe okręgi i miękki atrament. |
+| Kurz, Ołów i Brzydkie Sprawy | Special Elite, księga pogranicza i sepiowa poświata. |
+| Wyspy Kruczego Sztormu | Cormorant, ukośne linie deszczu i chłodne światło. |
+| Wieczna Wojna Gwiazd | Rajdhani i Space Grotesk, rzadsza siatka mapy okrętu i wojskowe oznaczenie panelu. |
+| Katedry Popiołu | Cinzel Decorative, ukośny ślad żaru i ciemnoczerwone krawędzie. |
+| Norki pod Zielonym Wzgórzem | Fraunces, miękkie plamy koloru i zaokrąglone karty jak ilustrowana książka. |
+| Szepty Zatopionej Gwiazdy | Cormorant, koncentryczne kręgi i zimna, niepokojąca poświata. |
+| Zagadka Gazowej Latarni | Special Elite, linie notatnika i ślad czerwonego marginesu. |
+| Lochy, Łup i Kłopoty | Bangers w nagłówkach, kropkowany raster, przerywana cienka kreska i komiksowe akcenty; narracja nadal jest czytelna. |
+
+Kolejny kierunek dla ilustracji AI: nowa wersja pakietu „Lochy, Łup i Kłopoty”
+mogłaby jawnie wymagać własnej dwuwymiarowej kreski tuszem, prostych kształtów
+i komicznych póz. Opublikowanego kierunku ilustracji w `recipe_v1` nie zmieniamy
+bez wersjonowania. Warto też stopniowo zastępować pozostałe kolory Tailwind
+w szablonach semantycznymi klasami, a docelowo dostarczać lokalne podzbiory
+fontów dla identycznego wyglądu offline.
+
+Badania, na których oparto ograniczenia interfejsu: [MDN o dziedziczeniu tokenów
+CSS](https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Cascading_variables/Using_custom_properties),
+[USWDS o typografii i długości wiersza](https://designsystem.digital.gov/components/typography/),
+[WCAG 2.2 o kontraście i celach dotykowych](https://www.w3.org/TR/WCAG22/),
+[metadane kroju Bangers](https://github.com/google/fonts/blob/main/ofl/bangers/METADATA.pb)
+(w tym obsługa Latin Extended). Fonty mają kroje zapasowe, gdy Google Fonts
+nie jest osiągalne.
+
+Doprecyzowanie Dark Fantasy korzysta z ogólnego kierunku ciemnych materiałów i
+kontrolowanego światła opisanego przez [zespół graficzny Diablo IV](https://news.blizzard.com/en-us/article/23964183/peeling-back-the-varnish-the-graphics-of-diablo-iv),
+bez kopiowania gotowych elementów gry. NeoKatowice opierają proporcje światła
+na dostarczonym przez właściciela zrzucie aplikacji mobilnej: prawie czarne
+tło, cienkie kontury i selektywna poświata. Wielowarstwowy `text-shadow` jest
+oparty na [dokumentacji MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Text_decoration/Text_shadows);
+nie nakładamy silnego blasku na całą długą narrację.
+
+Narzędzia MG pokazują podgląd motywu aktualnie wybranego świata przed
+potwierdzonym resetem. Jest on tymczasowy i lokalny: ponowny wybór aktualizuje
+podgląd, przycisk „Motyw kampanii” go usuwa, a zmiana przypiętego świata po
+resecie i zamknięcie narzędzi MG również go czyszczą. Nie zmienia to danych kampanii ani wyglądu u innych
+graczy.
+
+Odbiór lokalny: wymagany osobno dla każdego dodanego pakietu na **czystej
+oddzielnej bazie SQLite albo kopii**, nigdy na aktywnej kampanii. Nie ma osobnego
+buildu frontendu. Zbudować obraz i uruchomić go zgodnie z sekcją „Bezpieczny
+odbiór lokalny” powyżej albo uruchomić lokalny serwer z takim `DATABASE_URL`.
+Każdy świat wymaga potwierdzonego `RESETUJ`, więc dla kolejnego użyć kolejnej
+czystej bazy albo świadomie zresetować wyłącznie bazę odbiorową. Minimalnie:
+przed resetem nazwać odkrycie, a po utworzeniu nowego lobby potwierdzić pustą
+Kronikę Świata i brak poprzedniej propozycji nazwania. Dalej
+obejrzeć trzy klasy i pięć cech, stworzyć dwie różne postacie, otworzyć ich
+księgi, wykonać zwykłą akcję i zdolność pierwszego poziomu, podjąć akcję
+Percepcji, przejść do sąsiedniego węzła, znaleźć łup, sprawdzić motyw i
+odświeżyć aplikację. Zdolność poziomu 3 powinna pozostać zablokowana na
+poziomie 1. Obejrzeć nagłówek, kartę, narrację, mapę i formularz na telefonie;
+sprawdzić czy litery z polskimi znakami nie zmieniają kroju, tekst mieści się
+w panelach, ramki nie zabierają miejsca i po odświeżeniu wraca właściwy motyw.
+W panelu MG wybrać inny świat i użyć „Wybrany świat — podgląd”: wygląd powinien
+zmienić się bez resetu, a „Motyw kampanii” powinien odtworzyć aktywną oprawę.
+Następnie użyć specyficznej ścieżki z tabeli:
+
+| Świat / klucz | Dodatkowy odbiór przez UI |
+|---|---|
+| Archipelag Korsarzy / `archipelag_korsarzy@1` | Sprawdzić morski prolog, porty mapy, pirackie klasy i wyposażenie. |
+| Piaski Ekspedycji / `piaski_ekspedycji@1` | Sprawdzić pustynne wykopaliska, mapę ruin i tropienie oparte na Percepcji. |
+| Słowiańska Gromada / `slowianska_gromada@1` | Sprawdzić wiejskie problemy, słowiańskie role i rozwiązanie tury rozmową. |
+| Front 1944 / `front_1944_relikty_nocy@1` | Sprawdzić frontowe wyposażenie, wojskowe i nadnaturalne zagrożenie oraz ton narracji. |
+| Wiedźmy Pogranicza / `wiedzmy_pogranicza@1` | Sprawdzić księgi wiedźm, lokacje pogranicza i odrębny motyw. |
+| Kurz i Ołów / `kurz_olow_brzydkie_sprawy@1` | Sprawdzić westernową lokację, klasę, broń i dialog jako alternatywę dla starcia. |
+| Wyspy Kruczego Sztormu / `wyspy_kruczego_sztormu@1` | Sprawdzić wyspiarską mapę, role załogi i wyprawę przez kolejny węzeł. |
+| Wieczna Wojna Gwiazd / `wieczna_wojna_gwiazd@1` | Sprawdzić skrajnie militarny ton science fiction, księgi i chłodny motyw. |
+| Katedry Popiołu / `katedry_popiolu@1` | Sprawdzić mroczne ruiny, łup, crafting i fatalistyczny ton bez nazw cudzej serii. |
+| Norki pod Zielonym Wzgórzem / `norki_zielonego_wzgorza@1` | Rozwiązać turę przy spokojnym zadaniu; fallback nie może sam wprowadzić wroga. |
+| Szepty Zatopionej Gwiazdy / `szepty_zatopionej_gwiazdy@1` | Rozwiązać śledztwo przy latarni bez walki; sprawdzić niepokój i brak automatycznego wroga. |
+| Zagadka Gazowej Latarni / `zagadka_gazowej_latarni@1` | Porównać wskazówki w sprawie koperty, użyć dedukcji i zakończyć turę bez walki. |
+| Lochy, Łup i Kłopoty / `lochy_lup_klopoty@1` | Sprawdzić absurdalny skarb, humor bez wyśmiewania graczy, czytelny komiksowy nagłówek i kreskę kart. |
+
+Po odbiorze każdej partii krótko wrócić na osobnej kopii do Dark Fantasy i
+NeoKatowic 3077: ich klasy, księgi, mapy, kolory i zapis kampanii nie mogą
+przejmować treści nowego świata. Próba przełączenia aktywnej kampanii bez
+potwierdzonego resetu nadal ma być blokowana.
 
 ## Zasady kompatybilności
 

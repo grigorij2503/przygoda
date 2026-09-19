@@ -3,7 +3,7 @@ import secrets
 from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.requests import Request
@@ -419,10 +419,19 @@ async def reset_campaign(
         session.last_loot_character_id = None
         session.looted_location_ids = []
         session.crafting_available_until_turn = 0
+        session.pending_naming_category = None
+        session.pending_naming_prompt = None
+        session.pending_naming_character_id = None
+        session.pending_naming_character_name = None
         await db.execute(
             update(Character)
             .where(Character.session_id == session.id)
             .values(status_effects=[], death_state="alive", death_failures=0, is_alive=True)
+        )
+
+        # Nowa kampania nie dziedziczy nazwanych odkryć z poprzedniej.
+        await db.execute(
+            delete(NamedLoreEntity).where(NamedLoreEntity.session_id == session.id)
         )
 
         # Usuń dotychczasowe tury
@@ -507,6 +516,10 @@ async def setup_scenario(
     # Wyczyść postacie z poprzedniej wyprawy, aby drużyna mogła stworzyć świeże postacie pod nowy scenariusz
     for c in list(session.characters):
         await db.delete(c)
+
+    await db.execute(
+        delete(NamedLoreEntity).where(NamedLoreEntity.session_id == session.id)
+    )
 
     # Zresetuj lub utwórz turę 1, aby sesja zawsze miała aktywną strukturę tur
     t_stmt = select(Turn).where(Turn.session_id == session.id)

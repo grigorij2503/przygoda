@@ -6,7 +6,7 @@
               class="mobile-header-summary w-full max-w-7xl mx-auto items-center justify-between gap-3 text-left"
               :aria-expanded="(!mobileHeaderCollapsed).toString()" aria-label="Rozwiń panel sesji">
         <span class="flex items-center gap-2 min-w-0">
-          <span class="text-lg shrink-0">🏰</span>
+          <span class="ui-world-emblem text-lg shrink-0" aria-hidden="true">🏰</span>
           <span class="min-w-0">
             <strong class="block truncate text-sm font-fantasy text-amber-300" x-text="session?.title"></strong>
             <span class="block text-[10px] text-gray-400">
@@ -26,7 +26,7 @@
 
       <div class="mobile-header-content max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
         <div class="flex items-center gap-3">
-          <span class="text-2xl">🏰</span>
+          <span class="ui-world-emblem text-2xl" aria-hidden="true">🏰</span>
           <div>
             <h1 class="ui-heading text-lg font-fantasy font-bold text-amber-300 leading-tight" x-text="session?.title"></h1>
             <p class="text-xs text-gray-400">

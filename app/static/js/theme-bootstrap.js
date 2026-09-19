@@ -37,6 +37,7 @@
   };
   let activeWorldKey = initialWorldKey;
   let previewEnabled = false;
+  let selectedWorldPreview = null;
 
   try {
     const lastTheme = JSON.parse(localStorage.getItem('rpg_last_world_theme') || 'null');
@@ -90,7 +91,9 @@
       localStorage.setItem('rpg_last_world_theme', JSON.stringify({ worldKey, theme }));
     } catch (_) {}
     if (worldChanged) clearPreview();
-    else if (savedPreviewMatches(worldKey)) {
+    else if (selectedWorldPreview) {
+      previewEnabled = applyTheme(selectedWorldPreview);
+    } else if (savedPreviewMatches(worldKey)) {
       previewEnabled = true;
       applyTheme(preview);
     } else {
@@ -101,6 +104,7 @@
 
   function showPreview() {
     if (!activeWorldKey) return;
+    selectedWorldPreview = null;
     previewEnabled = true;
     try {
       localStorage.setItem('rpg_theme_preview', preview.id);
@@ -109,13 +113,29 @@
     applyTheme(preview);
   }
 
+  function showWorldPreview(theme) {
+    if (!activeWorldKey || !applyTheme(theme)) return false;
+    selectedWorldPreview = theme;
+    previewEnabled = true;
+    try {
+      localStorage.removeItem('rpg_theme_preview');
+      localStorage.removeItem('rpg_theme_preview_world');
+    } catch (_) {}
+    return true;
+  }
+
   function clearPreview() {
     previewEnabled = false;
+    selectedWorldPreview = null;
     try {
       localStorage.removeItem('rpg_theme_preview');
       localStorage.removeItem('rpg_theme_preview_world');
     } catch (_) {}
     applyTheme(activeTheme);
+  }
+
+  function clearWorldPreview() {
+    if (selectedWorldPreview) clearPreview();
   }
 
   try {
@@ -134,7 +154,10 @@
   window.TTRPG_THEME = {
     applyPackTheme,
     showPreview,
+    showWorldPreview,
     clearPreview,
-    get isPreview() { return previewEnabled; }
+    clearWorldPreview,
+    get isPreview() { return previewEnabled; },
+    get isWorldPreview() { return Boolean(selectedWorldPreview); }
   };
 })();

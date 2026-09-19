@@ -11,15 +11,18 @@ from app.worlds.models import WorldPack
 from app.worlds.registry import WORLD_PACK_REGISTRY, WorldPackNotFoundError
 
 
-def test_registry_contains_two_versioned_packs_with_dark_fantasy_default():
+def test_registry_contains_fifteen_versioned_packs_with_dark_fantasy_default():
     packs = WORLD_PACK_REGISTRY.list()
 
-    assert [pack.key for pack in packs] == [
-        "dark_fantasy@1", "neokatowice_3077@1"
-    ]
-    assert WORLD_PACK_REGISTRY.default is packs[0]
-    assert packs[0].ruleset_id == "d20_v1"
-    assert [attribute.id for attribute in packs[0].attributes] == [
+    assert len(packs) == 15
+    assert {pack.key for pack in packs} >= {
+        "dark_fantasy@1", "neokatowice_3077@1",
+        "szepty_zatopionej_gwiazdy@1", "zagadka_gazowej_latarni@1",
+        "lochy_lup_klopoty@1",
+    }
+    assert WORLD_PACK_REGISTRY.default.key == "dark_fantasy@1"
+    assert all(pack.ruleset_id == "d20_v1" for pack in packs)
+    assert [attribute.id for attribute in WORLD_PACK_REGISTRY.default.attributes] == [
         "strength",
         "agility",
         "intellect",
@@ -115,7 +118,7 @@ def test_ability_id_accepts_legacy_alias_but_rejects_conflicts():
 
 
 @pytest.mark.asyncio
-async def test_world_catalog_exposes_both_public_summaries():
+async def test_world_catalog_exposes_all_public_summaries():
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
@@ -129,12 +132,11 @@ async def test_world_catalog_exposes_both_public_summaries():
         "version": 1,
         "key": "dark_fantasy@1",
     }
-    assert [world["key"] for world in payload["worlds"]] == [
-        "dark_fantasy@1", "neokatowice_3077@1"
-    ]
-    assert payload["worlds"][1]["display_name"] == "NeoKatowice 3077"
-    assert payload["worlds"][1]["theme"]["shape_id"] == "cut_corner"
-    assert [attribute["id"] for attribute in payload["worlds"][0]["attributes"]] == [
+    worlds = {world["key"]: world for world in payload["worlds"]}
+    assert len(worlds) == 15
+    assert worlds["neokatowice_3077@1"]["display_name"] == "NeoKatowice 3077"
+    assert worlds["neokatowice_3077@1"]["theme"]["shape_id"] == "cut_corner"
+    assert [attribute["id"] for attribute in worlds["dark_fantasy@1"]["attributes"]] == [
         "strength",
         "agility",
         "intellect",

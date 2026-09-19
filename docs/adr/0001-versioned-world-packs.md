@@ -126,3 +126,15 @@ i nie dają stabilnego kontraktu danych.
 
 Nie rozwiązuje sprzężenia domenowego backendu, promptów, mapy i danych. Najpierw
 modularizujemy obecną warstwę Alpine/Jinja.
+
+## Doprecyzowanie po etapie 9 (2026-09-19)
+
+Dla 13 nowych światów repozytorium dopuszcza kontrolowany, deklaratywny format
+`recipe_v1` w JSON. Jeden ogólny materializator rozszerza go o wspólne dane
+rulesetu (pięć cech, semantyczne tokeny, statusy, tabele łupu, strukturę mapy)
+i buduje pełny `WorldPack`. Wynik podlega tym samym regułom walidacji i
+wersjonowania co wcześniejsze pełne pliki JSON. Przepis nie zawiera kodu,
+HTML, CSS ani URL zasobów, a materializator nie rozpoznaje konkretnych ID
+światów. Zmiana logiki rozwijania, która zmieniałaby już opublikowany pakiet,
+wymaga nowej wersji i jawnej ścieżki migracji kampanii. Dotychczasowe dwa
+pakiety `dark_fantasy@1` i `neokatowice_3077@1` zachowują pełny JSON bez zmian.

@@ -5,7 +5,7 @@
         <h3 id="gm-tools-dialog-title" class="ui-heading text-2xl font-fantasy font-bold text-amber-300 flex items-center gap-2">
           <span>⚙️</span> NARZĘDZIA MISTRZA GRY
         </h3>
-        <button @click="showIntroModal = false; resetConfirmation = ''" class="text-gray-400 hover:text-white text-lg" aria-label="Zamknij narzędzia Mistrza Gry">✕</button>
+        <button @click="closeGmTools()" class="text-gray-400 hover:text-white text-lg" aria-label="Zamknij narzędzia Mistrza Gry">✕</button>
       </div>
       <div class="space-y-4">
         <form @submit.prevent="saveGmCharacterStats()" class="p-4 rounded-xl bg-slate-950/70 border border-amber-900/50">
@@ -65,7 +65,7 @@
               <option :value="world.key" x-text="`${world.display_name} • v${world.version}`"></option>
             </template>
           </select>
-          <p class="mt-1 text-xs text-gray-400">Zmiana nastąpi dopiero po potwierdzeniu restartu i przed otwarciem lobby. Obecnie opublikowany jest tylko świat Dark Fantasy.</p>
+          <p class="mt-1 text-xs text-gray-400">Zmiana świata nastąpi dopiero po potwierdzeniu restartu. Motyw można obejrzeć lokalnie poniżej.</p>
           <p x-show="worldCatalogError" x-text="worldCatalogError" class="mt-1 text-xs text-rose-300" role="alert"></p>
         </div>
 
@@ -81,10 +81,11 @@
         <div class="p-3 rounded-xl ui-preview-controls">
           <p class="text-xs font-semibold mb-2">Podgląd motywu (tylko na tym urządzeniu)</p>
           <div class="flex flex-wrap gap-2">
+            <button type="button" @click="showSelectedWorldThemePreview()" :disabled="!selectedWorldSummary" class="ui-button-secondary rounded-lg px-3 py-2 text-xs disabled:opacity-50">Wybrany świat — podgląd</button>
             <button type="button" @click="showNeonThemePreview()" class="ui-button-secondary rounded-lg px-3 py-2 text-xs">Neon — podgląd</button>
             <button type="button" @click="restoreCampaignTheme()" class="ui-button-secondary rounded-lg px-3 py-2 text-xs">Motyw kampanii</button>
           </div>
-          <p class="mt-2 text-xs text-gray-400">Podgląd nie publikuje świata cyberpunkowego ani nie zmienia wyglądu u innych graczy.</p>
+          <p class="mt-2 text-xs text-gray-400">Podgląd nie zmienia świata kampanii ani wyglądu u innych graczy.</p>
         </div>
 
         <div>

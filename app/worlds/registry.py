@@ -1,5 +1,6 @@
 """Validated loader and lookup registry for declarative world packs."""
 
+import json
 import re
 import unicodedata
 from pathlib import Path
@@ -13,6 +14,7 @@ from app.worlds.models import (
     WorldPackReference,
     WorldPackSummary,
 )
+from app.worlds.recipes import WorldRecipe, materialize_recipe
 
 
 PACKS_DIR = Path(__file__).resolve().parent / "packs"
@@ -61,7 +63,12 @@ class WorldPackRegistry:
     def from_directory(cls, directory: Path) -> "WorldPackRegistry":
         packs_list: list[WorldPack] = []
         for path in sorted(directory.glob("*.json")):
-            pack = WorldPack.model_validate_json(path.read_text(encoding="utf-8"))
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            pack = (
+                materialize_recipe(WorldRecipe.model_validate(payload))
+                if isinstance(payload, dict) and payload.get("format") == "recipe_v1"
+                else WorldPack.model_validate(payload)
+            )
             expected_filename = f"{pack.id}_v{pack.version}.json"
             if path.name != expected_filename:
                 raise ValueError(

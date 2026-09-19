@@ -6,7 +6,7 @@
       <div class="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-slate-800">
         <div>
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-fantasy tracking-wider mb-2">
-            <span>🏰</span> ZBIÓRKA DRUŻYNY • KARCZMA PRZED WYPRAWĄ
+            <span class="ui-world-emblem" aria-hidden="true">🏰</span> ZBIÓRKA DRUŻYNY • PRZED WYPRAWĄ
           </div>
           <h2 class="ui-heading text-3xl font-fantasy font-bold text-amber-300 leading-tight" x-text="session?.title"></h2>
           <p class="text-gray-400 text-sm mt-1">
@@ -72,7 +72,7 @@
           <template x-if="!currentCharacter">
             <button @click="showCharModal = true"
                     class="px-4 py-2 bg-gradient-to-r from-amber-700 to-amber-600 hover:from-amber-600 hover:to-amber-500 text-slate-950 font-fantasy font-bold rounded-xl text-xs shadow transition">
-              ⚔️ STWÓRZ NOWĄ POSTAĆ
+              <span class="ui-theme-icon ui-theme-icon--action" aria-hidden="true">⚔️</span> STWÓRZ NOWĄ POSTAĆ
             </button>
           </template>
         </div>

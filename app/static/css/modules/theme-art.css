@@ -1,0 +1,336 @@
+/* Presentation only: published world-pack data and mechanics stay immutable. */
+:root[data-theme="dark_fantasy"] .fantasy-card {
+  border-radius: 9px !important;
+  border: 1px solid color-mix(in srgb, var(--ui-border) 48%, #171519);
+  background: radial-gradient(circle at 50% -12%, color-mix(in srgb, var(--ui-primary) 8%, transparent), transparent 46%), linear-gradient(145deg, #1a1a20, #0d0e13 75%);
+  box-shadow: 0 13px 34px rgb(0 0 0 / 0.43), inset 0 0 0 1px rgb(255 231 171 / 0.04), inset 0 18px 24px rgb(255 231 171 / 0.015);
+}
+
+:root[data-theme="dark_fantasy"] .fantasy-card::before {
+  top: 5px;
+  left: 24px;
+  right: 24px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ui-primary) 60%, #68542f) 24%, color-mix(in srgb, var(--ui-primary) 60%, #68542f) 76%, transparent);
+  opacity: 0.62;
+}
+
+/* Four small metal caps and rivets. Decoration remains inside the card padding. */
+:root[data-theme="dark_fantasy"] .fantasy-card::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  pointer-events: none;
+  border-radius: 6px;
+  background:
+    radial-gradient(circle, #d4b97c 0 1px, #463c2a 1.5px 2.5px, transparent 3px) left 6px top 6px / 6px 6px no-repeat,
+    radial-gradient(circle, #d4b97c 0 1px, #463c2a 1.5px 2.5px, transparent 3px) right 6px top 6px / 6px 6px no-repeat,
+    radial-gradient(circle, #d4b97c 0 1px, #463c2a 1.5px 2.5px, transparent 3px) left 6px bottom 6px / 6px 6px no-repeat,
+    radial-gradient(circle, #d4b97c 0 1px, #463c2a 1.5px 2.5px, transparent 3px) right 6px bottom 6px / 6px 6px no-repeat,
+    linear-gradient(135deg, #b6a071, #594d34 58%, transparent 59%) left top / 17px 17px no-repeat,
+    linear-gradient(225deg, #b6a071, #594d34 58%, transparent 59%) right top / 17px 17px no-repeat,
+    linear-gradient(45deg, #b6a071, #594d34 58%, transparent 59%) left bottom / 17px 17px no-repeat,
+    linear-gradient(315deg, #b6a071, #594d34 58%, transparent 59%) right bottom / 17px 17px no-repeat;
+  opacity: 0.8;
+}
+
+:root[data-theme="dark_fantasy"] .mobile-header {
+  background: linear-gradient(180deg, #1c1b20, #0d0e12);
+  border-bottom-color: color-mix(in srgb, var(--ui-border) 54%, #100f11);
+  box-shadow: inset 0 -1px 0 rgb(255 232 183 / 0.06), 0 8px 20px rgb(0 0 0 / 0.32);
+}
+
+:root[data-theme="dark_fantasy"] :is(h1, h2, h3, h4, h5).font-fantasy,
+:root[data-theme="dark_fantasy"] .ui-heading {
+  text-shadow: 0 1px 1px #050506, 0 0 15px color-mix(in srgb, var(--ui-primary) 15%, transparent);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) {
+  --art-display: 'Cinzel', Georgia, serif;
+  --art-body: 'Inter', Arial, sans-serif;
+  --art-story: Georgia, 'Times New Roman', serif;
+  --art-pattern: radial-gradient(circle at 18% 12%, color-mix(in srgb, var(--ui-accent) 11%, transparent), transparent 36%);
+  --art-pattern-size: auto;
+  --art-card-pattern: linear-gradient(135deg, color-mix(in srgb, var(--ui-primary) 5%, transparent), transparent 40%);
+  --art-card-pattern-size: auto;
+  --art-edge: solid;
+  --art-heading-spacing: 0.045em;
+  --art-heading-transform: none;
+  --art-panel-shadow: 0 9px 27px rgb(0 0 0 / 0.33);
+}
+
+/* Shared composition makes color, type, texture and trim change together. */
+:root[data-theme]:not([data-theme="dark_fantasy"]) body {
+  font-family: var(--art-body);
+  background-color: var(--ui-background);
+  background-image: var(--art-pattern);
+  background-size: var(--art-pattern-size);
+  color: var(--ui-text);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) :is(h1, h2, h3, h4, h5).font-fantasy,
+:root[data-theme]:not([data-theme="dark_fantasy"]) .font-decorative,
+:root[data-theme]:not([data-theme="dark_fantasy"]) .ui-heading,
+:root[data-theme]:not([data-theme="dark_fantasy"]) .lore-category__title {
+  font-family: var(--art-display);
+  letter-spacing: var(--art-heading-spacing);
+  text-transform: var(--art-heading-transform);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .story-narration {
+  font-family: var(--art-story);
+  max-width: 72ch;
+  line-height: 1.7;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .story-narration::first-letter {
+  font-family: var(--art-display);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) :is(button, label, input, select, textarea) {
+  font-family: var(--art-body);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .fantasy-card {
+  background-image: var(--art-card-pattern), linear-gradient(135deg, var(--ui-surface-raised), var(--ui-surface));
+  background-size: var(--art-card-pattern-size), auto;
+  border: 1px var(--art-edge) color-mix(in srgb, var(--ui-border) 72%, transparent);
+  box-shadow: var(--art-panel-shadow), inset 0 1px 0 color-mix(in srgb, var(--ui-primary) 13%, transparent);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .fantasy-card::before {
+  height: 2px;
+  background: linear-gradient(90deg, transparent 4%, var(--ui-primary) 38%, var(--ui-accent) 62%, transparent 96%);
+  opacity: 0.75;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) :is(input, select, textarea) {
+  background-color: var(--ui-background);
+  color: var(--ui-text);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) :is(.dice-badge, .story-resolution, .inventory-item, .lore-entry) {
+  border-color: color-mix(in srgb, var(--ui-border) 55%, transparent);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .dice-badge {
+  background: linear-gradient(150deg, var(--ui-surface-raised), var(--ui-surface));
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .story-resolution {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--ui-primary) 65%, transparent), 0 9px 24px rgb(0 0 0 / 0.22);
+}
+
+/* Atlas, parchment and carved wood. */
+:root[data-theme="archipelag_korsarzy"] {
+  --art-display: 'Cormorant Garamond', Georgia, serif;
+  --art-pattern: repeating-linear-gradient(0deg, transparent 0 31px, color-mix(in srgb, var(--ui-primary) 6%, transparent) 32px), radial-gradient(circle at 72% 16%, color-mix(in srgb, var(--ui-accent) 18%, transparent), transparent 37%);
+  --art-card-pattern: repeating-linear-gradient(90deg, transparent 0 28px, color-mix(in srgb, var(--ui-primary) 3%, transparent) 29px);
+}
+
+:root[data-theme="piaski_ekspedycji"] {
+  --art-display: 'Cormorant Garamond', Georgia, serif;
+  --art-pattern: radial-gradient(circle at 83% 10%, color-mix(in srgb, var(--ui-primary) 19%, transparent), transparent 37%), repeating-radial-gradient(circle at 50% 115%, transparent 0 30px, color-mix(in srgb, var(--ui-primary) 5%, transparent) 31px 32px);
+  --art-card-pattern: linear-gradient(120deg, color-mix(in srgb, var(--ui-primary) 9%, transparent), transparent 36%);
+}
+
+:root[data-theme="slowianska_gromada"] {
+  --art-pattern: repeating-linear-gradient(45deg, transparent 0 23px, color-mix(in srgb, var(--ui-accent) 5%, transparent) 24px 25px), radial-gradient(circle at 12% 18%, color-mix(in srgb, var(--ui-primary) 12%, transparent), transparent 40%);
+  --art-card-pattern: repeating-linear-gradient(90deg, transparent 0 42px, color-mix(in srgb, var(--ui-border) 5%, transparent) 43px 44px);
+}
+
+:root[data-theme="wyspy_kruczego_sztormu"] {
+  --art-display: 'Cormorant Garamond', Georgia, serif;
+  --art-pattern: repeating-linear-gradient(165deg, transparent 0 54px, color-mix(in srgb, var(--ui-accent) 7%, transparent) 55px 56px), radial-gradient(circle at 80% 6%, color-mix(in srgb, var(--ui-accent) 19%, transparent), transparent 42%);
+  --art-card-pattern: linear-gradient(160deg, color-mix(in srgb, var(--ui-accent) 11%, transparent), transparent 54%);
+}
+
+/* Dossier, evidence and frontier print. */
+:root[data-theme="front_1944_relikty_nocy"] {
+  --art-display: 'Special Elite', Georgia, serif;
+  --art-pattern: repeating-linear-gradient(0deg, transparent 0 34px, color-mix(in srgb, var(--ui-primary) 5%, transparent) 35px), radial-gradient(circle at 80% 12%, color-mix(in srgb, var(--ui-accent) 12%, transparent), transparent 38%);
+  --art-card-pattern: linear-gradient(90deg, color-mix(in srgb, var(--ui-primary) 8%, transparent) 0 5px, transparent 5px);
+}
+
+:root[data-theme="kurz_olow_brzydkie_sprawy"] {
+  --art-display: 'Special Elite', Georgia, serif;
+  --art-pattern: repeating-linear-gradient(0deg, transparent 0 39px, color-mix(in srgb, var(--ui-primary) 5%, transparent) 40px), radial-gradient(circle at 85% 7%, color-mix(in srgb, var(--ui-primary) 13%, transparent), transparent 42%);
+  --art-card-pattern: linear-gradient(130deg, color-mix(in srgb, var(--ui-primary) 9%, transparent), transparent 30%);
+}
+
+:root[data-theme="zagadka_gazowej_latarni"] {
+  --art-display: 'Special Elite', Georgia, serif;
+  --art-pattern: repeating-linear-gradient(0deg, transparent 0 28px, color-mix(in srgb, var(--ui-accent) 5%, transparent) 29px), radial-gradient(circle at 78% 5%, color-mix(in srgb, var(--ui-primary) 15%, transparent), transparent 32%);
+  --art-card-pattern: linear-gradient(90deg, color-mix(in srgb, var(--ui-danger) 11%, transparent) 0 2px, transparent 2px);
+}
+
+/* Neon terminal and military star chart. */
+:root[data-theme="neo_katowice"],
+:root[data-theme="neon_preview"] {
+  --art-display: 'Rajdhani', 'Arial Narrow', sans-serif;
+  --art-body: 'Space Grotesk', Arial, sans-serif;
+  --art-story: 'Space Grotesk', Arial, sans-serif;
+  --art-heading-spacing: 0.105em;
+  --art-heading-transform: uppercase;
+  --art-pattern: repeating-linear-gradient(0deg, transparent 0 59px, color-mix(in srgb, var(--ui-primary) 2%, transparent) 60px), radial-gradient(circle at 82% 8%, color-mix(in srgb, var(--ui-accent) 9%, transparent), transparent 34%), linear-gradient(#060a0d, color-mix(in srgb, var(--ui-background) 48%, #030405));
+  --art-pattern-size: auto;
+  --art-card-pattern: linear-gradient(145deg, color-mix(in srgb, var(--ui-primary) 5%, transparent), transparent 35%);
+  --art-card-pattern-size: auto;
+  --art-panel-shadow: 0 10px 24px rgb(0 0 0 / 0.46), 0 0 15px color-mix(in srgb, var(--ui-primary) 14%, transparent);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .fantasy-card {
+  background-color: color-mix(in srgb, var(--ui-surface) 42%, #030607);
+  background-image: var(--art-card-pattern), linear-gradient(145deg, color-mix(in srgb, var(--ui-surface) 65%, #030607), #060a0d);
+  border-color: color-mix(in srgb, var(--ui-primary) 60%, transparent) !important;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  box-shadow: var(--art-panel-shadow), inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 12%, transparent);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .fantasy-card::before {
+  left: 12px;
+  right: 12px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--ui-primary), transparent 45%, var(--ui-accent) 85%, transparent);
+  box-shadow: 0 0 9px color-mix(in srgb, var(--ui-primary) 55%, transparent);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .fantasy-card::after {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--ui-primary), var(--ui-primary)) left top / 17px 1px no-repeat,
+    linear-gradient(var(--ui-primary), var(--ui-primary)) left top / 1px 17px no-repeat,
+    linear-gradient(var(--ui-accent), var(--ui-accent)) right bottom / 17px 1px no-repeat,
+    linear-gradient(var(--ui-accent), var(--ui-accent)) right bottom / 1px 17px no-repeat;
+  opacity: 0.68;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--ui-primary) 58%, transparent));
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) :is(h1, h2, h3, h4, h5).font-fantasy,
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .ui-heading,
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .font-decorative,
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .mobile-header-summary strong.font-fantasy {
+  font-weight: 700;
+  color: var(--ui-primary);
+  text-shadow: 0 0 2px var(--ui-primary), 0 0 9px color-mix(in srgb, var(--ui-primary) 74%, transparent), 0 0 23px color-mix(in srgb, var(--ui-primary) 36%, transparent);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .story-narration {
+  color: color-mix(in srgb, var(--ui-primary) 41%, var(--ui-text));
+  text-shadow: 0 0 8px color-mix(in srgb, var(--ui-primary) 11%, transparent);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .ui-world-emblem::after {
+  text-shadow: 0 0 5px var(--ui-primary), 0 0 14px color-mix(in srgb, var(--ui-primary) 65%, transparent);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) :is(.mobile-header, .ui-preview-controls) {
+  background-color: color-mix(in srgb, var(--ui-background) 58%, #020405);
+  border-color: color-mix(in srgb, var(--ui-primary) 42%, transparent);
+  box-shadow: 0 1px 13px color-mix(in srgb, var(--ui-primary) 12%, transparent);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) :is(.ui-button-secondary, .map-control, .inventory-action, .mobile-header-content button:not(.ui-button-primary)) {
+  background-color: color-mix(in srgb, var(--ui-background) 60%, #030506);
+  border: 1px solid color-mix(in srgb, var(--ui-primary) 43%, transparent);
+  color: var(--ui-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 5%, transparent);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) :is(.ui-button-secondary, .map-control, .inventory-action, .mobile-header-content button:not(.ui-button-primary)):is(:hover, :focus-visible) {
+  border-color: var(--ui-primary);
+  box-shadow: 0 0 11px color-mix(in srgb, var(--ui-primary) 28%, transparent);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) :is(input, textarea, select) {
+  border-color: color-mix(in srgb, var(--ui-primary) 45%, transparent);
+  box-shadow: inset 0 0 9px color-mix(in srgb, var(--ui-primary) 5%, transparent);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) :is(input, textarea, select):focus-visible {
+  box-shadow: 0 0 12px color-mix(in srgb, var(--ui-primary) 25%, transparent);
+}
+
+:root[data-theme="wieczna_wojna_gwiazd"] {
+  --art-display: 'Rajdhani', 'Arial Narrow', sans-serif;
+  --art-body: 'Space Grotesk', Arial, sans-serif;
+  --art-story: 'Space Grotesk', Arial, sans-serif;
+  --art-heading-spacing: 0.075em;
+  --art-heading-transform: uppercase;
+  --art-pattern: linear-gradient(color-mix(in srgb, var(--ui-accent) 6%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--ui-accent) 6%, transparent) 1px, transparent 1px), radial-gradient(circle at 78% 10%, color-mix(in srgb, var(--ui-danger) 13%, transparent), transparent 35%);
+  --art-pattern-size: 56px 56px, 56px 56px, auto;
+  --art-card-pattern: linear-gradient(90deg, color-mix(in srgb, var(--ui-accent) 15%, transparent) 0 3px, transparent 3px);
+}
+
+/* Ritual, ash and the unknown. */
+:root[data-theme="katedry_popiolu"] {
+  --art-display: 'Cinzel Decorative', Georgia, serif;
+  --art-pattern: repeating-linear-gradient(135deg, transparent 0 50px, color-mix(in srgb, var(--ui-danger) 5%, transparent) 51px 52px), radial-gradient(circle at 75% 12%, color-mix(in srgb, var(--ui-danger) 20%, transparent), transparent 37%);
+  --art-card-pattern: linear-gradient(115deg, color-mix(in srgb, var(--ui-danger) 11%, transparent), transparent 42%);
+}
+
+:root[data-theme="wiedzmy_pogranicza"] {
+  --art-display: 'Cormorant Garamond', Georgia, serif;
+  --art-pattern: radial-gradient(circle at 15% 19%, color-mix(in srgb, var(--ui-accent) 18%, transparent), transparent 33%), repeating-radial-gradient(circle at 88% 80%, transparent 0 36px, color-mix(in srgb, var(--ui-primary) 5%, transparent) 37px 38px);
+  --art-card-pattern: radial-gradient(circle at 98% 5%, color-mix(in srgb, var(--ui-accent) 14%, transparent), transparent 37%);
+}
+
+:root[data-theme="szepty_zatopionej_gwiazdy"] {
+  --art-display: 'Cormorant Garamond', Georgia, serif;
+  --art-pattern: repeating-radial-gradient(circle at 80% 8%, transparent 0 42px, color-mix(in srgb, var(--ui-accent) 8%, transparent) 43px 44px), radial-gradient(circle at 18% 70%, color-mix(in srgb, var(--ui-accent) 18%, transparent), transparent 40%);
+  --art-card-pattern: radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--ui-accent) 13%, transparent), transparent 44%);
+}
+
+/* Warm illustrated storybook and playful ink. */
+:root[data-theme="norki_zielonego_wzgorza"] {
+  --art-display: 'Fraunces', Georgia, serif;
+  --art-story: 'Fraunces', Georgia, serif;
+  --art-pattern: radial-gradient(circle at 20% 15%, color-mix(in srgb, var(--ui-primary) 16%, transparent), transparent 38%), radial-gradient(circle at 86% 82%, color-mix(in srgb, var(--ui-accent) 12%, transparent), transparent 32%);
+  --art-card-pattern: linear-gradient(155deg, color-mix(in srgb, var(--ui-primary) 11%, transparent), transparent 43%);
+  --art-panel-shadow: 0 8px 20px rgb(0 0 0 / 0.24);
+}
+
+:root[data-theme="norki_zielonego_wzgorza"] .fantasy-card {
+  border-radius: 20px;
+}
+
+:root[data-theme="lochy_lup_klopoty"] {
+  --art-display: 'Bangers', 'Arial Black', sans-serif;
+  --art-body: 'Space Grotesk', Arial, sans-serif;
+  --art-story: 'Space Grotesk', Arial, sans-serif;
+  --art-heading-spacing: 0.055em;
+  --art-pattern: radial-gradient(color-mix(in srgb, var(--ui-primary) 16%, transparent) 1px, transparent 1.5px), radial-gradient(circle at 82% 12%, color-mix(in srgb, var(--ui-accent) 19%, transparent), transparent 38%);
+  --art-pattern-size: 18px 18px, auto;
+  --art-card-pattern: radial-gradient(color-mix(in srgb, var(--ui-primary) 10%, transparent) 1px, transparent 1.5px);
+  --art-card-pattern-size: 15px 15px;
+  --art-edge: dashed;
+  --art-panel-shadow: 3px 4px 0 color-mix(in srgb, var(--ui-background) 65%, black);
+}
+
+:root[data-theme="lochy_lup_klopoty"] :is(.fantasy-card, .inventory-item, .lore-entry, .equipment-panel) {
+  clip-path: none;
+  border-radius: 14px !important;
+}
+
+:root[data-theme="lochy_lup_klopoty"] :is(h1, h2, h3, h4, h5).font-fantasy,
+:root[data-theme="lochy_lup_klopoty"] .ui-heading {
+  text-shadow: 2px 2px 0 var(--ui-background);
+}
+
+:root[data-theme="lochy_lup_klopoty"] .fantasy-card::before {
+  height: 3px;
+  background: repeating-linear-gradient(90deg, var(--ui-primary) 0 25px, var(--ui-accent) 25px 37px, transparent 37px 45px);
+}
+
+@media (max-width: 640px) {
+  :root[data-theme]:not([data-theme="dark_fantasy"]) .fantasy-card {
+    box-shadow: 0 5px 15px rgb(0 0 0 / 0.27);
+  }
+
+  :root[data-theme]:not([data-theme="dark_fantasy"]) :is(h1, h2, h3, h4, h5).font-fantasy {
+    letter-spacing: min(var(--art-heading-spacing), 0.04em);
+  }
+}

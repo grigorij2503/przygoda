@@ -67,7 +67,7 @@
               <div class="mt-4 pt-4 border-t border-slate-800">
                 <button @click="triggerTurnResolution()" :disabled="session?.is_turn_resolving || isResolvingTurn"
                         class="w-full sm:w-auto px-6 py-3.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-fantasy font-black rounded-xl shadow-2xl transition flex items-center justify-center gap-3 mx-auto text-sm tracking-wide animate-pulse">
-                  <span class="text-lg">⚔️</span>
+                  <span class="ui-theme-icon ui-theme-icon--action text-lg" aria-hidden="true">⚔️</span>
                   <span x-show="!isResolvingTurn">WSZYSCY GRACZE UKOŃCZYLI – GENERUJ KOLEJNĄ TURĘ</span>
                   <span x-show="isResolvingTurn">MISTRZ GRY ROZSTRZYGA TURĘ...</span>
                 </button>
@@ -98,7 +98,7 @@
           <div x-show="!session?.is_turn_resolving && !hasSubmittedCurrentTurn && currentCharacter?.is_alive">
             <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
               <span class="text-xs font-fantasy font-bold text-amber-300 tracking-wider flex items-center gap-1.5">
-                <span>⚔️</span> DEKLARACJA AKCJI BOHATERA (TURA #<span x-text="session?.current_turn_number"></span>)
+                <span class="ui-theme-icon ui-theme-icon--action" aria-hidden="true">⚔️</span> DEKLARACJA AKCJI BOHATERA (TURA #<span x-text="session?.current_turn_number"></span>)
               </span>
               <span class="flex items-center gap-3 ml-auto">
                 <span class="text-xs text-gray-400">

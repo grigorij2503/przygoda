@@ -1,8 +1,8 @@
 # Inwentarz zależności obecnej kampanii od świata
 
-Dokument jest punktem odniesienia dla etapów 2–8. Oznaczenie `silnik` oznacza
-zachowanie wspólne dla wszystkich światów, a `pakiet` treść, która docelowo
-powinna pochodzić z wersjonowanego `WorldPack`.
+Dokument jest punktem odniesienia dla etapów 2–9. Oznaczenie `silnik` oznacza
+zachowanie wspólne dla wszystkich światów, a `pakiet` treść z wersjonowanego
+`WorldPack`.
 
 ## Trwały model danych
 
@@ -18,8 +18,10 @@ powinna pochodzić z wersjonowanego `WorldPack`.
 
 ## Backend i mechanika
 
-Po etapie 8 `app/main.py` składa aplikację i rejestruje routery bez gałęzi
-zależnych od świata. Publikowane są `dark_fantasy@1` i `neokatowice_3077@1`.
+Po etapie 9 `app/main.py` składa aplikację i rejestruje routery bez gałęzi
+zależnych od świata. Publikowanych jest 15 pakietów: dwa wcześniejsze pełne
+JSON-y oraz 13 nowych `recipe_v1`, rozwijanych przy imporcie do kompletnego
+`WorldPack`.
 Klasy, startery, szybkie akcje, księgi zdolności, wskazówki cechy w opisie akcji,
 słowniki wyposażenia i przeszukiwania,
 łup/crafting, profil głównego przeciwnika i statusów, mapa, etykiety kroniki,
@@ -51,12 +53,12 @@ kampanii. Kolorystyka i CSS korzystają z kontrolowanych profili motywów.
 
 Po etapie 6 frontend bierze katalog klas, pięć etykiet cech, startery, szybkie
 akcje, księgi, kronikę, profil przeciwnika i opcje scenariusza z `world_pack`
-w `/api/session`. Poniższe historyczne zależności wskazują także pozostały
-zakres etapu 7: warstwę wizualną i neutralną tożsamość PWA. Etap 7 dodał
+w `/api/session`. Poniższe historyczne zależności wyjaśniają także warstwę
+wizualną i neutralną tożsamość PWA. Etap 7 dodał
 serwerowe `data-theme`/meta koloru, trzynaście kontrolowanych tokenów,
 `theme-bootstrap.js`, semantyczne nadpisania w `theme.css`, neutralny manifest
-oraz wybór świata przy potwierdzonym restarcie MG. Nadal tylko Dark Fantasy jest
-grywalne; Neon jest lokalnym podglądem, a nie drugim pakietem produkcyjnym.
+oraz wybór świata przy potwierdzonym restarcie MG. Neon pozostaje wyłącznie
+lokalnym podglądem; każdy z 15 pakietów ma własny kontrolowany motyw.
 
 | Miejsce | Zależności od Dark Fantasy | Kierunek ekstrakcji |
 |---|---|---|
@@ -120,6 +122,20 @@ zmienia geometrię według kontrolowanego kształtu. Broń nazwana
 przez kronikę korzysta z `named_weapon_target_stat` (Dark Fantasy: domyślne
 `strength`, NeoKatowice: `agility`). Pól `magic_*` i `boss_*` nie usuwamy ze
 zapisów ani publicznego API w tym etapie.
+
+## Etap 9: deklaratywne przepisy świata
+
+Trzynaście nowych pakietów dostarcza niezależne klasy, księgi zdolności,
+scenariusze, nazwy mapy, łup, wroga/zagrożenie, ton narracji i paletę. Światy
+obejmują m.in. horror kosmiczny `szepty_zatopionej_gwiazdy@1`, dedukcyjne
+`zagadka_gazowej_latarni@1` i komediowe `lochy_lup_klopoty@1`; pełna lista
+oraz odbiór każdego wariantu są w roadmapie. `recipes.py` zawiera wyłącznie
+ogólną materializację kontrolowanych pól i mechanik, bez gałęzi według ID
+świata. Wynik zawsze przechodzi pełną walidację `WorldPack`. Dwa wcześniejsze
+pakiety pozostają w swoim dotychczasowym formacie. `offline_auto_enemy_naming`
+pozwala wyłączyć automatyczne nadanie wroga w spokojnych i śledczych światach,
+bez zmiany zasad ręcznych encounterów. Wszelkie zmiany wersji przepisu, które
+zmieniłyby opublikowany pakiet, wymagają nowej wersji świata.
 
 ## Reguły przeglądu kolejnych etapów
 
