@@ -590,7 +590,21 @@ Po udanym przeszukaniu oraz pokonaniu przeciwnika odbiorca łupu zyskuje także
 łupu dla hełmów i butów; nadaje je MG. Dostęp do pokoju nie oznacza wyłącznego
 własnictwa postaci, ponieważ gra nie ma indywidualnych kont graczy.
 
+### Odbiór odkryć Kroniki
+
+Na osobnej bazie lub kopii kampanii po migracji `0004_lore_discoveries` sprawdzić,
+że stare wpisy Kroniki pozostają, a oczekująca propozycja nazwania zachowuje
+pytanie po odświeżeniu. W turach przed ósmą i bez udanego ataku nie powinna
+powstawać nowa technika. Po faktycznie opisanym, udanym ataku nazwać technikę,
+wybrać ją z karty przypisanej postaci i porównać obrażenia: trafienie daje
+dokładnie +1 po pancerzu, porażka 0, a jednoczesny wybór zdolności klasowej
+jest niedostępny. Następna automatyczna okazja nie może pojawić się przez osiem
+tur. Spotkać ważnego NPC w konkretnej lokacji, nadać mu imię, usposobienie i
+cel i powiedzonko; przy ponownym spotkaniu zachowuje te cechy, ale nie powtarza
+powiedzonka co turę. Restart scenariusza usuwa stare techniki i tożsamości NPC.
+
 ## Zasady kompatybilności
+
 
 - świata nie można zmieniać w połowie kampanii;
 - zapisana kampania wskazuje niezmienny identyfikator i wersję pakietu;

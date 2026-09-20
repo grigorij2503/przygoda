@@ -35,6 +35,9 @@ class GameSession(Base):
     pending_naming_prompt = Column(Text, nullable=True)
     pending_naming_character_id = Column(Integer, nullable=True)
     pending_naming_character_name = Column(String(100), nullable=True)
+    pending_naming_turn_number = Column(Integer, nullable=True)
+    pending_naming_map_node_id = Column(String(100), nullable=True)
+    pending_naming_question = Column(Text, nullable=True)
 
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -163,6 +166,7 @@ class PlayerAction(Base):
     action_text = Column(Text, nullable=False)
     magic_ability_id = Column(String(80), nullable=True, default=None)
     ability_id = Column(String(80), nullable=True, default=None)
+    named_attack_id = Column(Integer, nullable=True, default=None)
     intent = Column(String(30), nullable=True, default=None)
     target_ref = Column(String(100), nullable=True, default=None)
     tested_stat = Column(String(50), nullable=True, default=None)
@@ -240,6 +244,11 @@ class NamedLoreEntity(Base):
     custom_name = Column(String(150), nullable=False)
     named_by_character_id = Column(Integer, nullable=True)
     named_by_character_name = Column(String(100), nullable=True)
+    discovered_turn_number = Column(Integer, nullable=True)
+    map_node_id = Column(String(100), nullable=True)
+    npc_disposition = Column(String(20), nullable=True)
+    npc_catchphrase = Column(String(150), nullable=True)
+    npc_goal = Column(String(200), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 

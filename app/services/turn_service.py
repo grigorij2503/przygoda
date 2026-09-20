@@ -185,15 +185,32 @@ async def interpret_action(payload: InterpretActionRequest, db: AsyncSession = D
     )
     if ability_error:
         raise HTTPException(status_code=400, detail=ability_error)
+    if payload.named_attack_id:
+        await require_learned_attack(db, character, payload.named_attack_id)
     return interpret_player_action(
         character,
         payload.action_text.strip(),
         magic_ability=ability,
-        explicit_intent=payload.intent,
+        explicit_intent="attack" if payload.named_attack_id else payload.intent,
         explicit_stat=payload.tested_stat,
         target_ref=payload.target_ref,
         world_pack=world_pack,
     )
+
+
+async def require_learned_attack(
+    db: AsyncSession, character: Character, named_attack_id: int,
+) -> NamedLoreEntity:
+    attack = (await db.execute(select(NamedLoreEntity).where(
+        NamedLoreEntity.id == named_attack_id,
+        NamedLoreEntity.session_id == character.session_id,
+        NamedLoreEntity.named_by_character_id == character.id,
+        NamedLoreEntity.category == "attack",
+        NamedLoreEntity.is_active.is_(True),
+    ))).scalar_one_or_none()
+    if not attack:
+        raise HTTPException(status_code=400, detail="Ta postać nie zna wybranego ataku")
+    return attack
 
 
 async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends(get_db)):
@@ -224,7 +241,14 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
     )
     if magic_action_error:
         raise HTTPException(status_code=400, detail=magic_action_error)
-    action_intent = magic_ability["intent"] if magic_ability else payload.intent
+    if payload.named_attack_id:
+        await require_learned_attack(db, character, payload.named_attack_id)
+        if not (character.session.active_boss_hp and character.session.active_boss_hp > 0):
+            raise HTTPException(status_code=400, detail="Odkryty atak można wybrać podczas walki")
+    action_intent = (
+        magic_ability["intent"] if magic_ability else
+        "attack" if payload.named_attack_id else payload.intent
+    )
     action_target_ref = (
         payload.target_ref
         if magic_ability and magic_ability["intent"] == "support"
@@ -241,6 +265,8 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
         world_pack=world_pack,
     )
     resolved_intent = interpretation["intent"]
+    if payload.named_attack_id and resolved_intent != "attack":
+        raise HTTPException(status_code=400, detail="Odkryta technika wymaga ataku")
     resolved_stat = interpretation["tested_stat"]
     if resolved_intent == "support":
         try:
@@ -323,6 +349,7 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
         existing_action.action_text = action_text
         existing_action.magic_ability_id = magic_ability["id"] if magic_ability else None
         existing_action.ability_id = magic_ability["id"] if magic_ability else None
+        existing_action.named_attack_id = payload.named_attack_id
         existing_action.intent = resolved_intent
         existing_action.target_ref = action_target_ref
         existing_action.tested_stat = resolved_stat
@@ -335,6 +362,7 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
             action_text=action_text,
             magic_ability_id=magic_ability["id"] if magic_ability else None,
             ability_id=magic_ability["id"] if magic_ability else None,
+            named_attack_id=payload.named_attack_id,
             intent=resolved_intent,
             target_ref=action_target_ref,
             tested_stat=resolved_stat,
@@ -432,6 +460,16 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             )
             characters = (await db.execute(c_stmt)).scalars().all()
             char_map = {c.id: c for c in characters}
+            lore_stmt = select(NamedLoreEntity).where(NamedLoreEntity.session_id == session_id)
+            lore_entities = (await db.execute(lore_stmt)).scalars().all()
+            learned_attacks = {
+                lore.id: lore for lore in lore_entities
+                if lore.category == "attack" and lore.is_active
+            }
+            for action in turn.actions:
+                learned = learned_attacks.get(action.named_attack_id)
+                if learned is None or learned.named_by_character_id != action.character_id:
+                    action.named_attack_id = None
             world_pack = get_session_world_pack(session)
             ensure_enemy_encounter(session, characters, world_pack)
             map_stmt = select(CampaignMap).where(CampaignMap.session_id == session_id)
@@ -532,6 +570,10 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                         char.class_id,
                         action.ability_id or action.magic_ability_id,
                     ),
+                    "named_attack": (
+                        learned_attacks[action.named_attack_id].custom_name
+                        if action.named_attack_id in learned_attacks else None
+                    ),
                     "magic_ability": get_ability(
                         world_pack,
                         char.class_id,
@@ -550,11 +592,6 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                     "boss_damage": action.damage_dealt or 0,
                     "hp_delta": action.hp_delta or 0,
                 })
-
-            # Pobierz aktywne legendy świata (lore)
-            lore_stmt = select(NamedLoreEntity).where(NamedLoreEntity.session_id == session_id)
-            lore_res = await db.execute(lore_stmt)
-            lore_entities = lore_res.scalars().all()
 
             map_context = build_map_narrator_context(campaign_map)
             suggested_map_destination = suggest_map_destination(campaign_map, actions_with_rolls)
@@ -688,23 +725,6 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                     else:
                         await db.delete(consumed_item)
 
-            # Sprawdź czy pojawiła się okazja do nazwania czegoś w świecie gry
-            if gemini_result.naming_opportunity and not session.pending_naming_category and characters:
-                chosen_char = secrets.choice(characters)
-                session.pending_naming_category = gemini_result.naming_opportunity.category
-                session.pending_naming_prompt = gemini_result.naming_opportunity.description
-                session.pending_naming_character_id = chosen_char.id
-                session.pending_naming_character_name = chosen_char.name
-
-                await ws_manager.broadcast_to_session(session.id, {
-                    "type": "NAMING_REQUESTED",
-                    "category": gemini_result.naming_opportunity.category,
-                    "description": gemini_result.naming_opportunity.description,
-                    "prompt": gemini_result.naming_opportunity.prompt_for_player,
-                    "character_id": chosen_char.id,
-                    "character_name": chosen_char.name
-                })
-
             # Zapisz turę
             turn.gm_narration = gemini_result.gm_story_narration
             turn.next_turn_prompt = gemini_result.next_turn_prompt
@@ -717,6 +737,78 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                 turn.turn_number,
                 fallback_destination_node_id=suggested_map_destination,
             )
+
+            opportunity = gemini_result.naming_opportunity
+            living = [character for character in characters if character.is_alive]
+            if opportunity and not session.pending_naming_category and living:
+                category = opportunity.category
+                evidence = opportunity.scene_evidence.strip()
+                normalized_story = " ".join(
+                    gemini_result.gm_story_narration.casefold().split()
+                )
+                scene_confirmed = (
+                    len(evidence) >= 12
+                    and " ".join(evidence.casefold().split()) in normalized_story
+                )
+                eligible = living
+                if category == "attack":
+                    last_attack_turn = max(
+                        (lore.discovered_turn_number or 0 for lore in lore_entities
+                         if lore.category == "attack"), default=0,
+                    )
+                    eligible = [
+                        character for character in living
+                        if any(action.character_id == character.id
+                               and action.intent == "attack"
+                               and action.outcome_tier in {"success", "critical_success"}
+                               for action in turn.actions)
+                    ]
+                    if opportunity.origin_character_id is not None:
+                        eligible = [
+                            character for character in eligible
+                            if character.id == opportunity.origin_character_id
+                        ]
+                    elif eligible:
+                        best_action = max(
+                            (action for action in turn.actions
+                             if action.character_id in {character.id for character in eligible}),
+                            key=lambda action: action.damage_dealt or 0,
+                        )
+                        eligible = [
+                            character for character in eligible
+                            if character.id == best_action.character_id
+                        ]
+                    scene_confirmed = (
+                        scene_confirmed and turn.turn_number >= 8
+                        and turn.turn_number - last_attack_turn >= 8
+                        and bool(eligible)
+                    )
+                elif category == "npc":
+                    scene_confirmed = scene_confirmed and not any(
+                        lore.category == "npc"
+                        and normalize_game_text(lore.original_description)
+                        == normalize_game_text(opportunity.description)
+                        for lore in lore_entities
+                    )
+                else:
+                    scene_confirmed = True
+                if scene_confirmed and eligible:
+                    chosen_char = secrets.choice(eligible)
+                    session.pending_naming_category = category
+                    session.pending_naming_prompt = opportunity.description
+                    session.pending_naming_character_id = chosen_char.id
+                    session.pending_naming_character_name = chosen_char.name
+                    session.pending_naming_turn_number = turn.turn_number
+                    session.pending_naming_map_node_id = campaign_map.current_node_id
+                    session.pending_naming_question = opportunity.prompt_for_player
+                    await ws_manager.broadcast_to_session(session.id, {
+                        "type": "NAMING_REQUESTED",
+                        "category": category,
+                        "description": opportunity.description,
+                        "prompt": opportunity.prompt_for_player,
+                        "character_id": chosen_char.id,
+                        "character_name": chosen_char.name,
+                    })
 
             # 4. Otwórz nową turę
             new_turn_number = session.current_turn_number + 1

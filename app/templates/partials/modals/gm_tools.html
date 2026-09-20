@@ -153,6 +153,14 @@
                     class="px-3 py-2 bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-700/40 text-indigo-300 rounded-lg transition text-xs">
               🏰 Test: Odkryj Lokację
             </button>
+            <button @click="triggerManualNaming('npc', `Ważna postać spotkana w lokacji ${currentMapNode?.name || 'drużyny'}`)"
+                    class="px-3 py-2 bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-700/40 text-emerald-300 rounded-lg transition text-xs">
+              👤 Test: Spotkaj NPC
+            </button>
+            <button @click="triggerManualNaming('attack', 'Wyjątkowy manewr bojowy bohatera')"
+                    class="px-3 py-2 bg-amber-950/60 hover:bg-amber-900 border border-amber-700/40 text-amber-300 rounded-lg transition text-xs">
+              ⚔️ Test: Odkryj technikę
+            </button>
           </div>
         </div>
 

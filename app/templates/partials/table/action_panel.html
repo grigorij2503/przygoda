@@ -157,6 +157,11 @@
                   Odłącz
                 </button>
               </div>
+              <div x-show="selectedNamedAttack" x-cloak
+                   class="flex items-center justify-between gap-3 rounded-lg border border-amber-600/50 bg-amber-950/30 px-3 py-2 text-[11px]">
+                <span class="min-w-0 text-amber-200">Wybrana technika: <b x-text="selectedNamedAttack?.name"></b> · +1 obrażenie</span>
+                <button type="button" @click="namedAttackId = null; interpretAction()" class="shrink-0 text-gray-400 hover:text-white underline">Odłącz</button>
+              </div>
               <label for="action-description" class="sr-only">Opis akcji bohatera</label>
               <textarea id="action-description" x-model="actionText"
                         @input="actionInterpretation = null; actionInterpretationRequestId += 1"

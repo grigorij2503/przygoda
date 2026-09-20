@@ -278,6 +278,7 @@ async def resolve_turn_with_gemini(
             "character_name": a["character_name"],
             "action_declared": a["action_text"],
             "ability": a.get("ability") or a.get("magic_ability"),
+            "named_attack": a.get("named_attack"),
             "intent": a.get("intent"),
             "target_ref": a.get("target_ref"),
             "tested_attribute": a["tested_stat"],
@@ -317,10 +318,24 @@ async def resolve_turn_with_gemini(
                 and getattr(ent, "custom_name", "") != session.active_boss_name
             ):
                 continue
+            npc_identity = ""
+            if category == "npc":
+                disposition = {
+                    "gentle": "łagodny",
+                    "rough": "opryskliwy",
+                    "vulgar": "wulgarny",
+                    "reserved": "powściągliwy",
+                }.get(getattr(ent, "npc_disposition", None), "powściągliwy")
+                npc_identity = (
+                    f", usposobienie: {disposition}"
+                    f", powiedzonko: {getattr(ent, 'npc_catchphrase', None) or 'brak'}"
+                    f", cel: {getattr(ent, 'npc_goal', None) or 'wynika z opisu'}"
+                    f", miejsce pierwszego spotkania: {getattr(ent, 'map_node_id', None) or 'nieznane'}"
+                )
             lore_context.append(
                 f"[{category.upper()}]: '{getattr(ent, 'custom_name', '')}' "
                 f"(opis: {getattr(ent, 'original_description', '')}, nazwany przez: "
-                f"{getattr(ent, 'named_by_character_name', 'Bohater')})"
+                f"{getattr(ent, 'named_by_character_name', 'Bohater')}{npc_identity})"
             )
 
     boss_info = ""
@@ -368,6 +383,7 @@ async def resolve_turn_with_gemini(
         "5. PRAWDZIWY EKWIPUNEK: Pole inventory przy postaci jest jedynym źródłem prawdy o posiadanych przedmiotach. Nie pozwalaj użyć ani uzyskać korzyści z przedmiotu, którego tam nie ma. Broń, tarcza, zbroja, hełm, buty i aktywne akcesoria dają korzyść tylko, gdy mają equipped=true. Jeśli deklaracja mimo zabezpieczeń odwołuje się do nieposiadanego przedmiotu, opisz brak przedmiotu i improwizację zgodną z wynikiem rzutu, zamiast materializować wyposażenie.\n"
         "6. ŁUP I CRAFTING: Ekwipunek i saldo rozlicza wyłącznie backend. Zdarzenia item_found, item_crafted i loot_search_empty w combat_events są ostateczne — opisz je dokładnie, w tym coins_awarded, gdy występuje, i nie dodawaj żadnych innych znalezisk ani środków. W każdym player_consequences ustaw new_items=[]; przedmioty utracone z innych przyczyn nadal wpisuj do removed_item_names.\n\n"
         "7. ZDOLNOŚCI KLASOWE: Pole ability przy akcji jest jedynym źródłem prawdy o użytej zdolności. Nie rozszerzaj efektu poza jej opis. Puste ability oznacza zwykłą akcję. Pole available_abilities zawiera wyłącznie odblokowane zdolności postaci.\n\n"
+        "8. ODKRYTE ATAKI I NPC: Pole named_attack przy akcji wskazuje wybraną, poznaną technikę. Jej +1 obrażenie jest już w boss_damage; opisz użycie po nazwie, bez dodatkowej premii. Nazwany NPC zachowuje zapisane usposobienie i cel z opisu przy kolejnych spotkaniach. Jego powiedzonko może wracać okazjonalnie, nigdy mechanicznie w każdej turze. Nie twórz nowej wersji istniejącego NPC.\n\n"
         "ZASADY WYJŚCIA JSON:\n"
         "1. gm_story_narration: Głęboka, barwna i kinowa narracja Mistrza Gry w języku polskim podsumowująca akcje graczy i zmieniającą się sytuację (min. 3-5 soczystych zdań).\n"
         "2. player_consequences: Dla KAŻDEGO gracza: individual_summary, hp_delta, xp_gained (50-120 XP), new_items=[] oraz removed_item_names. Podczas aktywnego encounteru nie dodawaj własnych zmian HP; dla wsparcia hp_delta_from_combat_engine opisuje leczenie celu wskazanego w combat_events.\n"
@@ -375,7 +391,7 @@ async def resolve_turn_with_gemini(
         "3a. next_challenge_tier: Wybierz standard dla zwykłego wyzwania, hard dla poważnej przeszkody albo climactic dla wyjątkowej próby o dużą stawkę. Poziom musi wynikać z opisu next_turn_prompt; nie oznaczaj każdej tury jako hard lub climactic. Serwer wyznaczy DC.\n"
         "4. suggested_actions: Dokładnie 3 zróżnicowane i konkretne ścieżki działania na otwarcie kolejnej tury. Każda ma być dostępna dla każdej klasy, nie może zakładać przedmiotu ani zdolności klasowej.\n"
         "5. scene_image_prompt: Sugestywny prompt po angielsku dla modelu generującego obraz (Gemini 2.5 Flash Image)...\n"
-        f"6. naming_opportunity (opcjonalne): Jeśli drużyna odkryła coś wyjątkowego, zaproponuj nazwę. Użyj wyłącznie jednej z kategorii: {', '.join(category.id for category in world_pack.lore_categories)}. Nie powtarzaj active_lore_entities.\n"
+        f"6. naming_opportunity (opcjonalne): Tylko gdy nowe odkrycie lub NPC rzeczywiście pojawia się w gm_story_narration. Użyj wyłącznie jednej z kategorii: {', '.join(category.id for category in world_pack.lore_categories)}. Nie powtarzaj active_lore_entities. Atak proponuj bardzo rzadko i tylko po wyjątkowo udanym ataku gracza; w origin_character_id podaj ID tego gracza, a serwer skontroluje wynik i odstęp. NPC proponuj przy pierwszym ważnym spotkaniu w konkretnej lokacji, z opisem roli lub celu. W scene_evidence skopiuj dosłowny fragment gm_story_narration, który pokazuje tę postać albo odkrycie.\n"
         "7. map_update: Uzupełnij kronikę mapy. destination_node_id MUSI być jednym z ID w campaign_map.allowed_destinations. "
         "Pozostaw current_node_id, jeżeli narracja nie przeniosła całej drużyny do innego pomieszczenia. "
         "Gdy udana deklaracja ruchu ma suggested_destination_node_id, przenieś tam drużynę w narracji i ustaw ten ID w map_update; "
@@ -583,6 +599,30 @@ def _generate_rich_offline_resolution(
             description=narrative_profile.offline_enemy_description,
             prompt_for_player=narrative_profile.offline_enemy_naming_prompt,
         )
+    if naming_opp is None and turn.turn_number >= 8:
+        for action in actions_with_rolls:
+            if (action.get("intent") != "attack"
+                    or action.get("outcome_tier") not in {"success", "critical_success"}):
+                continue
+            actor = str(action.get("character_name") or "Bohater")
+            if not any(
+                event.get("type") == "player_attack"
+                and event.get("actor") == actor
+                and int(event.get("damage") or 0) > 0
+                for event in (turn.combat_events or [])
+                if isinstance(event, dict)
+            ):
+                continue
+            declared = (action.get("action_text") or "atak").strip()
+            evidence = f"{actor} deklaruje: „{declared}”"
+            naming_opp = NamingOpportunitySchema(
+                category="attack",
+                description=f"Skuteczny manewr {actor}: {declared[:100]}",
+                prompt_for_player="Jak nazwiesz tę odkrytą technikę ataku?",
+                scene_evidence=evidence,
+                origin_character_id=action["character_id"],
+            )
+            break
 
     map_update = None
     if map_context:

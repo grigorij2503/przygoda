@@ -68,7 +68,8 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
     - Deklaracja użycia konkretnego wyposażenia jest walidowana również dla polskich znaków, np. „łuk”; niezapisane jeszcze przedmioty zachowują domyślną ilość jednej sztuki podczas rozliczania craftingu.
 12. **Narzędzia Społecznościowe i MG:**
     - Trwały czat drużyny, wzmianki, osobiste notatki oraz wspólne nadawanie nazw elementom świata.
-    - Kronika Świata automatycznie porządkuje nazwane odkrycia w działach: bossowie, miejsca, napotkani NPC, oręż i artefakty oraz ataki drużynowe; Gemini może wskazać napotkanego NPC do nazwania przez gracza.
+    - Kronika Świata automatycznie porządkuje nazwane odkrycia w działach: bossowie, miejsca, napotkani NPC, oręż i artefakty oraz ataki drużynowe. Nazwany NPC zachowuje lokację pierwszego spotkania, wybrane przez gracza usposobienie, opcjonalny cel i powiedzonko; narrator dostaje te cechy w kolejnych turach.
+    - Nową technikę ataku można odkryć dopiero od tury 8, po udanym ataku i nie częściej niż raz na 8 tur. Propozycja narratora dla NPC lub ataku musi wskazać fragment rozegranej sceny; fallback offline także rozpoznaje udany manewr w walce. Technika trafia do księgi postaci, która ją odkryła; wybrana w walce daje +1 obrażenie przy trafieniu i nie łączy się ze zdolnością klasową. MG może ręcznie wywołać okazję do nazwania ataku lub NPC.
     - Potwierdzone rozpoczęcie nowego scenariusza lub reset kampanii usuwa wpisy Kroniki Świata z poprzedniej kampanii oraz oczekującą propozycję nazwania; istniejące wpisy bieżącej kampanii pozostają dostępne do czasu resetu.
     - Panel narzędzi administracyjnych jest odblokowywany osobnym `GM_PIN`; zawiera m.in. konfigurację scenariusza, reset kampanii, ponowienie i ręczne rozstrzygnięcie tury.
     - MG może awaryjnie skorygować bazowe atrybuty dowolnej postaci w zakresie `0–12`; panel pokazuje zmianę łącznej puli, wymaga potwierdzenia i synchronizuje korektę z graczami. Bonusy ekwipunku, niewydane punkty awansu i już złożone akcje nie są przeliczane.
@@ -164,7 +165,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │       └── 0001-versioned-world-packs.md # Decyzja o deklaratywnych pakietach świata
 ├── uploads/                   # Katalog na wygenerowane obrazy z Imagen 3
 ├── data/                      # Katalog na plik bazy SQLite (w Dockerze)
-├── alembic/                   # Migracje 0001 światów, 0002 poziomu trudności i 0003 salda postaci
+├── alembic/                   # Migracje 0001 światów, 0002 trudności, 0003 salda i 0004 odkryć Kroniki
 ├── alembic.ini                # Konfiguracja migracji korzystająca z DATABASE_URL
 ├── Dockerfile                 # Zoptymalizowany obraz produkcyjny Python 3.12-slim
 ├── docker-compose.yml         # Konfiguracja uruchomieniowa kontenera
@@ -261,7 +262,7 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 W systemach Linux/macOS środowisko aktywuje polecenie `source .venv/bin/activate`, a plik konfiguracyjny tworzy `cp .env.example .env`.
 
 Aplikacja będzie dostępna pod adresem: `http://localhost:8000`.
-Migracja `0002_encounter_difficulty` dodaje poziom trudności do tur; istniejące tury zachowują zwykły poziom DC 12. Migracja `0003_inventory_wallet` dodaje saldo `coins` i nadaje historycznym postaciom `0`, bez zmiany ich ekwipunku. Bezpośredni start przez `uvicorn` uzupełnia również tę kolumnę w starszych lokalnych bazach bez historii Alembic; późniejsze `alembic upgrade head` zapisuje formalną wersję schematu. Przed migracją istniejącej kampanii wykonaj kopię bazy SQLite. `SECRET_KEY` podpisuje także ciasteczko dostępu do pokoju używane przy przekazywaniu przedmiotów.
+Migracja `0002_encounter_difficulty` dodaje poziom trudności do tur; istniejące tury zachowują zwykły poziom DC 12. Migracja `0003_inventory_wallet` dodaje saldo `coins` i nadaje historycznym postaciom `0`, bez zmiany ich ekwipunku. Migracja `0004_lore_discoveries` dodaje wybierane ataki postaci, cechy NPC i kontekst oczekującej propozycji nazwania bez usuwania dotychczasowej Kroniki. Bezpośredni start przez `uvicorn` uzupełnia wymagane kolumny w starszych lokalnych bazach bez historii Alembic; późniejsze `alembic upgrade head` zapisuje formalną wersję schematu. Nie są potrzebne nowe zmienne `.env`. Przed migracją istniejącej kampanii wykonaj kopię bazy SQLite. `SECRET_KEY` podpisuje także ciasteczko dostępu do pokoju używane przy przekazywaniu przedmiotów.
 
 ---
 

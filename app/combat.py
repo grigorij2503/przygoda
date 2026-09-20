@@ -380,6 +380,8 @@ def calculate_attack_damage(
         multiplier += 0.15
     reduction = max(0, int(boss_armor or 0))
     final_damage = max(1, round(base_damage * multiplier) - reduction)
+    if getattr(action, "named_attack_id", None):
+        final_damage += 1
     return final_damage, damage_roll, base_damage, reduction
 
 
@@ -936,6 +938,8 @@ def resolve_boss_turn(
                 "actor": character.name,
                 "target": session.active_boss_name,
                 "damage": damage,
+                "named_attack_id": action.named_attack_id,
+                "named_attack_bonus": 1 if action.named_attack_id and damage > 0 else 0,
                 "effect": applied_effect.get("type") if applied_effect else None,
             })
         elif intent == "interact":

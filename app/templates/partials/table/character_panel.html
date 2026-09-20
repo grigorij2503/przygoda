@@ -217,3 +217,20 @@
               </template>
             </div>
           </section>
+
+          <section x-show="(currentCharacter?.learned_attacks || []).length > 0" x-cloak
+                   class="ability-book-panel mb-6 rounded-xl border border-violet-800/60 bg-gradient-to-br from-violet-950/45 to-slate-950/80 p-4">
+            <h4 class="ability-book-panel__title text-xs font-fantasy font-bold uppercase tracking-widest text-violet-300 mb-2">Odkryte techniki</h4>
+            <p class="text-[10px] text-gray-400 mb-3">Wybierz technikę podczas walki. Każda daje +1 obrażenie przy trafieniu.</p>
+            <div class="space-y-2">
+              <template x-for="attack in currentCharacter?.learned_attacks || []" :key="attack.id">
+                <button type="button" @click="selectNamedAttack(attack)"
+                        :disabled="!(activeEnemy?.hp > 0) || hasSubmittedCurrentTurn || session?.is_turn_resolving"
+                        :aria-pressed="(namedAttackId === attack.id).toString()"
+                        class="ability-book-panel__item w-full rounded-lg border border-slate-700/80 bg-slate-950/70 p-3 text-left text-xs text-violet-100 hover:border-violet-500/70 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <strong x-text="attack.name"></strong>
+                  <span class="block mt-1 text-gray-400" x-text="attack.description"></span>
+                </button>
+              </template>
+            </div>
+          </section>

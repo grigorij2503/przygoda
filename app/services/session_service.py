@@ -178,6 +178,16 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
                     c.class_id,
                 ).quick_actions
             ],
+            "learned_attacks": [
+                {"id": lore.id, "name": lore.custom_name, "description": lore.original_description,
+                 "damage_bonus": 1}
+                for lore in sorted(
+                    game_session.lore_entities or [],
+                    key=lambda entry: (entry.discovered_turn_number or 0, entry.id or 0),
+                )
+                if lore.category == "attack" and lore.is_active
+                and lore.named_by_character_id == c.id
+            ],
             "has_submitted_action": c.id in submitted_character_ids,
             "action_submission_source": current_action.submission_source if current_action else None,
             "proxy_action": {
@@ -256,6 +266,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
                     "action_text": a.action_text,
                     "magic_ability_id": a.magic_ability_id or a.ability_id,
                     "ability_id": a.ability_id or a.magic_ability_id,
+                    "named_attack_id": a.named_attack_id,
                     "ability": get_ability(
                         world_pack,
                         characters_by_id.get(a.character_id).class_id,
@@ -355,7 +366,8 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
         } if game_session.active_boss_name else None,
         "pending_naming": {
             "category": game_session.pending_naming_category,
-            "prompt": game_session.pending_naming_prompt,
+            "description": game_session.pending_naming_prompt,
+            "prompt": game_session.pending_naming_question or game_session.pending_naming_prompt,
             "character_id": game_session.pending_naming_character_id,
             "character_name": game_session.pending_naming_character_name,
         } if game_session.pending_naming_category else None,
@@ -366,6 +378,11 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
                 "original_description": le.original_description,
                 "custom_name": le.custom_name,
                 "named_by_character_name": le.named_by_character_name,
+                "discovered_turn_number": le.discovered_turn_number,
+                "map_node_id": le.map_node_id,
+                "npc_disposition": le.npc_disposition,
+                "npc_catchphrase": le.npc_catchphrase,
+                "npc_goal": le.npc_goal,
                 "created_at": le.created_at.isoformat() if le.created_at else None,
             }
             for le in (game_session.lore_entities or [])
@@ -424,6 +441,9 @@ async def reset_campaign(
         session.pending_naming_prompt = None
         session.pending_naming_character_id = None
         session.pending_naming_character_name = None
+        session.pending_naming_turn_number = None
+        session.pending_naming_map_node_id = None
+        session.pending_naming_question = None
         await db.execute(
             update(Character)
             .where(Character.session_id == session.id)
@@ -513,6 +533,9 @@ async def setup_scenario(
     session.pending_naming_prompt = None
     session.pending_naming_character_id = None
     session.pending_naming_character_name = None
+    session.pending_naming_turn_number = None
+    session.pending_naming_map_node_id = None
+    session.pending_naming_question = None
 
     # Wyczyść postacie z poprzedniej wyprawy, aby drużyna mogła stworzyć świeże postacie pod nowy scenariusz
     for c in list(session.characters):
@@ -639,15 +662,25 @@ async def name_entity(payload: NameEntityRequest, db: AsyncSession = Depends(get
         raise HTTPException(status_code=404, detail="Sesja nie istnieje")
     if session.is_turn_resolving:
         raise HTTPException(status_code=400, detail="Rozstrzyganie tej tury już trwa")
+    if not session.pending_naming_category:
+        raise HTTPException(status_code=400, detail="Brak oczekującego odkrycia do nazwania")
+    if session.pending_naming_character_id != payload.character_id:
+        raise HTTPException(status_code=403, detail="To odkrycie przypisano innej postaci")
 
     char = next((c for c in session.characters if c.id == payload.character_id), None)
-    char_name = char.name if char else "Bohater"
+    if not char:
+        raise HTTPException(status_code=404, detail="Wybrana postać nie istnieje")
+    char_name = char.name
 
-    category = session.pending_naming_category or "lore"
+    category = session.pending_naming_category
     description = session.pending_naming_prompt or "Odkrycie w świecie gry"
     custom_name = payload.custom_name.strip()
     if not custom_name:
         raise HTTPException(status_code=400, detail="Nazwa nie może być pusta")
+    if category != "npc" and (payload.npc_disposition or payload.npc_catchphrase or payload.npc_goal):
+        raise HTTPException(status_code=400, detail="Cechy postaci dotyczą tylko NPC")
+    npc_catchphrase = (payload.npc_catchphrase or "").strip()
+    npc_goal = (payload.npc_goal or "").strip()
 
     world_pack = get_session_world_pack(session)
     enemy_category = world_pack.enemy_profile.lore_category_id
@@ -669,6 +702,11 @@ async def name_entity(payload: NameEntityRequest, db: AsyncSession = Depends(get
         custom_name=custom_name,
         named_by_character_id=payload.character_id,
         named_by_character_name=char_name,
+        discovered_turn_number=session.pending_naming_turn_number or session.current_turn_number,
+        map_node_id=session.pending_naming_map_node_id if category == "npc" else None,
+        npc_disposition=(payload.npc_disposition or "reserved") if category == "npc" else None,
+        npc_catchphrase=npc_catchphrase if category == "npc" and npc_catchphrase else None,
+        npc_goal=npc_goal if category == "npc" and npc_goal else None,
         is_active=True
     )
     db.add(lore_ent)
@@ -715,6 +753,9 @@ async def name_entity(payload: NameEntityRequest, db: AsyncSession = Depends(get
     session.pending_naming_prompt = None
     session.pending_naming_character_id = None
     session.pending_naming_character_name = None
+    session.pending_naming_turn_number = None
+    session.pending_naming_map_node_id = None
+    session.pending_naming_question = None
 
     await db.commit()
 
@@ -751,10 +792,14 @@ async def trigger_naming(
 ):
     require_gm(request)
 
-    s_stmt = select(GameSession).where(GameSession.id == payload.session_id).options(selectinload(GameSession.characters))
+    s_stmt = select(GameSession).where(GameSession.id == payload.session_id).options(
+        selectinload(GameSession.characters), selectinload(GameSession.campaign_map)
+    )
     session = (await db.execute(s_stmt)).scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Sesja nie istnieje")
+    if session.is_turn_resolving or session.pending_naming_category:
+        raise HTTPException(status_code=400, detail="Poczekaj na zakończenie bieżącego odkrycia lub tury")
 
     alive_chars = [c for c in session.characters if c.is_alive]
     if not alive_chars:
@@ -765,6 +810,11 @@ async def trigger_naming(
     session.pending_naming_prompt = payload.description
     session.pending_naming_character_id = chosen_char.id
     session.pending_naming_character_name = chosen_char.name
+    session.pending_naming_turn_number = session.current_turn_number
+    session.pending_naming_map_node_id = (
+        session.campaign_map.current_node_id if session.campaign_map else None
+    )
+    session.pending_naming_question = payload.prompt_for_player
 
     await db.commit()
 

@@ -33,6 +33,7 @@
           this.actionTestedStat = null;
           this.actionTargetRef = null;
           this.magicAbilityId = null;
+          this.namedAttackId = null;
           this.actionInterpretation = null;
           this.showActionInterpretationControls = false;
           this.isEditingSubmittedAction = false;
@@ -117,6 +118,7 @@
       this.actionTestedStat = null;
       this.actionTargetRef = null;
       this.magicAbilityId = null;
+      this.namedAttackId = null;
       this.actionInterpretation = null;
       this.showActionInterpretationControls = false;
       this.actionError = '';
@@ -206,6 +208,11 @@
 
     get selectedMagicAbility() {
       return this.abilityBook?.abilities?.find(ability => ability.id === this.magicAbilityId) || null;
+    },
+
+    get selectedNamedAttack() {
+      return (this.currentCharacter?.learned_attacks || [])
+        .find(attack => attack.id === this.namedAttackId) || null;
     },
 
     get quickActions() {

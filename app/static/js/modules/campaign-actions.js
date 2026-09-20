@@ -15,11 +15,20 @@
           body: JSON.stringify({
             session_id: this.session.session_id,
             character_id: this.selectedCharacterId,
-            custom_name: name
+            custom_name: name,
+            npc_disposition: this.pendingNaming?.category === 'npc' ? this.namingDisposition : null,
+            npc_catchphrase: this.pendingNaming?.category === 'npc' ? this.namingCatchphrase.trim() : null,
+            npc_goal: this.pendingNaming?.category === 'npc' ? this.namingGoal.trim() : null
           })
         });
-        if (!res.ok) throw new Error('Błąd zapisu nazwy.');
+        if (!res.ok) {
+          const result = await res.json().catch(() => ({}));
+          throw new Error(result.detail || 'Błąd zapisu nazwy.');
+        }
         this.namingInput = '';
+        this.namingDisposition = 'reserved';
+        this.namingCatchphrase = '';
+        this.namingGoal = '';
         this.showNamingModal = false;
         await this.fetchSession();
       } catch (err) {
@@ -242,6 +251,7 @@
             action_text: actionText,
             magic_ability_id: this.magicAbilityId,
             ability_id: this.magicAbilityId,
+            named_attack_id: this.namedAttackId,
             intent: this.actionIntent,
             tested_stat: this.actionTestedStat,
             target_ref: this.actionTargetRef
@@ -298,6 +308,7 @@
             action_text: this.actionText.trim(),
             magic_ability_id: this.magicAbilityId,
             ability_id: this.magicAbilityId,
+            named_attack_id: this.namedAttackId,
             intent: this.actionIntent,
             tested_stat: this.actionTestedStat,
             target_ref: this.actionTargetRef
@@ -358,6 +369,7 @@
         if (myAction) {
           this.actionText = myAction.action_text;
           this.magicAbilityId = myAction.ability_id || myAction.magic_ability_id || null;
+          this.namedAttackId = myAction.named_attack_id || null;
           this.actionIntent = this.magicAbilityId ? (myAction.intent || null) : null;
           this.actionTestedStat = null;
           this.actionTargetRef = myAction.target_ref || null;
@@ -385,6 +397,7 @@
     setQuickAction(text, intent = null, targetRef = null, testedStat = null) {
       this.actionText = text;
       this.magicAbilityId = null;
+      this.namedAttackId = null;
       this.actionIntent = intent;
       this.actionTestedStat = testedStat;
       this.actionTargetRef = targetRef;
@@ -437,6 +450,7 @@
       if (!ability?.unlocked) return;
       this.actionText = ability.action_text;
       this.magicAbilityId = ability.id;
+      this.namedAttackId = null;
       this.actionIntent = ability.intent || null;
       this.actionTestedStat = ability.tested_stat || this.abilityBook?.casting_stat || null;
       this.actionTargetRef = ability.target_ref || null;
@@ -453,6 +467,26 @@
       });
       this.interpretAction();
       this.addToast(`Wybrano: ${ability.name}. Możesz dopisać cel lub sposób wykonania.`, 'info');
+    },
+
+    selectNamedAttack(attack) {
+      if (!attack || !(this.activeEnemy?.hp > 0)) return;
+      this.actionText = `Atakuję przeciwnika techniką „${attack.name}”.`;
+      this.magicAbilityId = null;
+      this.namedAttackId = attack.id;
+      this.actionIntent = 'attack';
+      this.actionTestedStat = null;
+      this.actionTargetRef = null;
+      this.actionInterpretation = null;
+      this.showActionInterpretationControls = false;
+      this.mobileActionPanelCollapsed = false;
+      this.actionError = '';
+      this.$nextTick(() => {
+        const textarea = document.querySelector('textarea[x-model="actionText"]');
+        if (textarea) textarea.focus();
+      });
+      this.interpretAction();
+      this.addToast(`Wybrano technikę ${attack.name}: +1 obrażenie przy trafieniu.`, 'info');
     },
 
     setEncounterAction(feature) {

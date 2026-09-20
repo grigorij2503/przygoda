@@ -139,6 +139,7 @@ class CharacterDto(BaseModel):
     ability_book: Optional[dict] = None
     magic_book: Optional[dict] = None
     quick_actions: List[dict] = []
+    learned_attacks: List[dict] = []
     inventory: List[InventoryItemDto] = []
 
     model_config = ConfigDict(from_attributes=True)
@@ -152,6 +153,7 @@ class SubmitActionRequest(BaseModel):
     action_text: str
     magic_ability_id: Optional[str] = Field(default=None, max_length=80)
     ability_id: Optional[str] = Field(default=None, max_length=80)
+    named_attack_id: Optional[int] = Field(default=None, gt=0)
     intent: Optional[Literal["attack", "defend", "interact", "support", "other"]] = None
     tested_stat: Optional[StatId] = None
     target_ref: Optional[str] = None
@@ -160,6 +162,8 @@ class SubmitActionRequest(BaseModel):
     def validate_ability_alias(self) -> "SubmitActionRequest":
         if self.ability_id and self.magic_ability_id and self.ability_id != self.magic_ability_id:
             raise ValueError("ability_id and magic_ability_id must identify the same ability")
+        if self.named_attack_id and self.selected_ability_id:
+            raise ValueError("Named attack cannot be combined with a class ability")
         return self
 
     @property
@@ -171,6 +175,7 @@ class InterpretActionRequest(BaseModel):
     action_text: str = Field(min_length=1, max_length=2000)
     magic_ability_id: Optional[str] = Field(default=None, max_length=80)
     ability_id: Optional[str] = Field(default=None, max_length=80)
+    named_attack_id: Optional[int] = Field(default=None, gt=0)
     intent: Optional[Literal["attack", "defend", "interact", "support", "other"]] = None
     tested_stat: Optional[StatId] = None
     target_ref: Optional[str] = None
@@ -179,6 +184,8 @@ class InterpretActionRequest(BaseModel):
     def validate_ability_alias(self) -> "InterpretActionRequest":
         if self.ability_id and self.magic_ability_id and self.ability_id != self.magic_ability_id:
             raise ValueError("ability_id and magic_ability_id must identify the same ability")
+        if self.named_attack_id and self.selected_ability_id:
+            raise ValueError("Named attack cannot be combined with a class ability")
         return self
 
     @property
@@ -203,6 +210,7 @@ class PlayerActionDto(BaseModel):
     action_text: str
     magic_ability_id: Optional[str] = None
     ability_id: Optional[str] = None
+    named_attack_id: Optional[int] = None
     ability: Optional[dict] = None
     magic_ability: Optional[dict] = None
     intent: Optional[str] = None
@@ -280,6 +288,8 @@ class NamingOpportunitySchema(BaseModel):
     )
     description: str = Field(description="Opis odkrytego elementu, np. 'Monstrualny demon o płonących rogach', 'Milcząca zielarka z blizną' lub 'Ukryta komnata pełna starych ksiąg'")
     prompt_for_player: str = Field(description="Pytanie zachęcające gracza do nazwania, np. 'Jak nazwiesz tego przerażającego władcę cieni?'")
+    scene_evidence: str = Field(default="", description="Krótki dosłowny fragment gm_story_narration pokazujący odkrycie lub spotkanie")
+    origin_character_id: Optional[int] = Field(default=None, description="ID bohatera, którego udany atak doprowadził do odkrycia techniki")
 
 class MapLocationUpdateSchema(BaseModel):
     destination_node_id: str = Field(
@@ -318,7 +328,10 @@ class GenerateImageRequest(BaseModel):
 class NameEntityRequest(BaseModel):
     session_id: int
     character_id: int
-    custom_name: str
+    custom_name: str = Field(min_length=1, max_length=150)
+    npc_disposition: Optional[Literal["gentle", "rough", "vulgar", "reserved"]] = None
+    npc_catchphrase: Optional[str] = Field(default=None, max_length=150)
+    npc_goal: Optional[str] = Field(default=None, max_length=200)
 
 class TriggerNamingRequest(BaseModel):
     session_id: int
@@ -332,6 +345,11 @@ class NamedLoreEntityDto(BaseModel):
     original_description: str
     custom_name: str
     named_by_character_name: Optional[str] = None
+    discovered_turn_number: Optional[int] = None
+    map_node_id: Optional[str] = None
+    npc_disposition: Optional[str] = None
+    npc_catchphrase: Optional[str] = None
+    npc_goal: Optional[str] = None
     is_active: bool
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)

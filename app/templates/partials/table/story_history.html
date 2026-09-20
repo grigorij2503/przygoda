@@ -184,13 +184,15 @@
                             <span x-text="(act.ability || act.magic_ability)?.name"></span>
                           </span>
                           <span class="text-gray-400 italic">„<span x-text="act.action_text"></span>”</span>
+                          <span x-show="act.named_attack_id" x-cloak class="text-amber-300 text-[10px]"
+                                x-text="'✦ ' + (session?.lore_entities?.find(entry => entry.id === act.named_attack_id)?.custom_name || 'Odkryta technika')"></span>
                         </div>
                         <p x-show="act.gm_individual_summary" class="text-gray-300 text-xs mt-1" x-text="act.gm_individual_summary"></p>
                         <div x-show="t.status === 'completed' && (act.damage_dealt > 0 || act.hp_delta !== 0 || act.xp_gained > 0)"
                              class="flex flex-wrap gap-1.5 mt-2 font-mono text-[10px]">
                           <span x-show="act.damage_dealt > 0"
                                 class="px-2 py-1 rounded-md border border-orange-700/60 bg-orange-950/50 text-orange-300"
-                                :title="act.damage_base ? ('Baza ' + act.damage_base + ' (w tym k6: ' + act.damage_roll + '), redukcja pancerza: ' + act.damage_reduction) : ''"
+                                :title="act.damage_base ? ('Baza ' + act.damage_base + ' (w tym k6: ' + act.damage_roll + '), redukcja pancerza: ' + act.damage_reduction + (act.named_attack_id ? ', technika +1' : '')) : ''"
                                 x-text="'⚔ Zadano ' + act.damage_dealt + ' obrażeń'"></span>
                           <span x-show="act.hp_delta < 0"
                                 class="px-2 py-1 rounded-md border border-rose-700/60 bg-rose-950/50 text-rose-300"

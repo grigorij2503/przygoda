@@ -25,6 +25,15 @@
                   <article class="lore-entry">
                     <h5 class="font-fantasy font-bold text-amber-300 text-sm" x-text="ent.custom_name"></h5>
                     <p class="text-gray-300 text-xs mt-1" x-text="ent.original_description"></p>
+                    <p x-show="ent.category === 'attack'" x-cloak class="text-emerald-300 text-xs mt-1">Poznana technika: +1 obrażenie przy trafieniu</p>
+                    <p x-show="ent.category === 'npc'" x-cloak class="text-gray-300 text-xs mt-1"
+                       x-text="'Usposobienie: ' + ({ gentle: 'łagodne', rough: 'opryskliwe', vulgar: 'wulgarne', reserved: 'powściągliwe' }[ent.npc_disposition] || 'nieznane')"></p>
+                    <p x-show="ent.category === 'npc' && ent.npc_catchphrase" x-cloak class="text-gray-300 text-xs mt-1"
+                       x-text="'Powiedzonko: „' + ent.npc_catchphrase + '”'"></p>
+                    <p x-show="ent.category === 'npc' && ent.npc_goal" x-cloak class="text-gray-300 text-xs mt-1"
+                       x-text="'Cel: ' + ent.npc_goal"></p>
+                    <p x-show="ent.category === 'npc' && ent.map_node_id" x-cloak class="text-gray-400 text-xs mt-1"
+                       x-text="'Pierwsze spotkanie: ' + (campaignMap?.nodes?.find(node => node.id === ent.map_node_id)?.name || ent.map_node_id)"></p>
                     <p class="text-amber-500/80 text-xs font-mono mt-2" x-text="'Nazwał: ' + (ent.named_by_character_name || 'Bohater')"></p>
                   </article>
                 </template>
@@ -44,4 +53,3 @@
 
     </div>
   </div>
-

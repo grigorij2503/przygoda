@@ -195,6 +195,7 @@
           this.actionTestedStat = null;
           this.actionTargetRef = null;
           this.magicAbilityId = null;
+          this.namedAttackId = null;
           this.actionInterpretation = null;
           this.showActionInterpretationControls = false;
           await this.fetchSession();

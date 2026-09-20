@@ -20,6 +20,7 @@
     actionTestedStat: null,
     actionTargetRef: null,
     magicAbilityId: null,
+    namedAttackId: null,
     actionInterpretation: null,
     showActionInterpretationControls: false,
     isInterpretingAction: false,
@@ -138,6 +139,9 @@
     // Lore Naming System
     pendingNaming: null, // {category, description, prompt, character_id, character_name}
     namingInput: '',
+    namingDisposition: 'reserved',
+    namingCatchphrase: '',
+    namingGoal: '',
     isSubmittingNaming: false,
 
     // WebSockets

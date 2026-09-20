@@ -51,6 +51,9 @@ async def init_db():
             ("game_sessions", "pending_naming_prompt", "TEXT"),
             ("game_sessions", "pending_naming_character_id", "INTEGER"),
             ("game_sessions", "pending_naming_character_name", "VARCHAR(100)"),
+            ("game_sessions", "pending_naming_turn_number", "INTEGER"),
+            ("game_sessions", "pending_naming_map_node_id", "VARCHAR(100)"),
+            ("game_sessions", "pending_naming_question", "TEXT"),
             ("game_sessions", "status", "VARCHAR(50)"),
             ("game_sessions", "world_pack_id", "VARCHAR(80) NOT NULL DEFAULT 'dark_fantasy'"),
             ("game_sessions", "world_pack_version", "INTEGER NOT NULL DEFAULT 1"),
@@ -72,6 +75,7 @@ async def init_db():
             ("player_actions", "intent", "VARCHAR(30)"),
             ("player_actions", "magic_ability_id", "VARCHAR(80)"),
             ("player_actions", "ability_id", "VARCHAR(80)"),
+            ("player_actions", "named_attack_id", "INTEGER"),
             ("player_actions", "target_ref", "VARCHAR(100)"),
             ("player_actions", "status_modifier", "INTEGER NOT NULL DEFAULT 0"),
             ("player_actions", "damage_dealt", "INTEGER NOT NULL DEFAULT 0"),
@@ -81,6 +85,11 @@ async def init_db():
             ("player_actions", "hp_delta", "INTEGER NOT NULL DEFAULT 0"),
             ("player_actions", "xp_gained", "INTEGER NOT NULL DEFAULT 0"),
             ("player_actions", "submission_source", "VARCHAR(30) NOT NULL DEFAULT 'player'"),
+            ("named_lore_entities", "discovered_turn_number", "INTEGER"),
+            ("named_lore_entities", "map_node_id", "VARCHAR(100)"),
+            ("named_lore_entities", "npc_disposition", "VARCHAR(20)"),
+            ("named_lore_entities", "npc_catchphrase", "VARCHAR(150)"),
+            ("named_lore_entities", "npc_goal", "VARCHAR(200)"),
         ]
         for table, col, col_type in new_columns:
             try:
@@ -89,6 +98,12 @@ async def init_db():
                 pass
         await conn.execute(text(
             "UPDATE characters SET coins = 0 WHERE coins IS NULL OR coins < 0"
+        ))
+        await conn.execute(text(
+            "UPDATE named_lore_entities SET discovered_turn_number = "
+            "(SELECT current_turn_number FROM game_sessions "
+            "WHERE game_sessions.id = named_lore_entities.session_id) "
+            "WHERE category = 'attack' AND discovered_turn_number IS NULL"
         ))
         # Ten fallback utrzymuje start przez samo `uvicorn` dla starszej bazy.
         # Alembic pozostaje źródłem wersji schematu i jest uruchamiany w Dockerze.
