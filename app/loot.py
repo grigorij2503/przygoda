@@ -235,6 +235,8 @@ def resolve_inventory_mechanics(
                 "actor": recipient.name,
                 "item": item.name,
                 "stat_bonus": item.stat_bonus,
+                "curse_stat": item.curse_stat,
+                "curse_penalty": int(item.curse_penalty or 0),
                 "coins_awarded": coins_awarded,
             })
         return resolution
@@ -255,29 +257,31 @@ def resolve_inventory_mechanics(
     looted_locations.append(node_id)
     session.looted_location_ids = looted_locations
 
-    successful_characters = [
-        character
-        for action in search_actions
-        for character in characters
-        if character.id == action.character_id
-        and character.is_alive
-        and action.outcome_tier in LOOT_SUCCESS_TIERS
+    living_by_id = {character.id: character for character in characters if character.is_alive}
+    successful_actions = [
+        action for action in search_actions
+        if action.character_id in living_by_id and action.outcome_tier in LOOT_SUCCESS_TIERS
     ]
-    finder = _choose_recipient(successful_characters, None)
-    if not finder:
-        resolution.events.append({"type": "loot_search_empty", "location_id": node_id})
+    if not successful_actions:
+        resolution.events.append({"type": "loot_search_empty", "location_id": node_id, "reason": "failure"})
         return resolution
 
-    critical = any(
-        action.character_id == finder.id and action.outcome_tier == "critical_success"
-        for action in search_actions
+    finder_action = max(
+        successful_actions,
+        key=lambda action: (
+            1 if action.outcome_tier == "critical_success" else 0,
+            int(action.dice_total or 0),
+            -int(action.id or 0),
+        ),
     )
-    recipient = _choose_recipient(
-        [character for character in characters if character.is_alive],
-        session.last_loot_character_id,
-    )
-    if not recipient:
+    finder = living_by_id[finder_action.character_id]
+
+    if secrets.randbelow(5) == 0:
+        resolution.events.append({"type": "loot_search_empty", "location_id": node_id, "reason": "empty"})
         return resolution
+
+    critical = finder_action.outcome_tier == "critical_success"
+    recipient = finder
     item = _build_random_loot(recipient, world_pack, critical_search=critical)
     coins_awarded = 2 + recipient.level
     recipient.coins = int(recipient.coins or 0) + coins_awarded
@@ -291,9 +295,78 @@ def resolve_inventory_mechanics(
         "actor": recipient.name,
         "item": item.name,
         "stat_bonus": item.stat_bonus,
+        "curse_stat": item.curse_stat,
+        "curse_penalty": int(item.curse_penalty or 0),
         "coins_awarded": coins_awarded,
     })
     return resolution
+
+
+def strip_loot_claims(
+    narration: str, world_pack: WorldPack, events: list[dict] | None = None
+) -> str:
+    """Remove model-written acquisition claims; events supply authoritative ones."""
+    labels = {
+        normalize_game_text(entry.label)
+        for table in world_pack.loot_tables for entry in table.entries
+    }
+    labels.add(normalize_game_text(world_pack.consumable_loot.name))
+    acquisition = re.compile(
+        r"\b(?:znalaz\w*|znajd\w*|wygrzeb\w*|zdobyl\w*|zdobyw\w*|"
+        r"podnios\w*|wyciagn\w*|otrzym\w*|zabral\w*|trafil\w*|"
+        r"wzial\w*|schowal\w*|przygarn\w*)\b",
+    )
+    empty_search = any(
+        event.get("type") == "loot_search_empty" for event in (events or [])
+    )
+    clue = re.compile(r"\b(?:slad|wskazowk|trop|informacj)\w*\b")
+    item_word = re.compile(
+        r"\b(?:przedmiot|artefakt|amulet|bron|miecz|sztylet|pierscien|"
+        r"zbroj|kula|rekwizyt|ekwipun|skar[bc]|relikw)\w*\b"
+    )
+    kept = []
+    for sentence in re.split(r"(?<=[.!?])\s+", narration):
+        lowered = normalize_game_text(sentence)
+        if acquisition.search(lowered) and (
+            any(label in lowered for label in labels)
+            or item_word.search(lowered)
+            or (empty_search and not clue.search(lowered))
+        ):
+            continue
+        kept.append(sentence)
+    return " ".join(part.strip() for part in kept if part.strip())
+
+
+def reconcile_loot_narration(
+    narration: str, events: list[dict], world_pack: WorldPack
+) -> str:
+    """Keep acquisition claims in generated prose aligned with persisted loot events."""
+    loot_events = [event for event in events if event.get("type") == "item_found"]
+    empty_events = [event for event in events if event.get("type") == "loot_search_empty"]
+    authoritative = []
+    for event in loot_events:
+        money = f" i {event['coins_awarded']} monet" if event.get("coins_awarded") else ""
+        curse_abbreviation = next(
+            (attribute.abbreviation for attribute in world_pack.attributes
+             if attribute.id == event.get("curse_stat")),
+            event.get("curse_stat") or "",
+        )
+        curse = (
+            f" Po założeniu klątwa daje {event['curse_penalty']} {curse_abbreviation}."
+            if event.get("curse_stat") and int(event.get("curse_penalty") or 0) < 0 else ""
+        )
+        authoritative.append(
+            f"{event['actor']} otrzymuje „{event['item']}”{money}; "
+            f"przedmiot zapisano w ekwipunku.{curse}"
+        )
+    for event in empty_events:
+        authoritative.append(
+            "Przeszukanie nie przynosi łupu." if event.get("reason") == "empty"
+            else "Przeszukanie kończy się niepowodzeniem; w tej lokacji nie można ponowić próby."
+        )
+    return strip_loot_claims(narration, world_pack, events) + (
+        "\n\n" + " ".join(authoritative) if authoritative else ""
+    )
 
 
 def _choose_recipient(
@@ -374,6 +447,15 @@ def _build_random_loot(
     template = table.entries[secrets.randbelow(len(table.entries))]
     level_cap = min(5, 2 + max(0, recipient.level - 1) // 5)
     stat_bonus = min(rarity.rank, level_cap)
+    cursed = secrets.randbelow(12) == 0
+    if cursed:
+        stat_bonus = max(2, stat_bonus)
+    curse_stat = ("charisma" if target_stat != "charisma" else "strength") if cursed else None
+    curse_abbreviation = next(
+        (attribute.abbreviation for attribute in world_pack.attributes
+         if attribute.id == curse_stat),
+        "",
+    )
     damage_power = 0
     if template.item_type == "weapon":
         damage_bonus_cap = min(3, max(0, recipient.level - 1) // 5)
@@ -383,11 +465,15 @@ def _build_random_loot(
         )
     return InventoryItem(
         character_id=recipient.id,
-        name=f"{template.label} {rarity.suffix}",
-        description=template.description,
+        name=f"{template.label} {rarity.suffix}" + (" (przeklęty)" if cursed else ""),
+        description=template.description + (
+            f" Klątwa: -1 {curse_abbreviation} podczas noszenia." if cursed else ""
+        ),
         item_type=template.item_type,
         target_stat=target_stat,
         stat_bonus=stat_bonus,
+        curse_stat=curse_stat,
+        curse_penalty=-1 if cursed else 0,
         damage_power=damage_power,
         hands_required=template.hands_required,
         is_equipped=False,

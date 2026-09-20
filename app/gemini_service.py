@@ -262,6 +262,10 @@ async def resolve_turn_with_gemini(
                     "type": item.item_type,
                     "hands_required": item.hands_required,
                     "equipped": item.is_equipped,
+                    "bonus_stat": item.target_stat,
+                    "bonus": item.stat_bonus,
+                    "curse_stat": item.curse_stat,
+                    "curse_penalty": int(item.curse_penalty or 0),
                     "quantity": item.quantity,
                 }
                 for item in c.inventory
@@ -290,6 +294,8 @@ async def resolve_turn_with_gemini(
             "dc_difficulty": a["dc"],
             "outcome_tier": a["outcome_tier"],
             "boss_damage": a.get("boss_damage", 0),
+            "character_damage": a.get("character_damage", 0),
+            "character_target_name": a.get("character_target_name"),
             "hp_delta_from_combat_engine": a.get("hp_delta", 0),
         })
 
@@ -381,7 +387,8 @@ async def resolve_turn_with_gemini(
         "4. CIĄGŁOŚĆ OPOWIEŚCI: Nie twórz suchych raportów punktowych. Każda tura to żywy fragment opowieści zgodnej z profilem aktywnego świata.\n\n"
         "Nie streszczaj ponownie zamkniętych wydarzeń z wcześniejszych tur. Pokonanego wcześniej głównego przeciwnika wspominaj tylko wtedy, gdy potwierdzają to bieżące combat_events albo deklaracja gracza bezpośrednio dotyczy jego pozostałości.\n\n"
         "5. PRAWDZIWY EKWIPUNEK: Pole inventory przy postaci jest jedynym źródłem prawdy o posiadanych przedmiotach. Nie pozwalaj użyć ani uzyskać korzyści z przedmiotu, którego tam nie ma. Broń, tarcza, zbroja, hełm, buty i aktywne akcesoria dają korzyść tylko, gdy mają equipped=true. Jeśli deklaracja mimo zabezpieczeń odwołuje się do nieposiadanego przedmiotu, opisz brak przedmiotu i improwizację zgodną z wynikiem rzutu, zamiast materializować wyposażenie.\n"
-        "6. ŁUP I CRAFTING: Ekwipunek i saldo rozlicza wyłącznie backend. Zdarzenia item_found, item_crafted i loot_search_empty w combat_events są ostateczne — opisz je dokładnie, w tym coins_awarded, gdy występuje, i nie dodawaj żadnych innych znalezisk ani środków. W każdym player_consequences ustaw new_items=[]; przedmioty utracone z innych przyczyn nadal wpisuj do removed_item_names.\n\n"
+        "6. ŁUP I CRAFTING: Ekwipunek i saldo rozlicza wyłącznie backend. Zdarzenia item_found, item_crafted i loot_search_empty w combat_events są ostateczne — opisz je dokładnie, w tym coins_awarded, gdy występuje. W item_found pole actor oznacza właściciela przedmiotu; found_by tylko znalazcę. Gdy brak item_found, nie opisuj zdobycia żadnego przedmiotu ani środków, nawet jeśli rzut przeszukania jest udany. W każdym player_consequences ustaw new_items=[]; przedmioty utracone z innych przyczyn nadal wpisuj do removed_item_names.\n\n"
+        "6a. ATAK NA POSTAĆ: Zdarzenie character_attack oraz pola character_damage i character_target_name są ostatecznym wynikiem ataku na członka drużyny. Podaj wskazany cel i dokładne obrażenia. Nie kieruj tego ataku na głównego przeciwnika ani nie dopisuj dodatkowych obrażeń.\n"
         "7. ZDOLNOŚCI KLASOWE: Pole ability przy akcji jest jedynym źródłem prawdy o użytej zdolności. Nie rozszerzaj efektu poza jej opis. Puste ability oznacza zwykłą akcję. Pole available_abilities zawiera wyłącznie odblokowane zdolności postaci.\n\n"
         "8. ODKRYTE ATAKI I NPC: Pole named_attack przy akcji wskazuje wybraną, poznaną technikę. Jej +1 obrażenie jest już w boss_damage; opisz użycie po nazwie, bez dodatkowej premii. Nazwany NPC zachowuje zapisane usposobienie i cel z opisu przy kolejnych spotkaniach. Jego powiedzonko może wracać okazjonalnie, nigdy mechanicznie w każdej turze. Nie twórz nowej wersji istniejącego NPC.\n\n"
         "ZASADY WYJŚCIA JSON:\n"
@@ -569,6 +576,11 @@ def _generate_rich_offline_resolution(
             elif event_type == "loot_search_empty":
                 event_sentences.append(
                     "Dokładne przeszukanie tej lokacji nie przynosi wartościowego łupu."
+                )
+            elif event_type == "character_attack":
+                event_sentences.append(
+                    f"{event.get('actor')} trafia {event.get('target')}, zadając "
+                    f"{event.get('damage')} obrażeń."
                 )
         if event_sentences:
             combat_summary = "\n\n" + " ".join(event_sentences)

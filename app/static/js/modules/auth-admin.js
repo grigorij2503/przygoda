@@ -362,5 +362,33 @@
       }
     },
 
+    async finishCampaign() {
+      this.gmEpilogueError = '';
+      const epilogue = this.gmEpilogue.trim();
+      if (epilogue.length < 20) {
+        this.gmEpilogueError = 'Wpisz epilog o długości co najmniej 20 znaków.';
+        return;
+      }
+      this.isFinishingCampaign = true;
+      try {
+        const res = await fetch('/api/session/finish-campaign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room_code: this.roomCode, epilogue })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 403) { this.requireGmUnlock(); return; }
+        if (!res.ok) throw new Error(data.detail || 'Nie udało się zakończyć kampanii.');
+        this.showIntroModal = false;
+        this.gmEpilogue = '';
+        await this.fetchSession();
+        this.addToast('Kampania została zakończona. Epilog zapisano w kronice.', 'success');
+      } catch (error) {
+        this.gmEpilogueError = error.message;
+      } finally {
+        this.isFinishingCampaign = false;
+      }
+    },
+
   };
 })();

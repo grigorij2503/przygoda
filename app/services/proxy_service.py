@@ -34,6 +34,8 @@ async def vote_for_proxy_action(
         raise HTTPException(status_code=404, detail="Nie znaleziono aktywnej postaci")
 
     session = target.session
+    if session.status == "completed":
+        raise HTTPException(status_code=409, detail="Kampania została zakończona")
     if session.is_turn_resolving:
         raise HTTPException(status_code=400, detail="Tura jest już rozstrzygana")
 

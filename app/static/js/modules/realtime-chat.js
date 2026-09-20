@@ -126,6 +126,11 @@
           await this.fetchSession();
           break;
 
+        case 'CAMPAIGN_COMPLETED':
+          this.addToast('Kampania zakończona. Epilog jest dostępny przy kronice.', 'success');
+          await this.fetchSession();
+          break;
+
         case 'CHARACTER_READY_TOGGLED':
           this.addToast(
             msg.is_ready 

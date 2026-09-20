@@ -20,7 +20,12 @@ from app.combat import (
 from app.database import get_db
 from app.dice import deduce_tested_attribute_details, resolve_dice_roll
 from app.gemini_service import resolve_turn_with_gemini
-from app.loot import resolve_inventory_mechanics, validate_special_action
+from app.loot import (
+    reconcile_loot_narration,
+    resolve_inventory_mechanics,
+    strip_loot_claims,
+    validate_special_action,
+)
 from app.magic import get_ability, validate_ability_action
 from app.models import (
     CampaignMap,
@@ -43,6 +48,7 @@ from app.services.runtime import (
     validate_action_item_claim,
 )
 from app.services.world_service import get_session_world_pack
+from app.targeting import infer_character_attack_target
 from app.websocket_manager import ws_manager
 from app.worlds.models import WorldPack
 
@@ -56,6 +62,8 @@ async def retry_turn(room_code: str = "kampania-1", db: AsyncSession = Depends(g
     session = (await db.execute(s_stmt)).scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Sesja nie istnieje")
+    if session.status == "completed":
+        raise HTTPException(status_code=409, detail="Kampania została zakończona")
     if session.is_turn_resolving:
         raise HTTPException(status_code=400, detail="Rozstrzyganie tej tury już trwa")
 
@@ -89,6 +97,8 @@ async def resolve_turn_endpoint(payload: ResolveTurnRequest = ResolveTurnRequest
     session = (await db.execute(s_stmt)).scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Sesja nie istnieje")
+    if session.status == "completed":
+        raise HTTPException(status_code=409, detail="Kampania została zakończona")
 
     if session.is_turn_resolving:
         raise HTTPException(status_code=400, detail="Mistrz Gry właśnie rozpatruje tę turę. Poczekaj na zakończenie.")
@@ -187,7 +197,7 @@ async def interpret_action(payload: InterpretActionRequest, db: AsyncSession = D
         raise HTTPException(status_code=400, detail=ability_error)
     if payload.named_attack_id:
         await require_learned_attack(db, character, payload.named_attack_id)
-    return interpret_player_action(
+    interpretation = interpret_player_action(
         character,
         payload.action_text.strip(),
         magic_ability=ability,
@@ -196,6 +206,16 @@ async def interpret_action(payload: InterpretActionRequest, db: AsyncSession = D
         target_ref=payload.target_ref,
         world_pack=world_pack,
     )
+    if interpretation["intent"] == "attack":
+        party = (await db.execute(select(Character).where(
+            Character.session_id == character.session_id
+        ))).scalars().all()
+        target, target_error = infer_character_attack_target(
+            payload.action_text.strip(), character, list(party)
+        )
+        interpretation["target_name"] = target.name if target else None
+        interpretation["target_error"] = target_error
+    return interpretation
 
 
 async def require_learned_attack(
@@ -229,6 +249,8 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
         raise HTTPException(status_code=404, detail="Postać nie istnieje")
     if not character.is_alive:
         raise HTTPException(status_code=400, detail="Postać w agonii, stabilna lub martwa nie może składać akcji.")
+    if character.session.status == "completed":
+        raise HTTPException(status_code=409, detail="Kampania została zakończona")
 
     action_text = payload.action_text.strip()
     world_pack = get_session_world_pack(character.session)
@@ -268,6 +290,21 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
     if payload.named_attack_id and resolved_intent != "attack":
         raise HTTPException(status_code=400, detail="Odkryta technika wymaga ataku")
     resolved_stat = interpretation["tested_stat"]
+    if resolved_intent == "attack":
+        party = (await db.execute(select(Character).where(
+            Character.session_id == character.session_id
+        ))).scalars().all()
+        attack_target, target_error = infer_character_attack_target(
+            action_text, character, list(party)
+        )
+        if target_error:
+            raise HTTPException(status_code=400, detail=target_error)
+        if attack_target and payload.named_attack_id:
+            raise HTTPException(status_code=400, detail="Odkryta technika dotyczy głównego przeciwnika, nie postaci z drużyny.")
+        action_target_ref = (
+            str(attack_target.id) if attack_target else
+            magic_ability["target_ref"] if magic_ability else None
+        )
     if resolved_intent == "support":
         try:
             support_target_id = int(action_target_ref or "")
@@ -278,8 +315,8 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
             Character.session_id == character.session_id,
         )
         support_target = (await db.execute(target_stmt)).scalar_one_or_none()
-        if not support_target or support_target.id == character.id:
-            raise HTTPException(status_code=400, detail="Wsparcie musi wskazywać inną postać z drużyny.")
+        if not support_target:
+            raise HTTPException(status_code=400, detail="Wskaż postać z drużyny.")
         is_revive = bool(magic_ability and magic_ability["mechanic_key"] == "revive")
         if is_revive and support_target.death_state != "dead":
             raise HTTPException(status_code=400, detail="Ta zdolność wymaga wskazania poległego bohatera.")
@@ -491,11 +528,21 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                         continue
 
                     action.intent = infer_action_intent(action.action_text, action.intent)
+                    if action.intent == "attack" and not action.target_ref:
+                        target, _ = infer_character_attack_target(
+                            action.action_text, char, list(characters)
+                        )
+                        if target:
+                            action.target_ref = str(target.id)
                     dc, tested_stat_override = action_dc(
                         session, action,
                         challenge_tier=turn.challenge_tier,
                         average_level=average_level,
                     )
+                    if action.intent == "attack" and str(action.target_ref or "").isdigit():
+                        target = char_map.get(int(action.target_ref))
+                        if target and target.id != char.id:
+                            dc = max(10, 12 + int(target.agility or 0))
                     action_ability_id = action.ability_id or action.magic_ability_id
                     action_ability = get_ability(world_pack, char.class_id, action_ability_id)
                     if action_ability:
@@ -561,6 +608,11 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                 char = char_map.get(action.character_id)
                 if not char:
                     continue
+                party_target = (
+                    char_map.get(int(action.target_ref))
+                    if action.intent == "attack" and str(action.target_ref or "").isdigit()
+                    else None
+                )
                 actions_with_rolls.append({
                     "character_id": char.id,
                     "character_name": char.name,
@@ -589,7 +641,9 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                     "dice_total": action.dice_total,
                     "dc": action.dc,
                     "outcome_tier": action.outcome_tier,
-                    "boss_damage": action.damage_dealt or 0,
+                    "boss_damage": 0 if party_target else int(action.damage_dealt or 0),
+                    "character_damage": int(action.damage_dealt or 0) if party_target else 0,
+                    "character_target_name": party_target.name if party_target else None,
                     "hp_delta": action.hp_delta or 0,
                 })
 
@@ -606,6 +660,20 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                 lore_entities=lore_entities,
                 map_context=map_context,
             )
+            gemini_result.gm_story_narration = reconcile_loot_narration(
+                gemini_result.gm_story_narration,
+                list(turn.combat_events or []),
+                world_pack,
+            )
+            for consequence in gemini_result.player_consequences:
+                consequence.individual_summary = (
+                    strip_loot_claims(
+                        consequence.individual_summary,
+                        world_pack,
+                        list(turn.combat_events or []),
+                    )
+                    or "Wynik akcji zapisano w rozstrzygnięciu tury."
+                )
 
             boss_defeated_this_turn = any(
                 isinstance(event, dict) and event.get("type") == "boss_defeated"
@@ -641,7 +709,7 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             # 3. Zastosowanie konsekwencji dla postaci
             level_ups = []
             boss_combat_event_types = {
-                "player_attack", "boss_attack", "boss_defeated", "phase_change",
+                "player_attack", "character_attack", "boss_attack", "boss_defeated", "phase_change",
                 "environment_success", "environment_failure", "defence", "support",
                 "support_failed", "stabilized", "revived", "resurrection",
                 "resurrection_failed", "death_failure", "character_died",
@@ -790,6 +858,13 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                         == normalize_game_text(opportunity.description)
                         for lore in lore_entities
                     )
+                elif category == "weapon":
+                    awarded_names = {
+                        event.get("actor") for event in (turn.combat_events or [])
+                        if isinstance(event, dict) and event.get("type") == "item_found"
+                    }
+                    eligible = [character for character in living if character.name in awarded_names]
+                    scene_confirmed = bool(eligible)
                 else:
                     scene_confirmed = True
                 if scene_confirmed and eligible:

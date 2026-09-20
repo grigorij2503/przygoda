@@ -175,6 +175,8 @@ def calculate_item_modifier(character: Character, tested_stat: str) -> int:
     for item in get_effectively_equipped_items(character.inventory):
         if item.target_stat == tested_stat or item.target_stat == "all":
             modifier += item.stat_bonus
+        if item.curse_stat == tested_stat:
+            modifier += int(item.curse_penalty or 0)
     return modifier
 
 

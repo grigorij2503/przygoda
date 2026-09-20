@@ -16,6 +16,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
    - Narracyjny opis gracza jest podstawowym źródłem zamiaru i testowanej cechy; ważone reguły rozpoznają dominującą czynność oraz sposób wykonania zamiast wybierać pierwszy napotkany wyraz.
    - Poboczne ozdobniki, takie jak okrzyk podczas ataku, nie przebijają fizycznej metody działania; przy niejednoznacznym ataku silnik korzysta z cechy używanej broni, a następnie z najlepiej pasującej cechy postaci.
    - Formularz na bieżąco pokazuje nieblokującą interpretację (`zamiar • cecha`), poziom niskiej pewności i krótkie uzasadnienie; gracz może opcjonalnie skorygować oba pola przed zatwierdzeniem bez rezygnowania ze swobodnego opisu.
+   - Atak na członka drużyny wskazuje cel w opisie akcji, bez listy celów ataku. Podgląd pokazuje rozpoznaną postać; przy niejednoznacznym „koledze” w większej drużynie trzeba dopisać imię.
    - Podgląd interpretacji działa przez osobny endpoint, a formularz czytelnie obsługuje zarówno błędy JSON, jak i tekstowe odpowiedzi serwera przy zatwierdzaniu akcji.
    - Dynamiczne kalkulowanie modyfikatorów cech oraz założonego ekwipunku ($\text{Wynik} = d20 + \text{Cecha} + \text{Ekwipunek}$).
    - Klasyfikacja: *Krytyczny Sukces* (nat 20), *Sukces* ($\ge$ DC), *Częściowy Sukces* (DC-2 do DC-1), *Porażka*, *Krytyczna Porażka* (nat 1); domyślny próg to DC 12, lecz mechanika może go zmienić.
@@ -52,6 +53,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
    - HP nowego głównego zagrożenia odpowiada około 3–4 turam oczekiwanych obrażeń żywej drużyny, z uwzględnieniem trafień k20, wyposażenia i pancerza. Parametry starcia są ustalane przy jego rozpoczęciu; pancerz, DC obrony, fazy, cechy specjalne i zapowiadane akcje nadal działają. Spokojniejsze kampanie mogą prowadzić tury bez starcia.
    - Wróg odpowiada raz przy 1–2 żywych graczach, dwa razy przy 3–4 i trzy razy przy co najmniej 5; wybiera różne cele. Samotny bohater otrzymuje słabszy pojedynczy cios. Trwające wcześniej starcia bez zapisanego licznika zachowują jedną odpowiedź na turę.
    - Osobne rozstrzyganie ataku, obrony, wsparcia wskazanego sojusznika i efektów czasowych postaci oraz przeciwnika.
+   - Trafienie w członka drużyny odejmuje HP przez silnik, także poza starciem z głównym przeciwnikiem; rzut kamieniem ma niższe obrażenia improwizowane. Leczenie i oczyszczenie mogą wskazywać samego rzucającego, wskrzeszenie pozostaje skierowane do innej poległej postaci.
    - Jawne stany `agonia → stabilny / śmierć`: postać w agonii otrzymuje jedną porażkę śmierci na turę, trzecia oznacza zgon; wsparcie może stabilizować lub podnieść bohatera.
 10. **Zdolności Klasowe:**
     - Każda klasa używa księgi właściwej swojemu światu: od czarów Czarodzieja i modlitw Kleryka po hacki, dedukcję lub komediowe sztuczki.
@@ -61,7 +63,8 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
     - Wybrana zdolność jawnie ustala swój zamiar i cechę rzucania; tych wartości nie zastępuje automatyczna interpretacja ozdobników dopisanych przez gracza.
     - Kleryk od 7. poziomu otrzymuje Wskrzeszenie, które jako jedyne zwykłe działanie może przywrócić poległego bohatera (25% PW, a przy krytycznym sukcesie 50% PW).
 11. **Łup, Ekwipunek i Crafting:**
-    - Łup z przeszukiwania lokacji i wspólna nagroda po pokonaniu bossa.
+    - Jedna próba przeszukania na pomieszczenie, także po porażce. Udana próba może trafić na pustą lokację (20%); znaleziony przedmiot i monety otrzymuje przeszukujący. Nagroda po pokonaniu głównego przeciwnika pozostaje wspólna. Narracja znalezisk jest uzgadniana z zapisem mechaniki.
+    - Część znalezionych przedmiotów jest przeklęta: premia co najmniej +2 do cechy głównej i kara −1 do innej cechy działają tylko po założeniu; obie wartości widać w ekwipunku.
     - Typy, rzadkość, obrażenia, zajęte ręce i limity wyposażenia są egzekwowane przez backend.
     - Hełmy i buty mają osobne typy i sloty. Opublikowane pakiety v1 zachowują swoje tabele łupu, dlatego nowe elementy ochronne nadaje MG; trzy przedmioty tego samego typu można później wykorzystać w craftingu.
     - Crafting zużywa trzy zgodne przedmioty i jest dostępny przez jedną turę po pokonaniu bossa.
@@ -74,6 +77,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
     - Panel narzędzi administracyjnych jest odblokowywany osobnym `GM_PIN`; zawiera m.in. konfigurację scenariusza, reset kampanii, ponowienie i ręczne rozstrzygnięcie tury.
     - MG może awaryjnie skorygować bazowe atrybuty dowolnej postaci w zakresie `0–12`; panel pokazuje zmianę łącznej puli, wymaga potwierdzenia i synchronizuje korektę z graczami. Bonusy ekwipunku, niewydane punkty awansu i już złożone akcje nie są przeliczane.
     - Panel MG pozwala skorygować saldo bez zejścia poniżej zera oraz nadać hełm lub buty do plecaka wskazanej postaci.
+    - MG może zapisać epilog i zakończyć kampanię po osiągnięciu celu scenariusza. Kronika oraz postacie pozostają widoczne, a składanie akcji, głosowanie zastępcze i rozstrzyganie następnych tur są zamknięte do nowego scenariusza.
     - Interfejs działa jako instalowalna PWA z service workerem, zwijanym nagłówkiem sesji i panelem akcji na telefonach oraz ekranach komputerowych do 1799 px, czytelniejszą typografią, semantycznymi modalami, obsługą klawiatury i trybem ograniczonego ruchu. Po złożeniu akcji przez wszystkich aktywnych graczy przycisk generowania kolejnej tury z AI pozostaje na górze panelu, także gdy jego treść jest zwinięta.
     - Po powrocie z uśpionej karty, zminimalizowanej przeglądarki lub zablokowanego urządzenia klient odtwarza WebSocket i pobiera aktualny stan tury; po co najmniej dwóch minutach nieobecności pokazuje krótkie powitanie wybranej postaci.
 13. **Jądro Wersjonowanych Światów:**
@@ -105,6 +109,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │   ├── combat.py              # Skalowanie zagrożenia i DC wyzwań, zdolności, wsparcie, agonia/śmierć i statusy
 │   ├── inventory.py           # Sloty, zajęte ręce i aktywny ekwipunek
 │   ├── loot.py                # Łup, przeszukiwanie i crafting według pakietu świata
+│   ├── targeting.py           # Odczyt celu ataku na postać z treści deklaracji
 │   ├── magic.py               # Ogólne księgi zdolności i adaptery dawnej magii
 │   ├── map_generator.py       # Mapa grafowa generowana z profilu świata
 │   ├── gemini_service.py      # Integracja Google GenAI (Gemini 3.8 Flash + Imagen 3)
@@ -150,6 +155,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │   ├── test_full_resolution.py # Test pełnego cyklu tury i awansu
 │   ├── test_lobby_flow.py     # Testy lobby, gotowości i uprawnień MG
 │   ├── test_loot.py           # Testy łupu oraz craftingu
+│   ├── test_character_targets.py # Atak na postać odczytany z opisu i samoleczenie
 │   ├── test_turn_flow.py      # Testy API, autoryzacji i akcji
 │   ├── test_stage6_world_content.py # Próbny pakiet: klasy, księga, mapa, przeciwnik i walidacja mechanik
 │   ├── test_stage7_theme_selection.py # Kontrolowane motywy i wybór świata tylko przy restarcie
@@ -165,7 +171,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │       └── 0001-versioned-world-packs.md # Decyzja o deklaratywnych pakietach świata
 ├── uploads/                   # Katalog na wygenerowane obrazy z Imagen 3
 ├── data/                      # Katalog na plik bazy SQLite (w Dockerze)
-├── alembic/                   # Migracje 0001 światów, 0002 trudności, 0003 salda i 0004 odkryć Kroniki
+├── alembic/                   # Migracje 0001–0005, w tym epilog i kara przeklętych przedmiotów
 ├── alembic.ini                # Konfiguracja migracji korzystająca z DATABASE_URL
 ├── Dockerfile                 # Zoptymalizowany obraz produkcyjny Python 3.12-slim
 ├── docker-compose.yml         # Konfiguracja uruchomieniowa kontenera
@@ -262,7 +268,7 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 W systemach Linux/macOS środowisko aktywuje polecenie `source .venv/bin/activate`, a plik konfiguracyjny tworzy `cp .env.example .env`.
 
 Aplikacja będzie dostępna pod adresem: `http://localhost:8000`.
-Migracja `0002_encounter_difficulty` dodaje poziom trudności do tur; istniejące tury zachowują zwykły poziom DC 12. Migracja `0003_inventory_wallet` dodaje saldo `coins` i nadaje historycznym postaciom `0`, bez zmiany ich ekwipunku. Migracja `0004_lore_discoveries` dodaje wybierane ataki postaci, cechy NPC i kontekst oczekującej propozycji nazwania bez usuwania dotychczasowej Kroniki. Bezpośredni start przez `uvicorn` uzupełnia wymagane kolumny w starszych lokalnych bazach bez historii Alembic; późniejsze `alembic upgrade head` zapisuje formalną wersję schematu. Nie są potrzebne nowe zmienne `.env`. Przed migracją istniejącej kampanii wykonaj kopię bazy SQLite. `SECRET_KEY` podpisuje także ciasteczko dostępu do pokoju używane przy przekazywaniu przedmiotów.
+Migracja `0002_encounter_difficulty` dodaje poziom trudności do tur; istniejące tury zachowują zwykły poziom DC 12. Migracja `0003_inventory_wallet` dodaje saldo `coins` i nadaje historycznym postaciom `0`, bez zmiany ich ekwipunku. Migracja `0004_lore_discoveries` dodaje wybierane ataki postaci, cechy NPC i kontekst oczekującej propozycji nazwania bez usuwania dotychczasowej Kroniki. Migracja `0005_campaign_endings_cursed_items` dodaje zapis epilogu i karę przeklętych przedmiotów, zachowując dotychczasowy ekwipunek. Bezpośredni start przez `uvicorn` uzupełnia wymagane kolumny w starszych lokalnych bazach bez historii Alembic; późniejsze `alembic upgrade head` zapisuje formalną wersję schematu. Nie są potrzebne nowe zmienne `.env`. Przed migracją istniejącej kampanii wykonaj kopię bazy SQLite. `SECRET_KEY` podpisuje także ciasteczko dostępu do pokoju używane przy przekazywaniu przedmiotów.
 
 ---
 
@@ -380,7 +386,9 @@ Zakres testów:
 - `tests/test_lobby_flow.py`:
   - Konfiguracja lobby, gotowość graczy oraz kontrola dostępu do narzędzi MG.
 - `tests/test_loot.py`:
-  - Przyznawanie łupu i środków jego odbiorcy, jednorazowe przeszukiwanie lokacji i zasady craftingu, także dla niezapisanych obiektów ORM z domyślną ilością.
+  - Przyznawanie łupu i środków, jednorazowe przeszukiwanie lokacji, pustą lokację po sukcesie, usunięcie nieprzyznanego artefaktu z narracji, premię i karę założonego przeklętego przedmiotu oraz zasady craftingu.
+- `tests/test_character_targets.py`:
+  - Odczyt celu ataku na postać z opisu, obrażenia improwizowanym kamieniem i leczenie własnej postaci.
 - `tests/test_turn_flow.py`:
   - Pobieranie strony głównej i weryfikacja hasła do pokoju.
   - Tworzenie postaci i przydzielanie startowego ekwipunku.
@@ -396,7 +404,7 @@ Zakres testów:
 - `tests/test_stage9_world_recipes.py`:
   - Komplet 13 nowych pakietów, ekspansja przepisu do `WorldPack`, księgi, motywy, mapa, spokojne fallbacki i odrzucanie niedozwolonych danych.
 - `tests/test_world_migration.py`:
-  - Uruchomienie Alembic na historycznej bazie i kontrola backfillu świata, klasy, Percepcji oraz ogólnego ID zdolności bez zmiany postępu postaci; nowa migracja dodaje domyślny poziom trudności do istniejących tur.
+  - Uruchomienie Alembic na historycznej bazie i kontrola backfillu świata, klasy, Percepcji oraz ogólnego ID zdolności bez zmiany postępu postaci; obecny head to `0005_campaign_endings_cursed_items`.
 
 ---
 

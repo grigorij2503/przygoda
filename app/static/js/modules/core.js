@@ -117,6 +117,9 @@
     gmPin: '',
     gmAuthError: '',
     resetConfirmation: '',
+    gmEpilogue: '',
+    gmEpilogueError: '',
+    isFinishingCampaign: false,
     gmStatCharacterId: null,
     gmStatForm: {
       strength: 0,

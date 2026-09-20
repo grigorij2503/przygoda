@@ -31,6 +31,7 @@ from app.models import (
 )
 from app.schemas import (
     CreateSessionRequest,
+    FinishCampaignRequest,
     GenerateIntroRequest,
     NameEntityRequest,
     PrologueRequest,
@@ -76,8 +77,9 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
     if not game_session:
         raise HTTPException(status_code=404, detail="Sesja nie została znaleziona")
     world_pack = get_session_world_pack(game_session)
-    session_changed = ensure_enemy_encounter(
-        game_session, game_session.characters, world_pack
+    session_changed = (
+        ensure_enemy_encounter(game_session, game_session.characters, world_pack)
+        if game_session.status != "completed" else False
     )
     for character in game_session.characters:
         if character.current_hp <= 0 and getattr(character, "death_state", "alive") == "alive":
@@ -94,7 +96,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
     alive_character_ids = {character.id for character in game_session.characters if character.is_alive}
     characters_by_id = {character.id: character for character in game_session.characters}
     finalized_proxy_actions = []
-    if current_turn and not game_session.is_turn_resolving:
+    if current_turn and not game_session.is_turn_resolving and game_session.status != "completed":
         for decision in current_turn.proxy_decisions:
             previous_status = decision.status
             result = finalize_proxy_decision(db, decision, current_turn, alive_character_ids, now)
@@ -124,7 +126,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
     } if current_turn else {}
     proxy_available_at = (
         (as_utc(current_turn.created_at) or now) + PROXY_ACTION_WAIT
-        if current_turn else None
+        if current_turn and game_session.status != "completed" else None
     )
     last_image_generated_at = as_utc(game_session.last_image_generated_at)
     image_day_start, next_image_day_start = image_generation_day_bounds(now)
@@ -218,6 +220,8 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
                     "item_type": item.item_type,
                     "target_stat": item.target_stat,
                     "stat_bonus": item.stat_bonus,
+                    "curse_stat": item.curse_stat,
+                    "curse_penalty": int(item.curse_penalty or 0),
                     "damage_power": infer_item_damage_power(item),
                     "hands_required": item.hands_required,
                     "is_equipped": item.is_equipped,
@@ -309,6 +313,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
         "title": game_session.title,
         "setting_theme": game_session.setting_theme,
         "campaign_intro": game_session.campaign_intro,
+        "campaign_epilogue": game_session.campaign_epilogue or "",
         "current_turn_number": game_session.current_turn_number,
         "is_turn_resolving": game_session.is_turn_resolving,
         "server_time": now.isoformat(),
@@ -405,6 +410,45 @@ async def generate_intro(payload: GenerateIntroRequest, request: Request):
         payload.scenario_type, payload.tone, world_pack
     )
 
+async def finish_campaign(
+    payload: FinishCampaignRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    require_gm(request)
+    epilogue = payload.epilogue.strip()
+    if len(epilogue) < 20:
+        raise HTTPException(status_code=400, detail="Epilog musi mieć co najmniej 20 znaków")
+    session = (await db.execute(
+        select(GameSession).where(GameSession.room_code == payload.room_code).with_for_update()
+    )).scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Sesja nie została znaleziona")
+    if session.status != "in_progress":
+        raise HTTPException(status_code=409, detail="Można zakończyć tylko trwającą kampanię")
+    if session.is_turn_resolving:
+        raise HTTPException(status_code=409, detail="Poczekaj na rozstrzygnięcie tury")
+    has_character = (await db.execute(
+        select(Character.id).where(Character.session_id == session.id).limit(1)
+    )).scalar_one_or_none()
+    if has_character is None:
+        raise HTTPException(status_code=409, detail="Brak postaci w kampanii")
+    session.campaign_epilogue = epilogue
+    session.status = "completed"
+    session.pending_naming_category = None
+    session.pending_naming_prompt = None
+    session.pending_naming_character_id = None
+    session.pending_naming_character_name = None
+    session.pending_naming_turn_number = None
+    session.pending_naming_map_node_id = None
+    session.pending_naming_question = None
+    await db.commit()
+    await ws_manager.broadcast_to_session(session.id, {
+        "type": "CAMPAIGN_COMPLETED", "epilogue": session.campaign_epilogue,
+    })
+    return {"success": True, "status": "completed"}
+
+
 async def reset_campaign(
     payload: CreateSessionRequest,
     request: Request,
@@ -423,6 +467,8 @@ async def reset_campaign(
         session.setting_theme = payload.setting_theme or narrative_profile.setting_theme
         session.campaign_intro = payload.campaign_intro or narrative_profile.campaign_intro
         session.current_turn_number = 1
+        session.status = "in_progress"
+        session.campaign_epilogue = ""
         session.is_turn_resolving = False
         session.active_boss_name = None
         session.active_boss_title = None
@@ -514,6 +560,7 @@ async def setup_scenario(
     session.setting_theme = payload.tone or narrative_profile.setting_theme
     session.campaign_intro = ""
     session.status = "lobby"
+    session.campaign_epilogue = ""
     session.current_turn_number = 1
     session.is_turn_resolving = False
     session.active_boss_name = None
@@ -592,6 +639,8 @@ async def start_prologue(payload: PrologueRequest, db: AsyncSession = Depends(ge
     session = res.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Sesja nie została znaleziona")
+    if session.status == "completed":
+        raise HTTPException(status_code=409, detail="Zakończona kampania wymaga nowego scenariusza")
 
     alive_chars = [c for c in session.characters if c.is_alive]
     if not alive_chars:
@@ -798,6 +847,8 @@ async def trigger_naming(
     session = (await db.execute(s_stmt)).scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Sesja nie istnieje")
+    if session.status == "completed":
+        raise HTTPException(status_code=409, detail="Kampania została zakończona")
     if session.is_turn_resolving or session.pending_naming_category:
         raise HTTPException(status_code=400, detail="Poczekaj na zakończenie bieżącego odkrycia lub tury")
 

@@ -169,10 +169,10 @@
                         class="action-console__input w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 transition resize-none"></textarea>
 
               <div x-show="effectiveActionIntent() === 'support'" x-cloak>
-                <label for="support-target" class="block text-xs font-semibold text-emerald-300 mb-1">Sojusznik objęty wsparciem</label>
+                <label for="support-target" class="block text-xs font-semibold text-emerald-300 mb-1">Postać objęta wsparciem</label>
                 <select id="support-target" x-model="actionTargetRef"
                         class="w-full bg-slate-950 border border-emerald-800/70 rounded-lg px-3 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none">
-                  <option value="">Wybierz postać…</option>
+                  <option value="">Wybierz postać, także własną…</option>
                   <template x-for="character in supportTargets" :key="character.id">
                     <option :value="String(character.id)" x-text="character.name + ' • ' + deathStateLabel(character) + ' • ' + character.current_hp + '/' + character.max_hp + ' PW'"></option>
                   </template>
@@ -186,6 +186,7 @@
                   <b x-text="intentLabel(actionInterpretation?.intent)"></b>
                   <span>•</span>
                   <b x-text="statShortLabel(actionInterpretation?.tested_stat)"></b>
+                  <span x-show="actionInterpretation?.target_name" x-text="'• Cel: ' + actionInterpretation?.target_name"></span>
                   <span x-show="Math.min(actionInterpretation?.intent_confidence || 0, actionInterpretation?.stat_confidence || 0) < 0.65"
                         class="rounded bg-amber-950/70 px-1.5 py-0.5 text-amber-300">niska pewność</span>
                   <button x-show="!magicAbilityId && !showActionInterpretationControls" type="button"
@@ -219,6 +220,8 @@
                           class="col-span-2 justify-self-start text-gray-500 hover:text-gray-300 underline">wróć do automatycznej interpretacji</button>
                 </div>
               </div>
+              <p x-show="actionInterpretation?.target_error" x-text="actionInterpretation?.target_error"
+                 class="text-xs text-amber-300" role="status"></p>
 
               <div x-show="actionError" x-text="actionError" class="text-xs text-rose-400"></div>
 

@@ -32,6 +32,11 @@ router.add_api_route(
     methods=["POST"],
 )
 router.add_api_route(
+    "/api/session/finish-campaign",
+    session_service.finish_campaign,
+    methods=["POST"],
+)
+router.add_api_route(
     "/api/session/name-entity",
     session_service.name_entity,
     methods=["POST"],

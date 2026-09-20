@@ -15,6 +15,7 @@ from app.worlds.registry import get_default_world_pack
 INTENT_RULES: dict[str, tuple[tuple[str, int, str], ...]] = {
     "attack": (
         (r"\b(?:atakuj|walcz|nacier|szarz|uderz|tne|tnij|siek|strzel|wystrzel|rani|zabij|dobij)\w*\b", 5, "bezpośrednia czynność ofensywna"),
+        (r"\brzuc\w*\s+(?:kamien|kamyk|cegl|pocisk|noz|granat)\w*\b", 5, "rzut przedmiotem w cel"),
         (r"\bwyprowadz\w*\s+(?:kolejn\w*\s+|zamaszyst\w*\s+)*(?:cios|cieci|atak)\w*\b", 5, "wyprowadzany cios lub cięcie"),
         (r"\b(?:cios|cieci|strzal|pocisk)\w*\b", 3, "opis ciosu lub pocisku"),
         (r"\b(?:atak|natarci|ofensyw)\w*\b", 1, "wzmianka o ataku"),
@@ -455,7 +456,7 @@ def _resolve_support_action(
         target = next((item for item in characters if item.id == target_id), None)
 
     is_resurrection = bool(ability and ability.get("mechanic_key") == "revive")
-    if not target or target.id == actor.id:
+    if not target:
         candidates = [
             item for item in characters
             if item.id != actor.id
@@ -473,7 +474,7 @@ def _resolve_support_action(
         if target:
             action.target_ref = str(target.id)
 
-    if not target or target.id == actor.id:
+    if not target:
         events.append({"type": "support_failed", "actor": actor.name, "reason": "no_ally"})
         return
 
@@ -850,6 +851,56 @@ def _update_boss_phase(
     }
 
 
+def _resolve_character_attack(
+    actor: Character,
+    action: PlayerAction,
+    characters: list[Character],
+    actions: list[PlayerAction],
+    events: list[dict],
+) -> bool:
+    if not action.target_ref or not str(action.target_ref).isdigit():
+        return False
+    target = next(
+        (character for character in characters
+         if character.id == int(action.target_ref) and character.id != actor.id),
+        None,
+    )
+    if target is None:
+        return False
+    if not target.is_alive:
+        events.append({"type": "character_attack", "actor": actor.name,
+                       "target": target.name, "damage": 0})
+        return True
+    if action.outcome_tier not in {"partial_success", "success", "critical_success"}:
+        events.append({"type": "character_attack", "actor": actor.name,
+                       "target": target.name, "damage": 0})
+        return True
+
+    if re.search(r"\b(?:kamien|kamyk|otoczak)\w*\b", normalize_text(action.action_text)):
+        roll = secrets.randbelow(4) + 1
+        base = roll + max(0, int(action.stat_modifier or 0) // 2)
+        multiplier = {"partial_success": 0.5, "success": 1, "critical_success": 1.5}[action.outcome_tier]
+        damage = max(1, round(base * multiplier))
+        action.damage_roll = roll
+        action.damage_base = base
+        action.damage_reduction = 0
+    else:
+        damage, action.damage_roll, action.damage_base, action.damage_reduction = (
+            calculate_attack_damage(actor, action, 0, [])
+        )
+    previous_hp = target.current_hp
+    target.current_hp = max(0, previous_hp - damage)
+    action.damage_dealt = previous_hp - target.current_hp
+    target_action = next((item for item in actions if item.character_id == target.id), None)
+    if target_action:
+        target_action.hp_delta = int(target_action.hp_delta or 0) - action.damage_dealt
+    if target.current_hp == 0:
+        set_character_downed(target)
+    events.append({"type": "character_attack", "actor": actor.name,
+                   "target": target.name, "damage": action.damage_dealt})
+    return True
+
+
 def resolve_boss_turn(
     session: GameSession,
     characters: list[Character],
@@ -891,6 +942,10 @@ def resolve_boss_turn(
         )
         if _resolve_utility_ability(
             session, character, action, ability, events, world_pack
+        ):
+            continue
+        if intent == "attack" and _resolve_character_attack(
+            character, action, characters, actions, events
         ):
             continue
         if intent == "attack" and session.active_boss_hp and session.active_boss_hp > 0:
@@ -991,6 +1046,10 @@ def resolve_status_turn(
     for action in actions:
         actor = next((item for item in characters if item.id == action.character_id), None)
         if not actor or not actor.is_alive:
+            continue
+        if infer_action_intent(action.action_text, action.intent) == "attack" and (
+            _resolve_character_attack(actor, action, characters, actions, events)
+        ):
             continue
         ability = get_ability(
             world_pack,

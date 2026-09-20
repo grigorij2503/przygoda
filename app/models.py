@@ -15,7 +15,8 @@ class GameSession(Base):
     campaign_intro = Column(Text, default="")
     current_turn_number = Column(Integer, default=1)
     is_turn_resolving = Column(Boolean, default=False)
-    status = Column(String(50), default="in_progress")  # "lobby", "in_progress"
+    status = Column(String(50), default="in_progress")  # lobby, in_progress, completed
+    campaign_epilogue = Column(Text, nullable=False, default="")
     active_boss_name = Column(String(100), nullable=True)
     active_boss_title = Column(String(150), nullable=True)
     active_boss_hp = Column(Integer, nullable=True)
@@ -122,6 +123,8 @@ class InventoryItem(Base):
     item_type = Column(String(50), default="weapon")  # weapon, shield, armor, helmet, boots, accessory, consumable, misc
     target_stat = Column(String(50), default="strength")  # strength, agility, intellect, charisma, perception, hp_max, none
     stat_bonus = Column(Integer, default=0)
+    curse_stat = Column(String(50), nullable=True)
+    curse_penalty = Column(Integer, nullable=False, default=0)
     damage_power = Column(Integer, nullable=False, default=0)
     hands_required = Column(Integer, nullable=False, default=1)  # 1 albo 2 dla broni; pozostałe typy ignorują tę wartość
     is_equipped = Column(Boolean, default=False)

@@ -238,8 +238,8 @@
     get supportTargets() {
       const resurrection = this.selectedMagicAbility?.mechanic_key === 'revive';
       return (this.session?.characters || []).filter(character =>
-        character.id !== this.selectedCharacterId
-          && (resurrection ? character.death_state === 'dead' : character.death_state !== 'dead')
+        resurrection ? character.death_state === 'dead' && character.id !== this.selectedCharacterId
+          : character.death_state !== 'dead'
       );
     },
 
@@ -305,8 +305,10 @@
 
     equipmentStatBonus(stat) {
       return this.equippedStatItems.reduce((total, item) => {
-        if (item.target_stat !== stat && item.target_stat !== 'all') return total;
-        return total + Number(item.stat_bonus || 0);
+        const bonus = item.target_stat === stat || item.target_stat === 'all'
+          ? Number(item.stat_bonus || 0) : 0;
+        const curse = item.curse_stat === stat ? Number(item.curse_penalty || 0) : 0;
+        return total + bonus + curse;
       }, 0);
     },
 
@@ -402,12 +404,15 @@
       const damage = item.item_type === 'weapon' && item.damage_power > 0
         ? `obrażenia ${item.damage_power}+k6`
         : '';
-      if (item.stat_bonus <= 0) return damage;
-      if (item.target_stat === 'hp_max') return `+${item.stat_bonus} maks. PW`;
-      if (item.target_stat === 'all') return `+${item.stat_bonus} wszystkie testy`;
-      if (item.target_stat === 'none') return damage;
-      const stat = `+${item.stat_bonus} ${this.statAbbreviation(item.target_stat)}`;
-      return damage ? `${stat} • ${damage}` : stat;
+      const effects = [];
+      if (item.stat_bonus > 0 && item.target_stat === 'hp_max') effects.push(`+${item.stat_bonus} maks. PW`);
+      else if (item.stat_bonus > 0 && item.target_stat === 'all') effects.push(`+${item.stat_bonus} wszystkie testy`);
+      else if (item.stat_bonus > 0 && item.target_stat !== 'none') effects.push(`+${item.stat_bonus} ${this.statAbbreviation(item.target_stat)}`);
+      if (item.curse_stat && item.curse_penalty < 0) {
+        effects.push(`${item.curse_penalty} ${this.statAbbreviation(item.curse_stat)} (klątwa)`);
+      }
+      if (damage) effects.push(damage);
+      return effects.join(' • ');
     },
 
     get transferTargets() {

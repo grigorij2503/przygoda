@@ -37,6 +37,11 @@ class CreateSessionRequest(BaseModel):
     setting_theme: Optional[str] = None
     campaign_intro: Optional[str] = ""
 
+
+class FinishCampaignRequest(BaseModel):
+    room_code: str = Field(min_length=1, max_length=50)
+    epilogue: str = Field(min_length=20, max_length=5000)
+
 class GenerateIntroRequest(BaseModel):
     scenario_type: str = Field(
         ...,
@@ -107,6 +112,8 @@ class InventoryItemDto(BaseModel):
     item_type: str
     target_stat: str
     stat_bonus: int
+    curse_stat: Optional[str] = None
+    curse_penalty: int = 0
     damage_power: int = 0
     hands_required: int = 1
     is_equipped: bool

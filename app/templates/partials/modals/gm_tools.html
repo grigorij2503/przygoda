@@ -89,6 +89,18 @@
           </form>
         </div>
 
+        <form x-show="session?.status === 'in_progress'" @submit.prevent="finishCampaign()"
+              class="p-4 rounded-xl bg-slate-950/70 border border-amber-900/50 space-y-2">
+          <p class="text-sm font-bold text-amber-300">Zakończ kampanię</p>
+          <p class="text-xs text-gray-400">Po osiągnięciu celu scenariusza zapisz epilog. Historia i postacie pozostaną widoczne, a nowe akcje zostaną zamknięte.</p>
+          <label for="gm-epilogue" class="block text-xs text-gray-300">Epilog</label>
+          <textarea id="gm-epilogue" x-model="gmEpilogue" minlength="20" maxlength="5000" rows="4" required
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white"></textarea>
+          <p x-show="gmEpilogueError" x-text="gmEpilogueError" role="alert" class="text-xs text-rose-300"></p>
+          <button type="submit" :disabled="isFinishingCampaign || session?.is_turn_resolving"
+                  class="inventory-action">Zapisz finał kampanii</button>
+        </form>
+
         <div class="p-4 rounded-xl bg-rose-950/40 border border-rose-800/60">
           <p class="text-sm font-bold text-rose-300 mb-1">⚠️ Restart kampanii</p>
           <p class="text-xs text-rose-200/80">Wybranie świata lub scenariusza dla nowej zbiórki usunie wszystkie postacie, tury i bieżący postęp. Tej operacji nie można cofnąć.</p>

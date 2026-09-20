@@ -554,6 +554,16 @@ NeoKatowic 3077: ich klasy, księgi, mapy, kolory i zapis kampanii nie mogą
 przejmować treści nowego świata. Próba przełączenia aktywnej kampanii bez
 potwierdzonego resetu nadal ma być blokowana.
 
+Na izolowanej bazie odbiorowej sprawdzić także wspólne zasady: opis ataku
+z imieniem towarzysza zadaje mu obrażenia bez wybierania celu w formularzu,
+niejednoznaczny „kolega” wymaga imienia przy większej drużynie, a leczenie
+może wskazać rzucającego. Pierwsze przeszukanie pomieszczenia zamyka dalsze
+próby także po porażce lub pustym wyniku; zdobyty przedmiot trafia do
+znalazcy i ma tę samą nazwę w narracji oraz plecaku. Jeśli pojawi się
+przeklęty przedmiot, po założeniu karta pokazuje premię i karę. MG może
+zapisać epilog, po czym historia pozostaje widoczna, a kolejne akcje są
+zamknięte do nowego scenariusza.
+
 ### Odbiór skalowania trudności
 
 Na osobnej bazie odbiorowej lub kopii kampanii uruchomić starcie najpierw jedną,

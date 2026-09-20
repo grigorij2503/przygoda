@@ -12,7 +12,10 @@
 
     get storyTurnsDescending() {
       if (!this.session?.turns) return [];
-      return [...this.session.turns].sort((a, b) => b.turn_number - a.turn_number);
+      const turns = this.session.status === 'completed'
+        ? this.session.turns.filter(turn => turn.status === 'completed')
+        : this.session.turns;
+      return [...turns].sort((a, b) => b.turn_number - a.turn_number);
     },
 
     get currentStoryTurn() {
