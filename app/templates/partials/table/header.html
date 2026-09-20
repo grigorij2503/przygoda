@@ -10,7 +10,7 @@
           <span class="min-w-0">
             <strong class="block truncate text-sm font-fantasy text-amber-300" x-text="session?.title"></strong>
             <span class="block text-[10px] text-gray-400">
-              Tura #<b class="text-white" x-text="session?.current_turn_number"></b>
+              Tura #<b class="cyber-telemetry text-white" x-text="session?.current_turn_number"></b>
               <span x-show="activeEnemy"> • <span class="text-red-300" x-text="activeEnemy?.name"></span></span>
             </span>
           </span>
@@ -31,7 +31,7 @@
             <h1 class="ui-heading text-lg font-fantasy font-bold text-amber-300 leading-tight" x-text="session?.title"></h1>
             <p class="text-xs text-gray-400">
               <span class="text-amber-500/90" x-text="session?.setting_theme"></span> • 
-              <span>Tura #<b class="text-white" x-text="session?.current_turn_number"></b></span>
+              <span>Tura #<b class="cyber-telemetry text-white" x-text="session?.current_turn_number"></b></span>
             </p>
           </div>
         </div>
@@ -114,7 +114,7 @@
 
       <!-- Pasek aktywnego przeciwnika pozostaje nad przewijaną kroniką. -->
       <div x-show="activeEnemy" x-cloak
-           class="mobile-header-content max-w-7xl mx-auto mt-3 p-3 rounded-xl border bg-gradient-to-r from-red-950/95 via-black to-red-950/95 shadow-2xl overflow-hidden"
+           class="encounter-hud mobile-header-content max-w-7xl mx-auto mt-3 p-3 rounded-xl border bg-gradient-to-r from-red-950/95 via-black to-red-950/95 shadow-2xl overflow-hidden"
            :class="activeEnemy?.hp <= 0 ? 'border-slate-600/70' : 'border-red-700/60'">
         <div class="flex items-center justify-between gap-3 mb-1.5">
           <div class="flex items-center gap-2 min-w-0">
@@ -148,8 +148,8 @@
             </span>
           </template>
         </div>
-        <div class="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-red-800/80 p-0.5">
-          <div class="h-full rounded-full bg-gradient-to-r from-red-700 via-rose-600 to-red-500 transition-all duration-500"
+        <div class="encounter-hud__track w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-red-800/80 p-0.5">
+          <div class="encounter-hud__fill h-full rounded-full bg-gradient-to-r from-red-700 via-rose-600 to-red-500 transition-all duration-500"
                :style="'width: ' + Math.max(0, Math.min(100, (activeEnemy?.hp / activeEnemy?.max_hp) * 100)) + '%'"></div>
         </div>
         <details x-show="activeEnemy?.hp > 0" class="mt-2 text-[10px]">

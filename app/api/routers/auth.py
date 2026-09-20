@@ -9,3 +9,8 @@ router.add_api_route(
     auth_service.verify_password,
     methods=["POST"],
 )
+router.add_api_route(
+    "/api/logout",
+    auth_service.logout_room,
+    methods=["POST"],
+)

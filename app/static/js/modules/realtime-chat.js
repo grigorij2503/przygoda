@@ -250,6 +250,27 @@
           break;
         }
 
+        case 'CHARACTER_COINS_UPDATED':
+          if (this.selectedCharacterId === msg.character_id && !this.isSavingGmCoins) {
+            this.addToast(`MG zmienił saldo: ${msg.coins} ${this.currencyLabel}.`, 'info');
+          }
+          await this.fetchSession();
+          break;
+
+        case 'WEARABLE_GRANTED':
+          if (this.selectedCharacterId === msg.character_id && !this.isGrantingWearable) {
+            this.addToast(`MG dodał do Twojego plecaka: ${msg.item_name}.`, 'success');
+          }
+          await this.fetchSession('grant');
+          break;
+
+        case 'INVENTORY_TRANSFERRED':
+          if (this.selectedCharacterId === msg.recipient_character_id) {
+            this.addToast(`${msg.sender_name} przekazał Ci ${msg.quantity} × ${msg.item_name}.`, 'success');
+          }
+          await this.fetchSession('transfer');
+          break;
+
         case 'IMAGE_GENERATING':
           this.addToast(`Rozpoczęto generowanie ilustracji dla Tury #${msg.turn_id}...`, 'info');
           if (this.session) {

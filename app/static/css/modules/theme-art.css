@@ -87,6 +87,13 @@
   font-family: var(--art-display);
 }
 
+/* World-specific status chrome is hidden until its theme is active. */
+.story-transmission__signal,
+.ability-book-panel__kicker,
+.ability-book-panel__locked-label {
+  display: none;
+}
+
 :root[data-theme]:not([data-theme="dark_fantasy"]) :is(button, label, input, select, textarea) {
   font-family: var(--art-body);
 }
@@ -119,6 +126,59 @@
 
 :root[data-theme]:not([data-theme="dark_fantasy"]) .story-resolution {
   box-shadow: inset 3px 0 0 color-mix(in srgb, var(--ui-primary) 65%, transparent), 0 9px 24px rgb(0 0 0 / 0.22);
+}
+
+/* Shared ability and equipment surfaces follow each world's semantic palette. */
+:root[data-theme]:not([data-theme="dark_fantasy"]) .ability-book-panel {
+  background: linear-gradient(150deg, color-mix(in srgb, var(--ui-accent) 9%, var(--ui-surface)), var(--ui-surface)) !important;
+  border-color: color-mix(in srgb, var(--ui-accent) 55%, var(--ui-border));
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .ability-book-panel__meta {
+  color: var(--ui-accent) !important;
+  background: color-mix(in srgb, var(--ui-accent) 12%, var(--ui-background)) !important;
+  border-color: color-mix(in srgb, var(--ui-accent) 50%, transparent) !important;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .ability-book-panel__item {
+  background: color-mix(in srgb, var(--ui-background) 72%, var(--ui-surface)) !important;
+  border-color: color-mix(in srgb, var(--ui-accent) 28%, var(--ui-border)) !important;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .ability-book-panel__item:is(:hover, :focus-visible, [aria-pressed="true"]):not(:disabled) {
+  background: color-mix(in srgb, var(--ui-accent) 13%, var(--ui-surface)) !important;
+  border-color: var(--ui-accent) !important;
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .ability-book-panel__item strong {
+  color: var(--ui-text);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .ability-book-panel__category {
+  color: var(--ui-accent);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .ability-book-panel__item[data-locked="true"] .ability-book-panel__status {
+  color: var(--ui-text-muted);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .wearable-slot,
+:root[data-theme]:not([data-theme="dark_fantasy"]) .active-mini-slot {
+  background: color-mix(in srgb, var(--ui-surface-raised) 58%, var(--ui-background));
+  border-color: color-mix(in srgb, var(--ui-border) 70%, transparent);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) :is(.wearable-slot--filled, .active-mini-slot--filled) {
+  border-color: color-mix(in srgb, var(--ui-accent) 60%, var(--ui-border));
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .active-mini-slot small {
+  color: var(--ui-accent);
+}
+
+:root[data-theme]:not([data-theme="dark_fantasy"]) .active-mini-slot button:hover {
+  color: var(--ui-primary);
+  background: color-mix(in srgb, var(--ui-accent) 11%, transparent);
 }
 
 /* Atlas, parchment and carved wood. */
@@ -170,21 +230,22 @@
   --art-display: 'Rajdhani', 'Arial Narrow', sans-serif;
   --art-body: 'Space Grotesk', Arial, sans-serif;
   --art-story: 'Space Grotesk', Arial, sans-serif;
-  --art-heading-spacing: 0.105em;
+  --art-mono: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  --art-heading-spacing: 0.055em;
   --art-heading-transform: uppercase;
-  --art-pattern: repeating-linear-gradient(0deg, transparent 0 59px, color-mix(in srgb, var(--ui-primary) 2%, transparent) 60px), radial-gradient(circle at 82% 8%, color-mix(in srgb, var(--ui-accent) 9%, transparent), transparent 34%), linear-gradient(#060a0d, color-mix(in srgb, var(--ui-background) 48%, #030405));
-  --art-pattern-size: auto;
-  --art-card-pattern: linear-gradient(145deg, color-mix(in srgb, var(--ui-primary) 5%, transparent), transparent 35%);
+  --art-pattern: linear-gradient(color-mix(in srgb, var(--ui-primary) 2.5%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--ui-primary) 2.5%, transparent) 1px, transparent 1px), radial-gradient(circle at 82% 8%, color-mix(in srgb, var(--ui-accent) 7%, transparent), transparent 34%), linear-gradient(#060a0d, color-mix(in srgb, var(--ui-background) 48%, #030405));
+  --art-pattern-size: 60px 60px, 60px 60px, auto, auto;
+  --art-card-pattern: linear-gradient(145deg, color-mix(in srgb, var(--ui-primary) 3%, transparent), transparent 38%);
   --art-card-pattern-size: auto;
-  --art-panel-shadow: 0 10px 24px rgb(0 0 0 / 0.46), 0 0 15px color-mix(in srgb, var(--ui-primary) 14%, transparent);
+  --art-panel-shadow: 0 10px 24px rgb(0 0 0 / 0.42), 0 0 10px color-mix(in srgb, var(--ui-primary) 7%, transparent);
 }
 
 :root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .fantasy-card {
   background-color: color-mix(in srgb, var(--ui-surface) 42%, #030607);
   background-image: var(--art-card-pattern), linear-gradient(145deg, color-mix(in srgb, var(--ui-surface) 65%, #030607), #060a0d);
-  border-color: color-mix(in srgb, var(--ui-primary) 60%, transparent) !important;
+  border-color: color-mix(in srgb, var(--ui-primary) 45%, transparent) !important;
   clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
-  box-shadow: var(--art-panel-shadow), inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 12%, transparent);
+  box-shadow: var(--art-panel-shadow), inset 0 0 0 1px color-mix(in srgb, var(--ui-primary) 7%, transparent);
 }
 
 :root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .fantasy-card::before {
@@ -205,22 +266,41 @@
     linear-gradient(var(--ui-primary), var(--ui-primary)) left top / 1px 17px no-repeat,
     linear-gradient(var(--ui-accent), var(--ui-accent)) right bottom / 17px 1px no-repeat,
     linear-gradient(var(--ui-accent), var(--ui-accent)) right bottom / 1px 17px no-repeat;
-  opacity: 0.68;
-  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--ui-primary) 58%, transparent));
+  opacity: 0.6;
 }
 
 :root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) :is(h1, h2, h3, h4, h5).font-fantasy,
 :root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .ui-heading,
 :root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .font-decorative,
 :root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .mobile-header-summary strong.font-fantasy {
+  font-family: var(--art-display);
   font-weight: 700;
   color: var(--ui-primary);
-  text-shadow: 0 0 2px var(--ui-primary), 0 0 9px color-mix(in srgb, var(--ui-primary) 74%, transparent), 0 0 23px color-mix(in srgb, var(--ui-primary) 36%, transparent);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--ui-primary) 36%, transparent);
 }
 
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .font-fantasy {
+  font-family: var(--art-display);
+  letter-spacing: 0.025em;
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .cyber-telemetry {
+  font-family: var(--art-mono);
+  letter-spacing: 0.02em;
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .font-serif,
 :root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .story-narration {
-  color: color-mix(in srgb, var(--ui-primary) 41%, var(--ui-text));
-  text-shadow: 0 0 8px color-mix(in srgb, var(--ui-primary) 11%, transparent);
+  font-family: var(--art-story);
+  color: var(--ui-text);
+  text-shadow: none;
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .story-narration::first-letter {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
 }
 
 :root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .ui-world-emblem::after {
@@ -240,6 +320,15 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ui-accent) 5%, transparent);
 }
 
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) :is(.equipment-panel, .equipment-paperdoll, .wearable-slot) {
+  border-color: color-mix(in srgb, var(--ui-primary) 38%, transparent);
+  background: linear-gradient(155deg, color-mix(in srgb, var(--ui-surface) 88%, #04101a), #061019);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .equipment-avatar > svg {
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--ui-primary) 32%, transparent));
+}
+
 :root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) :is(.ui-button-secondary, .map-control, .inventory-action, .mobile-header-content button:not(.ui-button-primary)):is(:hover, :focus-visible) {
   border-color: var(--ui-primary);
   box-shadow: 0 0 11px color-mix(in srgb, var(--ui-primary) 28%, transparent);
@@ -252,6 +341,208 @@
 
 :root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) :is(input, textarea, select):focus-visible {
   box-shadow: 0 0 12px color-mix(in srgb, var(--ui-primary) 25%, transparent);
+}
+
+/* NeoKatowice: transmission, command console, system modules and threat telemetry. */
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .campaign-prologue__icon {
+  font-size: 0;
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .campaign-prologue__icon::after {
+  content: '▤';
+  color: var(--ui-primary);
+  font: 700 1rem var(--art-mono);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .campaign-prologue p {
+  font-family: var(--art-story);
+  font-style: normal;
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .story-transmission {
+  background: linear-gradient(115deg, color-mix(in srgb, var(--ui-primary) 5%, #090e16), #080c13 70%);
+  border: 1px solid color-mix(in srgb, var(--ui-primary) 38%, transparent) !important;
+  border-left: 2px solid var(--ui-primary) !important;
+  border-radius: 2px !important;
+  box-shadow: inset 0 0 22px color-mix(in srgb, var(--ui-primary) 3%, transparent);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .story-transmission__signal {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.3rem 1rem;
+  margin-bottom: 0.9rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--ui-primary) 22%, transparent);
+  color: var(--ui-text-muted);
+  font: 600 0.65rem/1.3 var(--art-mono);
+  letter-spacing: 0.07em;
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .story-transmission__signal > span:last-child {
+  color: var(--ui-success);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .story-transmission__heading {
+  color: var(--ui-primary) !important;
+  font-family: var(--art-display);
+  font-size: 0.9rem !important;
+  letter-spacing: 0.04em;
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .story-transmission__heading .animate-pulse {
+  animation: none;
+  color: var(--ui-focus);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .story-transmission__body {
+  max-width: 72ch;
+  color: var(--ui-text) !important;
+  font: 400 0.92rem/1.65 var(--art-story);
+  text-shadow: none;
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .story-transmission__hint {
+  color: var(--ui-text-muted);
+  font-style: normal;
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .action-console {
+  border-color: color-mix(in srgb, var(--ui-primary) 52%, transparent) !important;
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .action-console__input {
+  min-height: 4.5rem;
+  background: color-mix(in srgb, var(--ui-background) 73%, #020406) !important;
+  border: 1px solid color-mix(in srgb, var(--ui-primary) 48%, transparent) !important;
+  border-left: 2px solid var(--ui-primary) !important;
+  color: var(--ui-text);
+  font-family: var(--art-body);
+  line-height: 1.55;
+  box-shadow: inset 0 0 12px color-mix(in srgb, var(--ui-primary) 4%, transparent);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .action-console__input:focus-visible {
+  border-color: var(--ui-primary) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-primary) 18%, transparent);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .action-console__submit {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--ui-primary) 72%, #087f9a), var(--ui-primary)) !important;
+  border: 1px solid var(--ui-primary);
+  color: #04161a !important;
+  font-family: var(--art-display);
+  font-weight: 700;
+  letter-spacing: 0.045em;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--ui-primary) 20%, transparent);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .action-console__submit:hover:not(:disabled) {
+  background: var(--ui-primary) !important;
+  box-shadow: 0 0 21px color-mix(in srgb, var(--ui-primary) 32%, transparent);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .ability-book-panel {
+  background: linear-gradient(155deg, color-mix(in srgb, var(--ui-accent) 9%, #080d16), #090d16 60%) !important;
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 51%, transparent);
+  border-left: 2px solid var(--ui-accent);
+  border-radius: 2px !important;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ui-accent) 17%, transparent);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .ability-book-panel__kicker {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--ui-text-muted);
+  font: 600 0.62rem/1.3 var(--art-mono);
+  letter-spacing: 0.07em;
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .ability-book-panel__title {
+  color: var(--ui-accent);
+  text-shadow: 0 0 9px color-mix(in srgb, var(--ui-accent) 24%, transparent);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .ability-book-panel__item {
+  position: relative;
+  padding-left: 1rem;
+  background: #0b111a !important;
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 32%, transparent) !important;
+  border-left: 2px solid color-mix(in srgb, var(--ui-accent) 72%, transparent) !important;
+  border-radius: 2px !important;
+  opacity: 1;
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .ability-book-panel__item:hover:not(:disabled),
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .ability-book-panel__item:focus-visible,
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .ability-book-panel__item[aria-pressed="true"] {
+  border-color: var(--ui-accent) !important;
+  background: color-mix(in srgb, var(--ui-accent) 13%, #0b111a) !important;
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .ability-book-panel__item[data-locked="true"] {
+  border-left-color: color-mix(in srgb, var(--ui-text-muted) 45%, transparent) !important;
+  color: var(--ui-text-muted);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .ability-book-panel__item[data-locked="true"] strong {
+  color: var(--ui-text-muted);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .ability-book-panel__status,
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .ability-book-panel__category {
+  font-family: var(--art-mono);
+  letter-spacing: 0.02em;
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .ability-book-panel__status {
+  max-width: 7.75rem;
+  white-space: normal;
+  text-align: right;
+  border-radius: 2px;
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .ability-book-panel__locked-label {
+  display: inline;
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .encounter-hud {
+  background: linear-gradient(105deg, #170b12, #0c0c12 62%, #210e15) !important;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--ui-danger) 56%, transparent), 0 9px 20px rgb(0 0 0 / 0.35);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .encounter-hud :is(h3, summary) {
+  font-family: var(--art-display);
+  letter-spacing: 0.04em;
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .encounter-hud__track {
+  height: 7px;
+  border-radius: 2px;
+  padding: 1px;
+  background: #090b10 !important;
+  border-color: color-mix(in srgb, var(--ui-danger) 60%, transparent);
+}
+
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .encounter-hud__fill {
+  border-radius: 1px;
+  background: linear-gradient(90deg, var(--ui-hp), var(--ui-danger)) !important;
+}
+
+@media (max-width: 640px) {
+  :root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .story-transmission {
+    padding: 1rem;
+  }
+
+  :root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .story-transmission__body {
+    font-size: 0.875rem;
+  }
+
+  :root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .ability-book-panel__status {
+    max-width: 5.75rem;
+  }
 }
 
 :root[data-theme="wieczna_wojna_gwiazd"] {
@@ -295,6 +586,84 @@
 
 :root[data-theme="norki_zielonego_wzgorza"] .fantasy-card {
   border-radius: 20px;
+}
+
+:root[data-theme="norki_zielonego_wzgorza"] .ability-book-panel {
+  background: radial-gradient(circle at 0 0, color-mix(in srgb, var(--ui-accent) 13%, transparent), transparent 52%), var(--ui-surface) !important;
+  border-color: color-mix(in srgb, var(--ui-accent) 58%, var(--ui-primary));
+  border-radius: 18px;
+  box-shadow: 0 5px 16px rgb(0 0 0 / 0.18);
+}
+
+:root[data-theme="norki_zielonego_wzgorza"] .ability-book-panel__item {
+  border-radius: 12px !important;
+}
+
+:root[data-theme="norki_zielonego_wzgorza"] .ability-book-panel__item[data-locked="true"] {
+  opacity: 0.72;
+}
+
+:root[data-theme="norki_zielonego_wzgorza"] .ability-book-panel__status {
+  background: color-mix(in srgb, var(--ui-accent) 16%, var(--ui-surface)) !important;
+  border-color: color-mix(in srgb, var(--ui-accent) 48%, transparent) !important;
+  color: var(--ui-text) !important;
+}
+
+:root[data-theme="norki_zielonego_wzgorza"] .ability-book-panel__item[data-locked="true"] .ability-book-panel__status {
+  color: var(--ui-text-muted) !important;
+  background: var(--ui-surface) !important;
+}
+
+:root[data-theme="norki_zielonego_wzgorza"] :is(.equipment-panel, .equipment-paperdoll) {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--ui-primary) 5%, var(--ui-surface)), var(--ui-surface)) !important;
+  border-color: color-mix(in srgb, var(--ui-primary) 40%, var(--ui-border));
+  border-radius: 18px;
+  box-shadow: inset 0 0 18px rgb(0 0 0 / 0.12);
+}
+
+:root[data-theme="norki_zielonego_wzgorza"] :is(.wearable-slot, .paperdoll-slot, .paperdoll-armor, .active-mini-slot) {
+  background: color-mix(in srgb, var(--ui-surface-raised) 55%, var(--ui-surface)) !important;
+  border-color: color-mix(in srgb, var(--ui-primary) 44%, var(--ui-border));
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+}
+
+:root[data-theme="norki_zielonego_wzgorza"] :is(.wearable-slot__label, .paperdoll-slot__label) {
+  color: var(--ui-primary);
+  font-family: var(--art-display);
+  font-size: 0.75rem;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+:root[data-theme="norki_zielonego_wzgorza"] .wearable-slot__icon {
+  display: none;
+}
+
+:root[data-theme="norki_zielonego_wzgorza"] .wearable-slot button {
+  color: var(--ui-text);
+}
+
+:root[data-theme="norki_zielonego_wzgorza"] .paperdoll-armor {
+  background: color-mix(in srgb, var(--ui-surface) 90%, transparent) !important;
+  border-color: color-mix(in srgb, var(--ui-primary) 55%, var(--ui-border));
+  border-radius: 14px;
+}
+
+:root[data-theme="norki_zielonego_wzgorza"] .paperdoll-armor :is(strong, span) {
+  color: var(--ui-primary);
+}
+
+:root[data-theme="norki_zielonego_wzgorza"] .paperdoll-armor small {
+  color: var(--ui-text-muted);
+}
+
+:root[data-theme="norki_zielonego_wzgorza"] .paperdoll-armor button:hover {
+  background: color-mix(in srgb, var(--ui-accent) 12%, transparent);
+}
+
+:root[data-theme="norki_zielonego_wzgorza"] .equipment-avatar > svg {
+  filter: drop-shadow(0 3px 5px rgb(0 0 0 / 0.16));
 }
 
 :root[data-theme="lochy_lup_klopoty"] {

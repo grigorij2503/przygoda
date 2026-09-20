@@ -52,6 +52,8 @@ def test_boss_drops_one_shared_item_and_opens_next_turn_crafting():
     assert len(result.new_items) == 1
     assert result.new_items[0].character_id == next_winner.id
     assert result.new_items[0].stat_bonus <= 2 or result.new_items[0].item_type == "consumable"
+    assert next_winner.coins == 6
+    assert result.events[-1]["coins_awarded"] == 6
     assert session.crafting_available_until_turn == 5
 
 
@@ -82,6 +84,7 @@ def test_location_can_produce_only_one_shared_loot_award():
     assert first.new_items[0].character_id == recipient.id
     assert second.new_items == []
     assert session.looted_location_ids == ["room-01"]
+    assert recipient.coins == 3
 
 
 def test_crafting_requires_three_items_of_the_same_type_in_the_open_window():

@@ -48,12 +48,13 @@ def test_stylesheet_imports_exist_and_keep_declared_order():
         "./modules/tokens.css?v=21",
         "./modules/base.css?v=21",
         "./modules/components.css?v=21",
-        "./modules/inventory.css?v=21",
+        "./modules/inventory.css?v=23",
         "./modules/map.css?v=21",
         "./modules/lore.css?v=21",
         "./modules/feedback.css?v=21",
         "./modules/responsive.css?v=21",
-        "./modules/theme.css?v=22",
+        "./modules/theme.css?v=24",
+        "./modules/theme-art.css?v=3",
     ]
     assert all((STYLE_PATH.parent / urlsplit(url).path).is_file() for url in local_imports)
 
@@ -62,18 +63,20 @@ def test_local_frontend_assets_are_precached_and_scripts_load_before_alpine():
     index_source = INDEX_PATH.read_text(encoding="utf-8")
     service_worker = SERVICE_WORKER_PATH.read_text(encoding="utf-8")
     local_assets = set(re.findall(r'(?:src|href)="(/static/[^"]+)', index_source))
+    stylesheet = STYLE_PATH.read_text(encoding="utf-8")
     local_assets.update(
-        f"/static/css/modules/{path.name}?v={22 if path.name == 'theme.css' else 21}"
-        for path in (STATIC_ROOT / "css" / "modules").glob("*.css")
+        "/static/css/" + url.removeprefix("./")
+        for url in re.findall(r"@import url\(['\"]([^'\"]+)['\"]\);", stylesheet)
+        if url.startswith("./")
     )
 
     assert all(f"'{url}'" in service_worker for url in local_assets)
-    assert "const CACHE_NAME = 'ttrpg-gemini-v34';" in service_worker
+    assert "const CACHE_NAME = 'ttrpg-gemini-v41';" in service_worker
 
     scripts = re.findall(r'<script[^>]+src="([^"]+)"', index_source)
     app_index = scripts.index("/static/js/app.js?v=31")
-    assert scripts.index("/static/js/theme-bootstrap.js?v=32") < scripts.index(
-        "/static/js/modules/core.js?v=31"
+    assert scripts.index("/static/js/theme-bootstrap.js?v=33") < scripts.index(
+        "/static/js/modules/core.js?v=32"
     )
     alpine_index = scripts.index(
         "https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"

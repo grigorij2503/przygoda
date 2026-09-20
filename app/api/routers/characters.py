@@ -44,3 +44,8 @@ router.add_api_route(
     character_service.use_consumable_item,
     methods=["POST"],
 )
+router.add_api_route(
+    "/api/characters/{char_id}/inventory/{item_id}/transfer",
+    character_service.transfer_inventory_item,
+    methods=["POST"],
+)

@@ -3,10 +3,10 @@
 @import url('./modules/tokens.css?v=21');
 @import url('./modules/base.css?v=21');
 @import url('./modules/components.css?v=21');
-@import url('./modules/inventory.css?v=21');
-@import url('./modules/map.css?v=21');
+@import url('./modules/inventory.css?v=24');
+@import url('./modules/map.css?v=22');
 @import url('./modules/lore.css?v=21');
 @import url('./modules/feedback.css?v=21');
 @import url('./modules/responsive.css?v=21');
 @import url('./modules/theme.css?v=24');
-@import url('./modules/theme-art.css?v=2');
+@import url('./modules/theme-art.css?v=5');

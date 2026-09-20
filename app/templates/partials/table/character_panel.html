@@ -172,24 +172,27 @@
           </div>
 
           <!-- Księga zdolności pochodzi z klasy zadeklarowanej w aktywnym pakiecie świata. -->
-          <section x-show="abilityBook" x-cloak class="mb-6 rounded-xl border border-violet-800/60 bg-gradient-to-br from-violet-950/45 to-slate-950/80 p-4">
+          <section x-show="abilityBook" x-cloak class="ability-book-panel mb-6 rounded-xl border border-violet-800/60 bg-gradient-to-br from-violet-950/45 to-slate-950/80 p-4">
             <div class="flex items-start justify-between gap-3 mb-3">
               <div>
-                <h4 class="text-xs font-fantasy font-bold uppercase tracking-widest text-violet-300">
+                <p class="ability-book-panel__kicker" aria-hidden="true">KATALOG MODUŁÓW / GOTOWOŚĆ SYSTEMU</p>
+                <h4 class="ability-book-panel__title text-xs font-fantasy font-bold uppercase tracking-widest text-violet-300">
                   <span x-text="abilityBook?.icon"></span>
                   <span x-text="abilityBook?.title"></span>
                 </h4>
                 <p class="text-[10px] text-gray-500 mt-1">Kliknij odblokowaną zdolność, aby przygotować deklarację akcji.</p>
               </div>
-              <span class="shrink-0 rounded-md border border-violet-700/50 bg-violet-950/70 px-2 py-1 text-[9px] font-mono text-violet-300"
+              <span class="ability-book-panel__meta shrink-0 rounded-md border border-violet-700/50 bg-violet-950/70 px-2 py-1 text-[9px] font-mono text-violet-300"
                     x-text="abilityBook ? (abilityBook.resource_label + ' • ' + statShortLabel(abilityBook.casting_stat)) : ''"></span>
             </div>
 
-            <div class="space-y-2 max-h-80 overflow-y-auto pr-1">
+            <div class="ability-book-panel__list space-y-2 max-h-80 overflow-y-auto pr-1">
               <template x-for="ability in abilityBook?.abilities || []" :key="ability.id">
                 <button type="button" @click="selectMagicAbility(ability)"
                         :disabled="!ability.unlocked || hasSubmittedCurrentTurn || session?.is_turn_resolving"
-                        class="w-full rounded-lg border p-3 text-left transition disabled:cursor-not-allowed"
+                        :aria-pressed="(magicAbilityId === ability.id).toString()"
+                        :data-locked="(!ability.unlocked).toString()"
+                        class="ability-book-panel__item w-full rounded-lg border p-3 text-left transition disabled:cursor-not-allowed"
                         :class="ability.unlocked
                           ? (magicAbilityId === ability.id
                             ? 'border-violet-400 bg-violet-900/45 shadow-lg shadow-violet-950/30'
@@ -203,11 +206,13 @@
                       </div>
                       <p class="mt-1 text-[10px] leading-relaxed text-gray-400" x-text="ability.description"></p>
                     </div>
-                    <span class="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-mono"
-                          :class="ability.unlocked ? 'bg-emerald-950 text-emerald-300 border border-emerald-700/50' : 'bg-slate-900 text-gray-500 border border-slate-700'"
-                          x-text="ability.unlocked ? 'DOSTĘPNA' : ('POZIOM ' + ability.required_level)"></span>
+                    <span class="ability-book-panel__status shrink-0 rounded px-1.5 py-0.5 text-[9px] font-mono"
+                          :class="ability.unlocked ? 'bg-emerald-950 text-emerald-300 border border-emerald-700/50' : 'bg-slate-900 text-gray-500 border border-slate-700'">
+                      <span class="ability-book-panel__locked-label" x-show="!ability.unlocked" x-cloak>ZABLOKOWANA · </span>
+                      <span x-text="ability.unlocked ? 'DOSTĘPNA' : ('POZIOM ' + ability.required_level)"></span>
+                    </span>
                   </div>
-                  <div class="mt-2 text-[9px] uppercase tracking-wider text-violet-400/70" x-text="ability.category"></div>
+                  <div class="ability-book-panel__category mt-2 text-[9px] uppercase tracking-wider text-violet-400/70" x-text="ability.category"></div>
                 </button>
               </template>
             </div>

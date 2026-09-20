@@ -39,6 +39,7 @@ from app.services.runtime import (
     logger,
     normalize_game_text,
     replace_campaign_map,
+    suggest_map_destination,
     validate_action_item_claim,
 )
 from app.services.world_service import get_session_world_pack
@@ -556,6 +557,8 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             lore_entities = lore_res.scalars().all()
 
             map_context = build_map_narrator_context(campaign_map)
+            suggested_map_destination = suggest_map_destination(campaign_map, actions_with_rolls)
+            map_context["suggested_destination_node_id"] = suggested_map_destination
 
             # 2. Wywołanie Gemini API
             gemini_result = await resolve_turn_with_gemini(
@@ -708,7 +711,12 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             turn.suggested_actions = gemini_result.suggested_actions
             turn.image_prompt = gemini_result.scene_image_prompt
             turn.status = "completed"
-            apply_map_narrative_update(campaign_map, gemini_result.map_update, turn.turn_number)
+            apply_map_narrative_update(
+                campaign_map,
+                gemini_result.map_update,
+                turn.turn_number,
+                fallback_destination_node_id=suggested_map_destination,
+            )
 
             # 4. Otwórz nową turę
             new_turn_number = session.current_turn_number + 1

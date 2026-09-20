@@ -195,6 +195,10 @@ deweloperskich. Przeklikać wszystkie modale, zwijanie nagłówka i panelu akcji
 historię tur, mapę z zoomem i przesuwaniem, filtrowanie ekwipunku, czat, notatkę,
 lightbox oraz obsługę klawiaturą. Następnie odświeżyć PWA, przełączyć chwilowo
 tryb offline i wrócić online; nie może pojawić się stary JS lub brakujący partial.
+Na izolowanej bazie lub kopii kampanii sprawdzić też przejście do sąsiedniego
+pomieszczenia po udanej deklaracji, zachowanie opisu poprzedniej lokacji oraz
+szare przebyte przejścia przy bieżącym węźle. Przyciski skali i przeciąganie
+mają rzeczywiście zmieniać kadr mapy.
 
 ### Etap 4 - jądro pakietów świata
 
@@ -389,7 +393,11 @@ być odrzucona. Nazwać zagrożenie, rozegrać starcie i obejrzeć fazy/statusy,
 znaleźć łup, otworzyć warsztat i przejść do sąsiedniego sektora mapy. Sprawdzić
 śląskie nazwy, ikony sektorów, kronikę, ścięte narożniki kart, cienkie neonowe
 obrysy przycisków, poświatę nagłówków, fokus i czytelność modali także na
-telefonie. Bez klucza API sprawdzić
+telefonie. W widoku tury sprawdzić techniczne nagłówki i czytelną narrację bez
+ozdobnego inicjału, metadane transmisji z numerem tury, cyjanowy panel akcji,
+fioletowe moduły z jawną blokadą poziomu oraz zwarty czerwony HUD przeciwnika.
+Porównać układ na telefonie i upewnić się, że metadane transmisji nie przechodzą
+do Dark Fantasy. Bez klucza API sprawdzić
 prolog, narrację i fallback ilustracji; z kluczem także wygenerowaną ilustrację
 bez elementów fantasy. Po restarcie aplikacji kampania ma zachować świat, motyw
 i klasy. Na osobnej kopii utworzyć nową kampanię Dark Fantasy i sprawdzić, że
@@ -455,7 +463,7 @@ cienie pozostają lekkie.
 | Świat | Motyw wizualny |
 |---|---|
 | Dark Fantasy | Klasyczna ciemna karta, cienkie metalowe okucia i nity w czterech narożnikach, subtelny złoty akcent. |
-| NeoKatowice 3077 | Motyw `neo_katowice`: Rajdhani w nagłówkach, Space Grotesk w treści, prawie czarne panele, świetlisty turkus, cienkie kontury i małe ścięte narożniki. |
+| NeoKatowice 3077 | Motyw `neo_katowice`: Rajdhani w nagłówkach, Space Grotesk w narracji, monospace w telemetrii, niemal czarne panele, cienkie cyjanowe kontury i ścięte narożniki. Aktywna sytuacja ma oprawę transmisji, deklaracja konsoli, zdolności modułów, a wróg zwartego czerwonego HUD. |
 | Archipelag Korsarzy | Cormorant Garamond, subtelne linie atlasu i mosiężna karta. |
 | Piaski Ekspedycji | Cormorant, promienie słońca i warstwice wydm. |
 | Słowiańska Gromada | Cinzel, oszczędny motyw plecionki i drewna. |
@@ -518,6 +526,13 @@ W panelu MG wybrać inny świat i użyć „Wybrany świat — podgląd”: wygl
 zmienić się bez resetu, a „Motyw kampanii” powinien odtworzyć aktywną oprawę.
 Następnie użyć specyficznej ścieżki z tabeli:
 
+W dwunastu z trzynastu światów z tabeli panel ekwipunku ma pokazać miękką,
+neutralną sylwetkę w kolorach motywu. Norki mają własną rysunkową sylwetkę.
+W każdym z nich sprawdzić sloty hełmu i butów oraz czytelne saldo i formularz
+przekazania po nadaniu przedmiotu przez MG na izolowanej bazie. Tło i obramowanie
+księgi zdolności mają korzystać z palety świata, a nie z fioletu pozostałego
+po innym motywie.
+
 | Świat / klucz | Dodatkowy odbiór przez UI |
 |---|---|
 | Archipelag Korsarzy / `archipelag_korsarzy@1` | Sprawdzić morski prolog, porty mapy, pirackie klasy i wyposażenie. |
@@ -529,7 +544,7 @@ Następnie użyć specyficznej ścieżki z tabeli:
 | Wyspy Kruczego Sztormu / `wyspy_kruczego_sztormu@1` | Sprawdzić wyspiarską mapę, role załogi i wyprawę przez kolejny węzeł. |
 | Wieczna Wojna Gwiazd / `wieczna_wojna_gwiazd@1` | Sprawdzić skrajnie militarny ton science fiction, księgi i chłodny motyw. |
 | Katedry Popiołu / `katedry_popiolu@1` | Sprawdzić mroczne ruiny, łup, crafting i fatalistyczny ton bez nazw cudzej serii. |
-| Norki pod Zielonym Wzgórzem / `norki_zielonego_wzgorza@1` | Rozwiązać turę przy spokojnym zadaniu; fallback nie może sam wprowadzić wroga. |
+| Norki pod Zielonym Wzgórzem / `norki_zielonego_wzgorza@1` | Rozwiązać turę przy spokojnym zadaniu; fallback nie może sam wprowadzić wroga. Obejrzeć zielono-kremową księgę „Przepisy sąsiedzkie”, rysunkową sylwetkę oraz zaokrąglone sloty hełmu i butów na komputerze i telefonie. |
 | Szepty Zatopionej Gwiazdy / `szepty_zatopionej_gwiazdy@1` | Rozwiązać śledztwo przy latarni bez walki; sprawdzić niepokój i brak automatycznego wroga. |
 | Zagadka Gazowej Latarni / `zagadka_gazowej_latarni@1` | Porównać wskazówki w sprawie koperty, użyć dedukcji i zakończyć turę bez walki. |
 | Lochy, Łup i Kłopoty / `lochy_lup_klopoty@1` | Sprawdzić absurdalny skarb, humor bez wyśmiewania graczy, czytelny komiksowy nagłówek i kreskę kart. |
@@ -552,6 +567,28 @@ trudna i kulminacyjna otrzymują wyższy próg przy wyższych poziomach, a atak 
 aktywnego wroga używa jego DC obrony. Przy włączonym fallbacku offline tura 3
 oznacza trudną próbę, a tura 5 kulminacyjną. Nie wykonywać tych zmian stanu na
 aktywnej bazie kampanii.
+
+### Odbiór ekwipunku i salda
+
+Na osobnej bazie odbiorowej lub kopii kampanii po migracji `0003_inventory_wallet`
+sprawdzić, że historyczne postacie mają saldo `0`, dotychczasowe przedmioty i
+premie oraz dwa sloty dłoni, pancerz, hełm, buty i pięć aktywnych slotów.
+W Dark Fantasy sylwetka powinna zachować płaszcz i zbroję, w NeoKatowicach
+pokazać techniczną postać, a w innym świecie postać neutralną. Hełm ma być
+nad głową sylwetki, buty pod jej stopami; długa nazwa broni i jej premie nie
+mogą być ucięte. Na telefonie wszystkie sloty i formularz przekazania muszą
+być czytelne.
+
+W narzędziach MG nadać jednej postaci hełm i buty z premią najwyżej +1, założyć
+je i sprawdzić zmianę cechy; założenie drugiego hełmu powinno odłożyć pierwszy
+do plecaka. MG może przyznać i odjąć środki, lecz saldo nie może spaść poniżej
+zera. W plecaku przekazać drugiej żyjącej postaci cały przedmiot i część stosu:
+odbiorca widzi go po synchronizacji, nadawca traci właściwą ilość, a żadna
+akcja tury nie powstaje. Przekaz podczas rozstrzygania tury ma być odrzucony.
+Po udanym przeszukaniu oraz pokonaniu przeciwnika odbiorca łupu zyskuje także
+środki. Opublikowane pakiety v1 nie otrzymują automatycznie nowych wpisów
+łupu dla hełmów i butów; nadaje je MG. Dostęp do pokoju nie oznacza wyłącznego
+własnictwa postaci, ponieważ gra nie ma indywidualnych kont graczy.
 
 ## Zasady kompatybilności
 

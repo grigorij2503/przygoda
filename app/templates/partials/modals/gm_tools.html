@@ -51,6 +51,44 @@
           </div>
         </form>
 
+        <div x-show="gmStatCharacter" class="p-4 rounded-xl bg-slate-950/70 border border-amber-900/50 space-y-3">
+          <p class="text-sm font-bold text-amber-300">🎒 Ekwipunek postaci</p>
+          <p class="text-xs text-gray-400" x-text="gmStatCharacter ? `${gmStatCharacter.name}: ${gmStatCharacter.coins || 0} ${currencyLabel}` : ''"></p>
+          <form @submit.prevent="adjustGmCoins()" class="space-y-2">
+            <label for="gm-coin-amount" class="block text-xs text-gray-300">Zmiana salda (wartość ujemna odejmuje)</label>
+            <div class="flex gap-2">
+              <input id="gm-coin-amount" type="number" step="1" min="-1000000" max="1000000" x-model.number="gmCoinAmount" class="min-w-0 flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+              <button type="submit" :disabled="isSavingGmCoins" class="inventory-action">Zmień saldo</button>
+            </div>
+            <p x-show="gmCoinError" x-text="gmCoinError" role="alert" class="text-xs text-rose-300"></p>
+          </form>
+          <form @submit.prevent="grantGmWearable()" class="space-y-2 pt-3 border-t border-slate-800">
+            <p class="text-xs text-gray-300">Dodaj hełm lub buty do plecaka wybranej postaci</p>
+            <div class="grid grid-cols-2 gap-2">
+              <label class="text-xs text-gray-400">Slot
+                <select x-model="gmWearableForm.item_type" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm text-white"><option value="helmet">Hełm</option><option value="boots">Buty</option></select>
+              </label>
+              <label class="text-xs text-gray-400">Cecha
+                <select x-model="gmWearableForm.target_stat" @change="if (gmWearableForm.target_stat === 'none') gmWearableForm.stat_bonus = 0" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm text-white">
+                  <option value="none">Bez premii</option>
+                  <template x-for="attribute in worldAttributes" :key="attribute.id"><option :value="attribute.id" x-text="attribute.label"></option></template>
+                </select>
+              </label>
+            </div>
+            <label class="block text-xs text-gray-400">Nazwa
+              <input type="text" maxlength="150" required x-model="gmWearableForm.name" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+            </label>
+            <label class="block text-xs text-gray-400">Opis
+              <input type="text" maxlength="300" x-model="gmWearableForm.description" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+            </label>
+            <label class="block text-xs text-gray-400">Premia do cechy (0–1)
+              <input type="number" min="0" max="1" step="1" :disabled="gmWearableForm.target_stat === 'none'" x-model.number="gmWearableForm.stat_bonus" class="w-20 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+            </label>
+            <p x-show="gmWearableError" x-text="gmWearableError" role="alert" class="text-xs text-rose-300"></p>
+            <button type="submit" :disabled="isGrantingWearable" class="inventory-action">Dodaj przedmiot</button>
+          </form>
+        </div>
+
         <div class="p-4 rounded-xl bg-rose-950/40 border border-rose-800/60">
           <p class="text-sm font-bold text-rose-300 mb-1">⚠️ Restart kampanii</p>
           <p class="text-xs text-rose-200/80">Wybranie świata lub scenariusza dla nowej zbiórki usunie wszystkie postacie, tury i bieżący postęp. Tej operacji nie można cofnąć.</p>

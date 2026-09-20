@@ -74,6 +74,7 @@ class Character(Base):
     charisma = Column(Integer, default=0)
     perception = Column(Integer, nullable=False, default=0)
     unspent_stat_points = Column(Integer, nullable=False, default=0)
+    coins = Column(Integer, nullable=False, default=0)
     personal_note = Column(Text, nullable=False, default="")
     status_effects = Column(JSON, default=list)
     is_alive = Column(Boolean, default=True)
@@ -115,7 +116,7 @@ class InventoryItem(Base):
     character_id = Column(Integer, ForeignKey("characters.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(150), nullable=False)
     description = Column(String(300), default="")
-    item_type = Column(String(50), default="weapon")  # weapon, shield, armor, accessory, consumable, misc
+    item_type = Column(String(50), default="weapon")  # weapon, shield, armor, helmet, boots, accessory, consumable, misc
     target_stat = Column(String(50), default="strength")  # strength, agility, intellect, charisma, perception, hp_max, none
     stat_bonus = Column(Integer, default=0)
     damage_power = Column(Integer, nullable=False, default=0)

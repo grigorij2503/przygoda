@@ -26,10 +26,10 @@
       <div x-show="campaignMap" class="campaign-map-viewport">
         <svg class="campaign-map-svg" role="img" aria-label="Schemat odkrytych pomieszczeń i korytarzy. Przeciągnij, aby przesunąć mapę."
              :class="mapDrag ? 'campaign-map-svg--dragging' : ''"
-             :viewBox="mapViewBox"
+             x-effect="$el.setAttribute('viewBox', mapViewBox)"
              @wheel.prevent="adjustMapZoom($event.deltaY < 0 ? 0.2 : -0.2)"
              @pointerdown="beginMapPan($event)" @pointermove="continueMapPan($event)"
-             @pointerup="endMapPan()" @pointercancel="endMapPan()" @pointerleave="endMapPan()"
+             @pointerup="endMapPan($event)" @pointercancel="endMapPan($event)"
              preserveAspectRatio="xMidYMid meet">
           <defs>
             <pattern id="map-grid" width="16" height="16" patternUnits="userSpaceOnUse">

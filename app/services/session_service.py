@@ -146,6 +146,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
             "class_id": c.class_id,
             "level": c.level,
             "xp": c.xp,
+            "coins": int(c.coins or 0),
             **xp_progress,
             "current_hp": c.current_hp,
             "max_hp": c.max_hp,

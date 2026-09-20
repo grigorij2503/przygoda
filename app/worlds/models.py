@@ -25,7 +25,7 @@ MechanicKey = Literal[
     "move",
     "support",
 ]
-ItemType = Literal["weapon", "shield", "armor", "accessory", "consumable", "misc"]
+ItemType = Literal["weapon", "shield", "armor", "helmet", "boots", "accessory", "consumable", "misc"]
 ItemTargetStat = AttributeId | Literal["none", "hp_max", "all"]
 ThemeTokenId = Literal[
     "background", "surface", "surface_raised", "primary", "danger", "text",

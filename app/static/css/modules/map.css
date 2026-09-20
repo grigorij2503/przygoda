@@ -89,10 +89,15 @@
 }
 
 .campaign-map-door {
-  fill: #d97706;
-  stroke: #fbbf24;
+  fill: #64748b;
+  stroke: #94a3b8;
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
+}
+
+.campaign-map-door--available {
+  fill: #d97706;
+  stroke: #fbbf24;
 }
 
 .campaign-map-node {
@@ -186,4 +191,3 @@
 .campaign-map-legend--available { color: #f59e0b; background: rgba(245, 158, 11, 0.25); }
 .campaign-map-legend--visited { color: #94a3b8; background: rgba(148, 163, 184, 0.2); }
 .campaign-map-legend--hidden { color: #334155; background: rgba(51, 65, 85, 0.16); }
-

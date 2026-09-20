@@ -244,6 +244,7 @@ async def resolve_turn_with_gemini(
             "death_state": getattr(c, "death_state", "alive") or "alive",
             "death_failures": int(getattr(c, "death_failures", 0) or 0),
             "level": c.level,
+            "coins": int(c.coins or 0),
             "status_effects": getattr(c, "status_effects", None) or [],
             "stats": {
                 attribute.id: {
@@ -364,8 +365,8 @@ async def resolve_turn_with_gemini(
         "3. STAN ZDROWIA I ZAGROŻENIA: W narracji wspominaj o stanie fizycznym bohaterów – ranach, krwawieniu, zmęczeniu, utracie tchu lub determinacji.\n"
         "4. CIĄGŁOŚĆ OPOWIEŚCI: Nie twórz suchych raportów punktowych. Każda tura to żywy fragment opowieści zgodnej z profilem aktywnego świata.\n\n"
         "Nie streszczaj ponownie zamkniętych wydarzeń z wcześniejszych tur. Pokonanego wcześniej głównego przeciwnika wspominaj tylko wtedy, gdy potwierdzają to bieżące combat_events albo deklaracja gracza bezpośrednio dotyczy jego pozostałości.\n\n"
-        "5. PRAWDZIWY EKWIPUNEK: Pole inventory przy postaci jest jedynym źródłem prawdy o posiadanych przedmiotach. Nie pozwalaj użyć ani uzyskać korzyści z przedmiotu, którego tam nie ma. Broń, tarcza i zbroja dają korzyść tylko, gdy mają equipped=true. Jeśli deklaracja mimo zabezpieczeń odwołuje się do nieposiadanego przedmiotu, opisz brak przedmiotu i improwizację zgodną z wynikiem rzutu, zamiast materializować wyposażenie.\n"
-        "6. ŁUP I CRAFTING: Ekwipunek rozlicza wyłącznie backend. Zdarzenia item_found, item_crafted i loot_search_empty w combat_events są ostateczne — opisz je dokładnie i nie dodawaj żadnych innych znalezisk. W każdym player_consequences ustaw new_items=[]; przedmioty utracone z innych przyczyn nadal wpisuj do removed_item_names.\n\n"
+        "5. PRAWDZIWY EKWIPUNEK: Pole inventory przy postaci jest jedynym źródłem prawdy o posiadanych przedmiotach. Nie pozwalaj użyć ani uzyskać korzyści z przedmiotu, którego tam nie ma. Broń, tarcza, zbroja, hełm, buty i aktywne akcesoria dają korzyść tylko, gdy mają equipped=true. Jeśli deklaracja mimo zabezpieczeń odwołuje się do nieposiadanego przedmiotu, opisz brak przedmiotu i improwizację zgodną z wynikiem rzutu, zamiast materializować wyposażenie.\n"
+        "6. ŁUP I CRAFTING: Ekwipunek i saldo rozlicza wyłącznie backend. Zdarzenia item_found, item_crafted i loot_search_empty w combat_events są ostateczne — opisz je dokładnie, w tym coins_awarded, gdy występuje, i nie dodawaj żadnych innych znalezisk ani środków. W każdym player_consequences ustaw new_items=[]; przedmioty utracone z innych przyczyn nadal wpisuj do removed_item_names.\n\n"
         "7. ZDOLNOŚCI KLASOWE: Pole ability przy akcji jest jedynym źródłem prawdy o użytej zdolności. Nie rozszerzaj efektu poza jej opis. Puste ability oznacza zwykłą akcję. Pole available_abilities zawiera wyłącznie odblokowane zdolności postaci.\n\n"
         "ZASADY WYJŚCIA JSON:\n"
         "1. gm_story_narration: Głęboka, barwna i kinowa narracja Mistrza Gry w języku polskim podsumowująca akcje graczy i zmieniającą się sytuację (min. 3-5 soczystych zdań).\n"
@@ -377,6 +378,8 @@ async def resolve_turn_with_gemini(
         f"6. naming_opportunity (opcjonalne): Jeśli drużyna odkryła coś wyjątkowego, zaproponuj nazwę. Użyj wyłącznie jednej z kategorii: {', '.join(category.id for category in world_pack.lore_categories)}. Nie powtarzaj active_lore_entities.\n"
         "7. map_update: Uzupełnij kronikę mapy. destination_node_id MUSI być jednym z ID w campaign_map.allowed_destinations. "
         "Pozostaw current_node_id, jeżeli narracja nie przeniosła całej drużyny do innego pomieszczenia. "
+        "Gdy udana deklaracja ruchu ma suggested_destination_node_id, przenieś tam drużynę w narracji i ustaw ten ID w map_update; "
+        "nie opisuj nowego pomieszczenia przy pozostawieniu current_node_id. "
         "location_summary ma krótko opisywać wyłącznie to, co naprawdę pojawiło się w narracji tej tury, "
         "a notable_elements zawiera maksymalnie 5 konkretnych elementów sceny. Nie twórz nowych węzłów ani przejść.\n"
         f"{boss_info}"
@@ -534,13 +537,14 @@ def _generate_rich_offline_resolution(
             elif event_type == "item_found":
                 finder = event.get("found_by")
                 recipient = event.get("actor")
+                money = f" oraz {event['coins_awarded']} środków" if event.get("coins_awarded") else ""
                 if finder and finder != recipient:
                     event_sentences.append(
-                        f"{finder} odnajduje „{event.get('item')}”, a wspólny łup trafia do {recipient}."
+                        f"{finder} odnajduje „{event.get('item')}”{money}, a wspólny łup trafia do {recipient}."
                     )
                 else:
                     event_sentences.append(
-                        f"{recipient} zdobywa wspólny łup drużyny: „{event.get('item')}”."
+                        f"{recipient} zdobywa wspólny łup drużyny: „{event.get('item')}”{money}."
                     )
             elif event_type == "item_crafted":
                 event_sentences.append(
@@ -582,27 +586,23 @@ def _generate_rich_offline_resolution(
 
     map_update = None
     if map_context:
-        current_node_id = map_context.get("current_node_id")
-        allowed_destinations = map_context.get("allowed_destinations") or []
-        destination_node_id = current_node_id
-        movement_words = ("idę", "idziemy", "wchodz", "przechodz", "ruszam", "uciek", "odwrót")
-        successful_move = any(
-            any(word in (action.get("action_text") or "").lower() for word in movement_words)
-            and action.get("outcome_tier") not in {"failure", "critical_failure"}
-            for action in actions_with_rolls
+        destination_node_id = (
+            map_context.get("suggested_destination_node_id")
+            or map_context.get("current_node_id")
         )
-        if successful_move:
-            destination_node_id = next(
-                (
-                    location.get("id")
-                    for location in allowed_destinations
-                    if location.get("id") != current_node_id
-                ),
-                current_node_id,
+        arrival = ""
+        if destination_node_id != map_context.get("current_node_id"):
+            destination = next(
+                (location for location in map_context.get("allowed_destinations", [])
+                 if location.get("id") == destination_node_id),
+                None,
             )
+            if destination:
+                arrival = f"Drużyna dociera do lokacji: {destination['name']}."
+                full_narrative += f"\n\n{arrival}"
         map_update = MapLocationUpdateSchema(
             destination_node_id=destination_node_id,
-            location_summary=" ".join(story_beats)[:900],
+            location_summary=arrival or " ".join(story_beats)[:900],
             notable_elements=[],
         )
 

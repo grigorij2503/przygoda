@@ -59,6 +59,7 @@ async def init_db():
             ("characters", "perception", "INTEGER NOT NULL DEFAULT 0"),
             ("characters", "personal_note", "TEXT NOT NULL DEFAULT ''"),
             ("characters", "unspent_stat_points", "INTEGER NOT NULL DEFAULT 0"),
+            ("characters", "coins", "INTEGER NOT NULL DEFAULT 0"),
             ("characters", "status_effects", "JSON"),
             ("characters", "death_state", "VARCHAR(20) NOT NULL DEFAULT 'alive'"),
             ("characters", "death_failures", "INTEGER NOT NULL DEFAULT 0"),
@@ -86,6 +87,9 @@ async def init_db():
                 await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type};"))
             except Exception:
                 pass
+        await conn.execute(text(
+            "UPDATE characters SET coins = 0 WHERE coins IS NULL OR coins < 0"
+        ))
         # Ten fallback utrzymuje start przez samo `uvicorn` dla starszej bazy.
         # Alembic pozostaje źródłem wersji schematu i jest uruchamiany w Dockerze.
         await conn.execute(text(

@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,9 +8,11 @@ from app.models import Character, GameSession, InventoryItem, WebPushSubscriptio
 from app.schemas import (
     CreateCharacterRequest,
     SpendStatPointRequest,
+    TransferInventoryItemRequest,
     UpdatePersonalNoteRequest,
 )
 from app.services.runtime import MAX_BASE_ATTRIBUTE
+from app.services.room_access import require_room
 from app.services.world_service import get_session_world_pack
 from app.worlds.registry import WORLD_PACK_REGISTRY, WorldPackNotFoundError
 from app.websocket_manager import ws_manager
@@ -261,7 +263,7 @@ async def toggle_equip_item(char_id: int, item_id: int, db: AsyncSession = Depen
                 detail="Wszystkie 5 slotów aktywnych przedmiotów jest zajętych. Najpierw zdejmij jeden z nich.",
             )
 
-        if slot_group == "armor":
+        if slot_group in {"armor", "helmet", "boots"}:
             for equipped in items_in_slot:
                 equipped.is_equipped = False
                 replaced_item_names.append(equipped.name)
@@ -299,6 +301,98 @@ async def toggle_equip_item(char_id: int, item_id: int, db: AsyncSession = Depen
         "slot_group": slot_group,
         "replaced_item_names": replaced_item_names,
     }
+
+
+async def transfer_inventory_item(
+    char_id: int,
+    item_id: int,
+    payload: TransferInventoryItemRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    require_room(request)
+    sender = (await db.execute(select(Character).where(Character.id == char_id))).scalar_one_or_none()
+    recipient = (
+        await db.execute(
+            select(Character).where(Character.id == payload.recipient_character_id)
+        )
+    ).scalar_one_or_none()
+    if not sender or not recipient or sender.session_id != recipient.session_id:
+        raise HTTPException(status_code=404, detail="Postacie muszą należeć do tej samej kampanii")
+    if sender.id == recipient.id:
+        raise HTTPException(status_code=400, detail="Wybierz inną postać")
+    if not sender.is_alive or not recipient.is_alive:
+        raise HTTPException(status_code=400, detail="Przekaz wymaga dwóch żyjących postaci")
+    session = (
+        await db.execute(select(GameSession).where(GameSession.id == sender.session_id))
+    ).scalar_one()
+    if session.is_turn_resolving:
+        raise HTTPException(status_code=409, detail="Poczekaj na rozstrzygnięcie tury")
+
+    item = (
+        await db.execute(
+            select(InventoryItem).where(
+                InventoryItem.id == item_id,
+                InventoryItem.character_id == sender.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if not item or item.is_equipped:
+        raise HTTPException(status_code=400, detail="Można przekazać tylko przedmiot z plecaka")
+    available = int(item.quantity or 0)
+    if payload.quantity > available:
+        raise HTTPException(status_code=400, detail="W plecaku nie ma tylu sztuk")
+
+    item_name = item.name
+    if payload.quantity == available:
+        result = await db.execute(
+            update(InventoryItem)
+            .where(
+                InventoryItem.id == item.id,
+                InventoryItem.character_id == sender.id,
+                InventoryItem.is_equipped.is_(False),
+                InventoryItem.quantity == available,
+            )
+            .values(character_id=recipient.id)
+        )
+    else:
+        result = await db.execute(
+            update(InventoryItem)
+            .where(
+                InventoryItem.id == item.id,
+                InventoryItem.character_id == sender.id,
+                InventoryItem.is_equipped.is_(False),
+                InventoryItem.quantity == available,
+            )
+            .values(quantity=available - payload.quantity)
+        )
+        if result.rowcount == 1:
+            db.add(InventoryItem(
+                character_id=recipient.id,
+                name=item.name,
+                description=item.description,
+                item_type=item.item_type,
+                target_stat=item.target_stat,
+                stat_bonus=item.stat_bonus,
+                damage_power=item.damage_power,
+                hands_required=item.hands_required,
+                is_equipped=False,
+                quantity=payload.quantity,
+            ))
+    if result.rowcount != 1:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Stan przedmiotu się zmienił. Odśwież plecak.")
+    await db.commit()
+    await ws_manager.broadcast_to_session(sender.session_id, {
+        "type": "INVENTORY_TRANSFERRED",
+        "sender_character_id": sender.id,
+        "recipient_character_id": recipient.id,
+        "sender_name": sender.name,
+        "recipient_name": recipient.name,
+        "item_name": item_name,
+        "quantity": payload.quantity,
+    })
+    return {"success": True, "item_name": item_name, "quantity": payload.quantity}
 
 async def use_consumable_item(char_id: int, item_id: int, db: AsyncSession = Depends(get_db)):
     c_stmt = select(Character).where(Character.id == char_id)

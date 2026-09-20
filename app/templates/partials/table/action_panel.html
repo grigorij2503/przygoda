@@ -1,5 +1,5 @@
         <!-- DOLNY PANEL AKCJI (ACTION BAR) -->
-        <div class="mobile-action-panel fantasy-card p-6 rounded-2xl border border-amber-900/50 sticky bottom-4 z-20 shadow-2xl backdrop-blur-lg"
+        <div class="mobile-action-panel action-console fantasy-card p-6 rounded-2xl border border-amber-900/50 sticky bottom-4 z-20 shadow-2xl backdrop-blur-lg"
              :class="{ 'mobile-action-panel--collapsed': mobileActionPanelCollapsed && !session?.is_turn_resolving, 'mobile-action-panel--pending': !hasSubmittedCurrentTurn }">
           <!-- Rozstrzygnięcie pozostaje widoczne także przy zwiniętym panelu akcji. -->
           <template x-if="readyCount >= totalAlivePlayers && totalAlivePlayers > 0 && !session?.is_turn_resolving">
@@ -161,7 +161,7 @@
               <textarea id="action-description" x-model="actionText"
                         @input="actionInterpretation = null; actionInterpretationRequestId += 1"
                         @input.debounce.350ms="interpretAction()" rows="2" placeholder="Opisz dokładnie co zamierza zrobić Twoja postać... Silnik odczyta zamiar, dobierze atrybut i rzuci d20."
-                        class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 transition resize-none"></textarea>
+                        class="action-console__input w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 transition resize-none"></textarea>
 
               <div x-show="effectiveActionIntent() === 'support'" x-cloak>
                 <label for="support-target" class="block text-xs font-semibold text-emerald-300 mb-1">Sojusznik objęty wsparciem</label>
@@ -218,7 +218,7 @@
               <div x-show="actionError" x-text="actionError" class="text-xs text-rose-400"></div>
 
               <button @click="submitAction()" :disabled="isSubmittingAction"
-                      class="ui-button-primary w-full py-3 bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-500 text-slate-950 font-fantasy font-bold rounded-xl shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50">
+                      class="action-console__submit ui-button-primary w-full py-3 bg-gradient-to-r from-amber-700 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-500 text-slate-950 font-fantasy font-bold rounded-xl shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50">
                 <span x-show="!isSubmittingAction">ZATWIERDŹ AKCJĘ I RZUĆ KOŚCIĄ</span>
                 <span x-show="isSubmittingAction">ZAPISYWANIE...</span>
               </button>

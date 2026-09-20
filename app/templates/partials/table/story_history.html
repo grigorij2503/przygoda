@@ -38,9 +38,9 @@
         </div>
 
         <!-- Wstęp do kampanii pozostaje pod ręką, ale nie wydłuża domyślnego widoku. -->
-        <details class="fantasy-card rounded-2xl border border-amber-900/30 overflow-hidden">
+        <details class="campaign-prologue fantasy-card rounded-2xl border border-amber-900/30 overflow-hidden">
           <summary class="p-4 cursor-pointer select-none flex items-center justify-between gap-3 text-xs font-fantasy text-amber-400 uppercase tracking-wider hover:bg-slate-900/50 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/70">
-            <span class="flex items-center gap-2"><span>📜</span> Prolog drużyny</span>
+            <span class="flex items-center gap-2"><span class="campaign-prologue__icon" aria-hidden="true">📜</span> Prolog drużyny</span>
             <span class="text-[10px] text-gray-500 normal-case tracking-normal">Rozwiń / zwiń</span>
           </summary>
           <div class="px-5 pb-5 pt-1 border-t border-slate-800/80">
@@ -81,7 +81,7 @@
               <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800"
                    :class="isStoryTurnExpanded(t) ? 'mb-4' : ''">
                 <h3 class="flex items-center gap-2">
-                  <span class="px-2.5 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-fantasy rounded-md">
+                  <span class="cyber-telemetry px-2.5 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-fantasy rounded-md">
                     TURA #<span x-text="t.turn_number"></span>
                   </span>
                   <span class="text-[11px] px-2.5 py-0.5 rounded-full font-mono font-semibold tracking-wide"
@@ -149,12 +149,16 @@
               </div>
 
               <!-- Sytuacja i Wyzwanie dla tury w toku (np. Tura 3) -->
-              <div x-show="t.status !== 'completed'" class="mb-5 p-5 rounded-xl bg-gradient-to-br from-amber-950/30 via-slate-950 to-slate-950 border border-amber-500/40 shadow-lg">
-                <div class="flex items-center gap-2 mb-2 text-amber-400 font-fantasy font-bold text-xs uppercase tracking-wider">
+              <div x-show="t.status !== 'completed'" class="story-transmission mb-5 p-5 rounded-xl bg-gradient-to-br from-amber-950/30 via-slate-950 to-slate-950 border border-amber-500/40 shadow-lg">
+                <div class="story-transmission__signal" aria-hidden="true">
+                  <span>KANAŁ OPERACYJNY / TURA <span x-text="t.turn_number"></span></span>
+                  <span>● SYGNAŁ AKTYWNY</span>
+                </div>
+                <div class="story-transmission__heading flex items-center gap-2 mb-2 text-amber-400 font-fantasy font-bold text-xs uppercase tracking-wider">
                   <span class="text-base animate-pulse">⚡</span> AKTUALNA SYTUACJA I WYZWANIE (TURA #<span x-text="t.turn_number"></span>)
                 </div>
-                <p class="text-amber-100/90 text-sm leading-relaxed font-serif whitespace-pre-line mb-2" x-text="t.next_turn_prompt"></p>
-                <span class="text-[11px] text-gray-400 italic">Zadeklarujcie swoje działania w panelu na dole, aby poznać bieg wydarzeń!</span>
+                <p class="story-transmission__body text-amber-100/90 text-sm leading-relaxed font-serif whitespace-pre-line mb-2" x-text="t.next_turn_prompt"></p>
+                <span class="story-transmission__hint text-[11px] text-gray-400 italic">Zadeklarujcie swoje działania w panelu na dole, aby poznać bieg wydarzeń!</span>
               </div>
 
               <!-- Akcje graczy w tej turze -->

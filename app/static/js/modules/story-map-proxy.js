@@ -92,6 +92,7 @@
     },
 
     adjustMapZoom(delta) {
+      this.mapDrag = null;
       this.mapZoom = Math.max(0.75, Math.min(3, this.mapZoom + delta));
     },
 
@@ -109,26 +110,29 @@
     beginMapPan(event) {
       if (event.button !== 0) return;
       event.currentTarget.setPointerCapture?.(event.pointerId);
+      const viewBox = event.currentTarget.viewBox.baseVal;
+      const rect = event.currentTarget.getBoundingClientRect();
       this.mapDrag = {
         x: event.clientX,
         y: event.clientY,
         panX: this.mapPanX,
         panY: this.mapPanY,
-        width: event.currentTarget.clientWidth,
-        height: event.currentTarget.clientHeight
+        pointerId: event.pointerId,
+        unitsPerPixel: Math.max(
+          viewBox.width / Math.max(1, rect.width),
+          viewBox.height / Math.max(1, rect.height)
+        )
       };
     },
 
     continueMapPan(event) {
-      if (!this.mapDrag) return;
-      const bounds = this.mapBaseBounds;
-      const xUnits = (bounds.width / this.mapZoom) / Math.max(1, this.mapDrag.width);
-      const yUnits = (bounds.height / this.mapZoom) / Math.max(1, this.mapDrag.height);
-      this.mapPanX = this.mapDrag.panX - (event.clientX - this.mapDrag.x) * xUnits;
-      this.mapPanY = this.mapDrag.panY - (event.clientY - this.mapDrag.y) * yUnits;
+      if (!this.mapDrag || event.pointerId !== this.mapDrag.pointerId) return;
+      this.mapPanX = this.mapDrag.panX - (event.clientX - this.mapDrag.x) * this.mapDrag.unitsPerPixel;
+      this.mapPanY = this.mapDrag.panY - (event.clientY - this.mapDrag.y) * this.mapDrag.unitsPerPixel;
     },
 
-    endMapPan() {
+    endMapPan(event) {
+      if (this.mapDrag && event.pointerId !== this.mapDrag.pointerId) return;
       this.mapDrag = null;
     },
 
@@ -172,7 +176,7 @@
             width: 10,
             height: 10,
             rx: 1,
-            class: 'campaign-map-door'
+            class: `campaign-map-door campaign-map-door--${edge.visibility}`
           }));
         }
         fragment.appendChild(group);

@@ -3,6 +3,44 @@
   const features = window.TTRPG_FEATURES = window.TTRPG_FEATURES || {};
   features.equipmentImages = {
     // --- Ekwipunek ---
+    startItemTransfer(item) {
+      this.transferItemId = item.id;
+      this.transferRecipientId = this.transferTargets[0]?.id || null;
+      this.transferQuantity = 1;
+      this.transferError = '';
+    },
+
+    async transferItem(item) {
+      if (this.isTransferringItem || !item || !this.transferRecipientId) return;
+      const quantity = Number(this.transferQuantity);
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > item.quantity) {
+        this.transferError = 'Podaj poprawną liczbę sztuk.';
+        return;
+      }
+      this.isTransferringItem = true;
+      this.transferError = '';
+      try {
+        const res = await fetch(`/api/characters/${this.selectedCharacterId}/inventory/${item.id}/transfer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipient_character_id: Number(this.transferRecipientId),
+            quantity
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || 'Nie udało się przekazać przedmiotu.');
+        const recipient = this.transferTargets.find(character => character.id === Number(this.transferRecipientId));
+        this.transferItemId = null;
+        await this.fetchSession();
+        this.addToast(`Przekazano ${quantity} × ${item.name} do ${recipient?.name || 'wybranej postaci'}.`, 'success');
+      } catch (err) {
+        this.transferError = err.message;
+      } finally {
+        this.isTransferringItem = false;
+      }
+    },
+
     async toggleEquip(item) {
       if (!item || this.changingEquipmentItemId) return;
       this.changingEquipmentItemId = item.id;

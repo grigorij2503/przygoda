@@ -23,7 +23,7 @@ COMBAT_ACTION_KEYWORDS = (
 MOVEMENT_ACTION_KEYWORDS = (
     "ide", "idziemy", "wchodze", "przechodze", "ruszam", "uciekam", "odwrot",
 )
-CRAFTABLE_ITEM_TYPES = {"weapon", "shield", "armor", "accessory", "misc"}
+CRAFTABLE_ITEM_TYPES = {"weapon", "shield", "armor", "helmet", "boots", "accessory", "misc"}
 CRAFTING_SUCCESS_TIERS = {"partial_success", "success", "critical_success"}
 LOOT_SUCCESS_TIERS = {"success", "critical_success"}
 
@@ -225,6 +225,8 @@ def resolve_inventory_mechanics(
         )
         if recipient:
             item = _build_random_loot(recipient, world_pack, boss_reward=True)
+            coins_awarded = 5 + recipient.level
+            recipient.coins = int(recipient.coins or 0) + coins_awarded
             resolution.new_items.append(item)
             session.last_loot_character_id = recipient.id
             resolution.events.append({
@@ -233,6 +235,7 @@ def resolve_inventory_mechanics(
                 "actor": recipient.name,
                 "item": item.name,
                 "stat_bonus": item.stat_bonus,
+                "coins_awarded": coins_awarded,
             })
         return resolution
 
@@ -276,6 +279,8 @@ def resolve_inventory_mechanics(
     if not recipient:
         return resolution
     item = _build_random_loot(recipient, world_pack, critical_search=critical)
+    coins_awarded = 2 + recipient.level
+    recipient.coins = int(recipient.coins or 0) + coins_awarded
     resolution.new_items.append(item)
     session.last_loot_character_id = recipient.id
     resolution.events.append({
@@ -286,6 +291,7 @@ def resolve_inventory_mechanics(
         "actor": recipient.name,
         "item": item.name,
         "stat_bonus": item.stat_bonus,
+        "coins_awarded": coins_awarded,
     })
     return resolution
 

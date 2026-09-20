@@ -30,6 +30,7 @@
 
     async logout() {
       fetch('/api/admin/lock', { method: 'POST' }).catch(() => {});
+      fetch('/api/logout', { method: 'POST' }).catch(() => {});
       await this.disablePushNotifications(true);
       this.clearNotifications();
       this.isAuthenticated = false;
@@ -52,6 +53,7 @@
       this.proxyTargetCharacterId = null;
       this.newInventoryItemIds = [];
       this.inventoryFilter = 'all';
+      this.transferItemId = null;
       window.TTRPG_THEME?.clearWorldPreview();
     },
 
@@ -303,6 +305,60 @@
         this.gmStatError = err.message;
       } finally {
         this.isSavingGmStats = false;
+      }
+    },
+
+    async adjustGmCoins() {
+      const character = this.gmStatCharacter;
+      const amount = Number(this.gmCoinAmount);
+      this.gmCoinError = '';
+      if (!character || !Number.isInteger(amount) || amount === 0) {
+        this.gmCoinError = 'Wybierz postać i podaj liczbę całkowitą różną od zera.';
+        return;
+      }
+      this.isSavingGmCoins = true;
+      try {
+        const res = await fetch(`/api/admin/characters/${character.id}/coins`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room_code: this.roomCode, amount })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 403) { this.requireGmUnlock(); return; }
+        if (!res.ok) throw new Error(data.detail || 'Nie udało się zmienić salda.');
+        await this.fetchSession();
+        this.addToast(`${character.name}: ${data.coins} ${this.currencyLabel}.`, 'success');
+      } catch (err) {
+        this.gmCoinError = err.message;
+      } finally {
+        this.isSavingGmCoins = false;
+      }
+    },
+
+    async grantGmWearable() {
+      const character = this.gmStatCharacter;
+      this.gmWearableError = '';
+      if (!character || !this.gmWearableForm.name.trim()) {
+        this.gmWearableError = 'Wybierz postać i wpisz nazwę przedmiotu.';
+        return;
+      }
+      this.isGrantingWearable = true;
+      try {
+        const res = await fetch(`/api/admin/characters/${character.id}/wearables`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room_code: this.roomCode, ...this.gmWearableForm })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 403) { this.requireGmUnlock(); return; }
+        if (!res.ok) throw new Error(data.detail || 'Nie udało się dodać przedmiotu.');
+        this.gmWearableForm = { item_type: 'helmet', name: '', description: '', target_stat: 'none', stat_bonus: 0 };
+        await this.fetchSession();
+        this.addToast(`Dodano ${data.item_name} do plecaka ${character.name}.`, 'success');
+      } catch (err) {
+        this.gmWearableError = err.message;
+      } finally {
+        this.isGrantingWearable = false;
       }
     },
 

@@ -9,12 +9,27 @@
   box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.46);
 }
 
+.equipment-wallet {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding: 0.32rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 45%, transparent);
+  border-radius: 0.5rem;
+  color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 10%, transparent);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.equipment-wallet strong { font-size: 0.9rem; }
+
 .equipment-paperdoll {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 6rem minmax(0, 1fr);
+  grid-template-rows: auto minmax(13.1rem, auto) auto;
   align-items: center;
-  gap: 0.45rem;
-  min-height: 14.5rem;
+  gap: 0.4rem 0.45rem;
   padding: 0.65rem 0.35rem;
   border: 1px solid rgba(71, 85, 105, 0.38);
   border-radius: 0.8rem;
@@ -25,7 +40,7 @@
 
 .paperdoll-slot {
   min-width: 0;
-  height: 8.7rem;
+  min-height: 10.25rem;
   padding: 0.45rem;
   border: 1px solid rgba(71, 85, 105, 0.66);
   border-radius: 0.65rem;
@@ -33,14 +48,19 @@
   box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.5);
 }
 
+.paperdoll-slot--main { grid-column: 1; grid-row: 2; }
+.paperdoll-slot--off { grid-column: 3; grid-row: 2; }
+
 .paperdoll-slot--filled {
   border-color: rgba(217, 166, 54, 0.66);
   box-shadow: inset 0 0 18px rgba(120, 75, 12, 0.18), 0 0 12px rgba(217, 166, 54, 0.1);
 }
 
 .paperdoll-slot__label {
-  display: block;
-  overflow: hidden;
+  display: flex;
+  min-height: 2rem;
+  align-items: center;
+  justify-content: center;
   padding-bottom: 0.38rem;
   border-bottom: 1px solid rgba(51, 65, 85, 0.68);
   color: #94a3b8;
@@ -49,9 +69,8 @@
   font-weight: 700;
   letter-spacing: 0.05em;
   text-align: center;
-  text-overflow: ellipsis;
   text-transform: uppercase;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .paperdoll-slot__item,
@@ -59,12 +78,14 @@
 .paperdoll-slot__blocked {
   display: flex;
   width: 100%;
-  height: 6.85rem;
+  min-height: 7.25rem;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.25rem;
+  padding: 0.3rem 0;
   text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .paperdoll-slot__item {
@@ -90,19 +111,20 @@
 }
 
 .paperdoll-slot__item strong {
-  display: -webkit-box;
-  overflow: hidden;
+  display: block;
   color: inherit;
   font-size: 0.7rem;
   line-height: 1.25;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
 }
 
 .paperdoll-slot__item small {
+  display: block;
   color: #d6ad4b;
   font-family: monospace;
   font-size: 0.65rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .paperdoll-slot__empty {
@@ -139,6 +161,8 @@
 
 .equipment-avatar {
   position: relative;
+  grid-column: 2;
+  grid-row: 2;
   height: 13.1rem;
   align-self: center;
 }
@@ -148,6 +172,53 @@
   height: 100%;
   opacity: 0.92;
   filter: drop-shadow(0 0 10px rgba(180, 132, 45, 0.2));
+}
+
+.equipment-avatar > .avatar-illustration--fantasy,
+.equipment-avatar > .avatar-illustration--cyber,
+.equipment-avatar > .avatar-illustration--pastoral { display: none; }
+
+:root[data-theme="dark_fantasy"] .equipment-avatar > .avatar-illustration--fantasy,
+:root:is([data-theme="neo_katowice"], [data-theme="neon_preview"]) .equipment-avatar > .avatar-illustration--cyber,
+:root[data-theme="norki_zielonego_wzgorza"] .equipment-avatar > .avatar-illustration--pastoral { display: block; }
+
+:root:is([data-theme="dark_fantasy"], [data-theme="neo_katowice"], [data-theme="neon_preview"], [data-theme="norki_zielonego_wzgorza"]) .equipment-avatar > .avatar-illustration--neutral { display: none; }
+
+.wearable-slot-row {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: center;
+}
+
+.wearable-slot-row--helmet { grid-row: 1; }
+.wearable-slot-row--boots { grid-row: 3; }
+
+.wearable-slot {
+  min-width: 0;
+  width: min(10rem, 100%);
+  padding: 0.4rem 0.55rem;
+  border: 1px solid rgba(71, 85, 105, 0.66);
+  border-radius: 0.6rem;
+  background: rgba(5, 7, 12, 0.8);
+}
+
+.wearable-slot--filled { border-color: color-mix(in srgb, var(--ui-accent) 58%, transparent); }
+.wearable-slot__label { display: block; color: var(--ui-text-muted); font-size: 0.67rem; font-weight: 700; text-transform: uppercase; }
+.wearable-slot button { display: flex; width: 100%; min-height: 2.7rem; align-items: center; justify-content: center; gap: 0.2rem; flex-direction: column; text-align: center; }
+.wearable-slot button strong { max-width: 100%; color: var(--ui-text); font-size: 0.72rem; line-height: 1.25; overflow-wrap: anywhere; }
+.wearable-slot button small { color: var(--ui-text-muted); font-size: 0.64rem; line-height: 1.2; overflow-wrap: anywhere; }
+.wearable-slot button:disabled { cursor: wait; opacity: 0.5; }
+
+@media (max-width: 360px) {
+  .equipment-paperdoll {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto auto auto auto;
+  }
+
+  .equipment-avatar { grid-column: 1 / -1; grid-row: 2; width: 6rem; justify-self: center; }
+  .wearable-slot-row--boots { grid-row: 3; }
+  .paperdoll-slot--main { grid-column: 1; grid-row: 4; }
+  .paperdoll-slot--off { grid-column: 2; grid-row: 4; }
 }
 
 .paperdoll-armor {
@@ -296,12 +367,13 @@
 }
 
 .inventory-action:disabled {
-  cursor: wait;
+  cursor: not-allowed;
   opacity: 0.45;
 }
 
 .inventory-item {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.65rem;
   padding: 0.7rem;
@@ -309,6 +381,22 @@
   border-radius: 0.72rem;
   background: rgba(2, 6, 23, 0.78);
   transition: border-color 170ms ease, background-color 170ms ease, transform 170ms ease;
+}
+
+.inventory-item__actions { display: flex; flex-direction: column; gap: 0.4rem; flex-shrink: 0; }
+.inventory-transfer-form { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 0.45rem; align-items: end; width: 100%; padding-top: 0.55rem; border-top: 1px solid rgba(71, 85, 105, 0.5); }
+.inventory-transfer-form label { display: flex; flex-direction: column; gap: 0.2rem; color: var(--ui-text-muted); font-size: 0.66rem; }
+.inventory-transfer-form select, .inventory-transfer-form input { min-width: 0; max-width: 100%; padding: 0.4rem; border: 1px solid var(--ui-border); border-radius: 0.4rem; color: var(--ui-text); background: var(--ui-surface); font-size: 0.74rem; }
+.inventory-transfer-form input { width: 4.4rem; }
+.inventory-transfer-form__buttons { display: flex; gap: 0.3rem; }
+.inventory-transfer-form__buttons button { padding: 0.42rem 0.5rem; border: 1px solid var(--ui-border); border-radius: 0.4rem; color: var(--ui-text); font-size: 0.7rem; }
+.inventory-transfer-form__buttons button:first-child { border-color: var(--ui-primary); color: var(--ui-primary); }
+.inventory-transfer-form__buttons button:disabled { opacity: 0.5; }
+.inventory-transfer-form p { grid-column: 1 / -1; color: var(--ui-danger); font-size: 0.7rem; }
+
+@media (max-width: 480px) {
+  .inventory-transfer-form { grid-template-columns: minmax(0, 1fr) auto; }
+  .inventory-transfer-form__buttons { grid-column: 1 / -1; }
 }
 
 .inventory-item:hover {
@@ -390,4 +478,3 @@
   0%, 100% { box-shadow: 0 0 12px rgba(245, 158, 11, 0.1), inset 3px 0 0 rgba(245, 158, 11, 0.82); }
   50% { box-shadow: 0 0 22px rgba(245, 158, 11, 0.28), inset 3px 0 0 #fbbf24; }
 }
-

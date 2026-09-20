@@ -5,10 +5,26 @@
                 <h4 id="equipment-heading" class="text-xs font-fantasy font-bold uppercase tracking-widest text-amber-300">Wyposażenie</h4>
                 <p class="text-[10px] text-gray-500 mt-0.5">Premie działają tylko z aktywnych slotów</p>
               </div>
-              <span class="text-[10px] text-gray-400 font-mono whitespace-nowrap" x-text="(currentCharacter?.inventory?.length || 0) + ' szt.'"></span>
+              <div class="equipment-wallet" aria-live="polite">
+                <strong x-text="currentCharacter?.coins || 0"></strong>
+                <span x-text="currencyLabel"></span>
+              </div>
             </div>
 
             <div class="equipment-paperdoll">
+              <div class="wearable-slot-row wearable-slot-row--helmet">
+                <div class="wearable-slot" :class="equippedHelmet ? 'wearable-slot--filled' : ''">
+                  <span class="wearable-slot__label"><span class="wearable-slot__icon" aria-hidden="true">🪖</span> Hełm</span>
+                  <template x-if="equippedHelmet">
+                    <button type="button" @click="toggleEquip(equippedHelmet)" :disabled="changingEquipmentItemId === equippedHelmet.id" :title="equippedHelmet.description + ' — kliknij, aby zdjąć'">
+                      <strong x-text="equippedHelmet.name"></strong><small x-text="itemBonusLabel(equippedHelmet)"></small>
+                    </button>
+                  </template>
+                  <template x-if="!equippedHelmet">
+                    <button type="button" @click="showItemsForSlot('helmet')" aria-label="Wybierz hełm z plecaka"><strong>＋</strong><small>Pusty slot</small></button>
+                  </template>
+                </div>
+              </div>
               <div class="paperdoll-slot paperdoll-slot--main" :class="mainHandItem ? 'paperdoll-slot--filled' : ''">
                 <span class="paperdoll-slot__label">Główna dłoń</span>
                 <template x-if="mainHandItem">
@@ -26,8 +42,8 @@
                 </template>
               </div>
 
-              <div class="equipment-avatar" aria-label="Sylwetka postaci z miejscem na pancerz">
-                <svg viewBox="0 0 110 220" role="img" aria-hidden="true">
+              <div class="equipment-avatar" aria-label="Sylwetka postaci z miejscem na pancerz, hełm i buty">
+                <svg class="avatar-illustration avatar-illustration--fantasy" viewBox="0 0 110 220" role="img" aria-hidden="true">
                   <defs>
                     <linearGradient id="hero-steel" x1="0" y1="0" x2="1" y2="1">
                       <stop offset="0" stop-color="#667085"/>
@@ -72,6 +88,52 @@
                   <!-- runa na napierśniku, widoczna przy pustym slocie -->
                   <path d="M55 70 L62 82 L55 94 L48 82 Z M48 82 H62" fill="none" stroke="#9b7b42" stroke-width="1.5" opacity="0.8"/>
                 </svg>
+                <svg class="avatar-illustration avatar-illustration--cyber" viewBox="0 0 110 220" role="img" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="cyber-shell" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0" stop-color="#163c47"/><stop offset="0.55" stop-color="#101e2d"/><stop offset="1" stop-color="#071018"/>
+                    </linearGradient>
+                    <linearGradient id="cyber-visor" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0" stop-color="#1f6680"/><stop offset="0.5" stop-color="#45e3ef"/><stop offset="1" stop-color="#1c536d"/>
+                    </linearGradient>
+                  </defs>
+                  <path d="M37 130 L52 132 L50 190 L43 209 L25 209 L31 189 Z M58 132 L73 130 L79 189 L85 209 L67 209 L60 190 Z" fill="url(#cyber-shell)" stroke="#439ba9" stroke-width="2"/>
+                  <path d="M25 194 H49 L45 213 H19 Z M63 194 H85 L91 213 H67 Z" fill="#07121c" stroke="#42d6dd" stroke-width="1.5"/>
+                  <path d="M34 49 L22 57 L6 112 L17 129 L36 88 Z M76 49 L88 57 L104 112 L93 129 L74 88 Z" fill="url(#cyber-shell)" stroke="#2b7083" stroke-width="2"/>
+                  <path d="M32 49 L45 44 H65 L78 49 L84 124 L71 146 H39 L26 124 Z" fill="url(#cyber-shell)" stroke="#4fbdc6" stroke-width="2"/>
+                  <path d="M37 61 H73 L69 108 H41 Z" fill="#0b1c2a" stroke="#24758b" stroke-width="1.5"/>
+                  <path d="M42 112 H68 M29 126 H81 M34 85 H40 M70 85 H76" stroke="#54dce2" stroke-width="2" opacity="0.75"/>
+                  <path d="M37 17 L45 6 H65 L73 17 L77 41 L69 54 H41 L33 41 Z" fill="url(#cyber-shell)" stroke="#42bac5" stroke-width="2"/>
+                  <path d="M38 27 H72 L68 40 H42 Z" fill="url(#cyber-visor)" stroke="#7df7f5" stroke-width="1"/>
+                  <path d="M47 48 H63 M55 55 V66" stroke="#4fbdc6" stroke-width="1.5"/>
+                </svg>
+                <svg class="avatar-illustration avatar-illustration--neutral" viewBox="0 0 110 220" role="img" aria-hidden="true">
+                  <circle cx="55" cy="29" r="17" fill="var(--ui-surface-raised)" stroke="var(--ui-border)" stroke-width="2"/>
+                  <path d="M37 55 Q55 46 73 55 Q82 78 79 116 Q74 136 68 144 H42 Q36 136 31 116 Q28 78 37 55 Z" fill="var(--ui-surface-raised)" stroke="var(--ui-border)" stroke-width="2" stroke-linejoin="round"/>
+                  <path d="M33 59 Q24 59 20 77 L10 117 Q9 125 17 128 Q23 129 26 121 L37 83 M77 59 Q86 59 90 77 L100 117 Q101 125 93 128 Q87 129 84 121 L73 83" fill="var(--ui-surface-raised)" stroke="var(--ui-border)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M43 143 Q38 164 38 190 L30 209 H47 L53 193 L54 150 M67 143 Q72 164 72 190 L80 209 H63 L57 193 L56 150" fill="var(--ui-surface-raised)" stroke="var(--ui-border)" stroke-width="2" stroke-linejoin="round"/>
+                  <path d="M44 23 Q55 18 66 23 M38 113 Q55 119 72 113" fill="none" stroke="var(--ui-primary)" stroke-width="1.5" opacity="0.55" stroke-linecap="round"/>
+                </svg>
+                <svg class="avatar-illustration avatar-illustration--pastoral" viewBox="0 0 110 220" role="img" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="pastoral-tunic" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="#89a477"/>
+                      <stop offset="1" stop-color="#526b4b"/>
+                    </linearGradient>
+                  </defs>
+                  <path d="M37 138 Q34 160 35 188 L28 207 Q36 214 47 208 L52 190 L54 146 M73 138 Q76 160 75 188 L82 207 Q74 214 63 208 L58 190 L56 146" fill="#695744" stroke="#a98d67" stroke-width="2" stroke-linejoin="round"/>
+                  <path d="M28 205 Q36 210 47 205 L46 214 H25 Z M63 205 Q74 210 82 205 L85 214 H64 Z" fill="#594534" stroke="#a98d67" stroke-width="1.5"/>
+                  <path d="M35 55 Q22 57 18 78 L10 112 Q9 119 16 122 Q23 123 26 116 L39 79 M75 55 Q88 57 92 78 L100 112 Q101 119 94 122 Q87 123 84 116 L71 79" fill="#7d956d" stroke="#c2ad82" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="16" cy="120" r="5" fill="#d9b990" stroke="#a8795c" stroke-width="1.5"/>
+                  <circle cx="94" cy="120" r="5" fill="#d9b990" stroke="#a8795c" stroke-width="1.5"/>
+                  <path d="M37 53 Q55 47 73 53 Q79 82 77 121 L72 145 Q55 151 38 145 L33 121 Q31 82 37 53 Z" fill="url(#pastoral-tunic)" stroke="#d6bd88" stroke-width="2" stroke-linejoin="round"/>
+                  <path d="M43 55 Q55 65 67 55 M36 121 Q55 127 74 121" fill="none" stroke="#e4d3a0" stroke-width="1.5" stroke-linecap="round"/>
+                  <circle cx="55" cy="29" r="18" fill="#dbba91" stroke="#a8795c" stroke-width="2"/>
+                  <path d="M37 26 Q37 8 55 8 Q74 8 73 27 Q68 19 60 20 Q50 26 37 26 Z" fill="#73553b" stroke="#8b6845" stroke-width="1.5"/>
+                  <circle cx="48" cy="31" r="1.4" fill="#544132"/>
+                  <circle cx="62" cy="31" r="1.4" fill="#544132"/>
+                  <path d="M51 39 Q55 42 59 39" fill="none" stroke="#9b6654" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
 
                 <div class="paperdoll-armor" :class="equippedArmor ? 'paperdoll-armor--filled' : ''">
                   <template x-if="equippedArmor">
@@ -110,6 +172,19 @@
                     <span>＋</span><small>Broń lub tarcza</small>
                   </button>
                 </template>
+              </div>
+              <div class="wearable-slot-row wearable-slot-row--boots">
+                <div class="wearable-slot" :class="equippedBoots ? 'wearable-slot--filled' : ''">
+                  <span class="wearable-slot__label"><span class="wearable-slot__icon" aria-hidden="true">🥾</span> Buty</span>
+                  <template x-if="equippedBoots">
+                    <button type="button" @click="toggleEquip(equippedBoots)" :disabled="changingEquipmentItemId === equippedBoots.id" :title="equippedBoots.description + ' — kliknij, aby zdjąć'">
+                      <strong x-text="equippedBoots.name"></strong><small x-text="itemBonusLabel(equippedBoots)"></small>
+                    </button>
+                  </template>
+                  <template x-if="!equippedBoots">
+                    <button type="button" @click="showItemsForSlot('boots')" aria-label="Wybierz buty z plecaka"><strong>＋</strong><small>Pusty slot</small></button>
+                  </template>
+                </div>
               </div>
             </div>
 
@@ -170,12 +245,26 @@
                     </div>
                   </div>
 
-                  <template x-if="item.item_type === 'consumable'">
-                    <button type="button" @click.stop="markInventoryItemSeen(item.id); useItem(item.id)" class="inventory-action inventory-action--use">Użyj</button>
-                  </template>
-                  <template x-if="item.item_type !== 'consumable'">
-                    <button type="button" @click.stop="toggleEquip(item)" :disabled="changingEquipmentItemId === item.id" class="inventory-action">Załóż</button>
-                  </template>
+                  <div class="inventory-item__actions">
+                    <button x-show="item.item_type === 'consumable'" type="button" @click.stop="markInventoryItemSeen(item.id); useItem(item.id)" class="inventory-action inventory-action--use">Użyj</button>
+                    <button x-show="item.item_type !== 'consumable'" type="button" @click.stop="toggleEquip(item)" :disabled="changingEquipmentItemId === item.id" class="inventory-action">Załóż</button>
+                    <button type="button" @click.stop="startItemTransfer(item)" :disabled="transferTargets.length === 0 || !currentCharacter?.is_alive || session?.is_turn_resolving" class="inventory-action">Przekaż</button>
+                  </div>
+                  <form x-show="transferItemId === item.id" x-cloak @click.stop @submit.prevent="transferItem(item)" class="inventory-transfer-form">
+                    <label>Odbiorca
+                      <select x-model.number="transferRecipientId" required>
+                        <template x-for="character in transferTargets" :key="character.id"><option :value="character.id" x-text="`${character.name} — ${character.player_name}`"></option></template>
+                      </select>
+                    </label>
+                    <label x-show="item.quantity > 1">Sztuki
+                      <input type="number" min="1" :max="item.quantity" step="1" x-model.number="transferQuantity">
+                    </label>
+                    <div class="inventory-transfer-form__buttons">
+                      <button type="submit" :disabled="isTransferringItem || session?.is_turn_resolving">Potwierdź</button>
+                      <button type="button" @click="transferItemId = null; transferError = ''">Anuluj</button>
+                    </div>
+                    <p x-show="transferError" x-text="transferError" role="alert"></p>
+                  </form>
                 </article>
               </template>
             </div>

@@ -491,20 +491,58 @@ def build_map_narrator_context(campaign_map: CampaignMap) -> dict:
     }
 
 
+def suggest_map_destination(campaign_map: CampaignMap, actions_with_rolls: list[dict]) -> str | None:
+    """Wskazuje sąsiedni węzeł dla udanej deklaracji ruchu drużyny."""
+    layout = campaign_map.layout or {}
+    current_node_id = campaign_map.current_node_id or layout.get("start_node_id")
+    adjacent = adjacent_node_ids(layout, current_node_id)
+    if not adjacent:
+        return None
+    discovered = list(campaign_map.discovered_node_ids or [])
+    nodes = [node for node in layout.get("nodes", []) if node.get("id") in adjacent]
+    movement_pattern = re.compile(
+        r"\b(ide|idziemy|pojde|udaj\w*|wchodz\w*|wychodz\w*|przechodz\w*|"
+        r"przekracza\w*|rusza\w*|wyrusza\w*|przemieszcza\w*|"
+        r"podaza\w*|wkracza\w*|wraca\w*|cofa\w*|ucieka\w*|odwrot)\b"
+    )
+    for action in actions_with_rolls:
+        if action.get("outcome_tier") in {"failure", "critical_failure"}:
+            continue
+        declaration = normalize_game_text(action.get("action_text") or "")
+        if not movement_pattern.search(declaration):
+            continue
+        for node in nodes:
+            names = (node.get("custom_name"), node.get("name"))
+            if any(normalize_game_text(name) in declaration for name in names if name):
+                return str(node["id"])
+        if re.search(r"\b(wraca\w*|cofa\w*|odwrot)\b", declaration):
+            for node_id in reversed(discovered):
+                if node_id in adjacent and node_id != current_node_id:
+                    return node_id
+        for node in nodes:
+            if node["id"] not in discovered:
+                return str(node["id"])
+        return str(nodes[0]["id"])
+    return None
+
+
 def apply_map_narrative_update(
     campaign_map: CampaignMap,
     map_update,
     turn_number: int,
+    fallback_destination_node_id: str | None = None,
 ) -> None:
     """Waliduje ruch narratora i zapisuje opis odwiedzonego miejsca w JSON mapy."""
-    if not map_update:
+    if not map_update and not fallback_destination_node_id:
         return
 
     layout = json.loads(json.dumps(campaign_map.layout or {}))
     current_node_id = campaign_map.current_node_id or layout.get("start_node_id")
     allowed_ids = {current_node_id, *adjacent_node_ids(layout, current_node_id)}
-    requested_node_id = str(map_update.destination_node_id or "").strip()
+    requested_node_id = str(map_update.destination_node_id or "").strip() if map_update else ""
     destination_node_id = requested_node_id if requested_node_id in allowed_ids else current_node_id
+    if destination_node_id == current_node_id and fallback_destination_node_id in allowed_ids:
+        destination_node_id = fallback_destination_node_id
     known_node_ids = {str(node.get("id")) for node in layout.get("nodes", [])}
     if destination_node_id not in known_node_ids:
         return
@@ -517,12 +555,12 @@ def apply_map_narrative_update(
     for node in layout.get("nodes", []):
         if str(node.get("id")) != destination_node_id:
             continue
-        summary = decode_display_text(map_update.location_summary)
+        summary = decode_display_text(map_update.location_summary) if map_update else ""
         if summary:
             node["exploration_summary"] = summary[:1200]
         elements = [
             decode_display_text(str(element))[:100]
-            for element in (map_update.notable_elements or [])[:5]
+            for element in ((map_update.notable_elements or [])[:5] if map_update else [])
             if decode_display_text(str(element))
         ]
         if elements:

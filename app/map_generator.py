@@ -209,10 +209,10 @@ def serialize_campaign_map(campaign_map: Any) -> dict[str, Any]:
     for raw_edge in layout.get("edges", []):
         edge = dict(raw_edge)
         endpoints = {edge.get("from"), edge.get("to")}
-        if current_node_id in endpoints and endpoints.intersection(available):
-            edge["visibility"] = "available"
-        elif endpoints.issubset(discovered):
+        if endpoints.issubset(discovered):
             edge["visibility"] = "visited"
+        elif current_node_id in endpoints and endpoints.intersection(available):
+            edge["visibility"] = "available"
         else:
             edge["visibility"] = "hidden"
         edges.append(edge)

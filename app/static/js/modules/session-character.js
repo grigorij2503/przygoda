@@ -3,7 +3,7 @@
   const features = window.TTRPG_FEATURES = window.TTRPG_FEATURES || {};
   features.sessionCharacter = {
     // --- Pobieranie Stanu Sesji ---
-    async fetchSession() {
+    async fetchSession(arrivalKind = 'loot') {
       const previousWorldKey = this.session?.world_pack?.key;
       const previousTurnNumber = this.session?.current_turn_number;
       const previousUnspentStatPoints = this.currentCharacter?.unspent_stat_points;
@@ -64,7 +64,7 @@
               ...newlyFoundItems.map(item => item.id)
             ])
           ];
-          if (newlyFoundItems.length) {
+          if (newlyFoundItems.length && arrivalKind === 'loot') {
             const lootLabel = newlyFoundItems.length === 1
               ? newlyFoundItems[0].name
               : `${newlyFoundItems.length} nowe przedmioty`;
@@ -122,6 +122,7 @@
       this.actionError = '';
       this.newInventoryItemIds = [];
       this.inventoryFilter = 'all';
+      this.transferItemId = null;
       localStorage.setItem('rpg_selected_char', charId);
       this.initWebSocket();
       this.syncPushSubscription();
@@ -261,6 +262,14 @@
       return this.latestEquippedItem(['armor']);
     },
 
+    get equippedHelmet() {
+      return this.latestEquippedItem(['helmet']);
+    },
+
+    get equippedBoots() {
+      return this.latestEquippedItem(['boots']);
+    },
+
     get activeItems() {
       return (this.currentCharacter?.inventory || [])
         .filter(item => item.is_equipped && ['accessory', 'misc'].includes(item.item_type))
@@ -277,6 +286,8 @@
         this.mainHandItem,
         this.offHandItem,
         this.equippedArmor,
+        this.equippedHelmet,
+        this.equippedBoots,
         ...this.activeItems
       ].filter(Boolean);
 
@@ -305,6 +316,8 @@
       const equippedItemIds = new Set([
         ...this.handItems.map(item => item.id),
         this.equippedArmor?.id,
+        this.equippedHelmet?.id,
+        this.equippedBoots?.id,
         ...this.activeItems.map(item => item.id)
       ].filter(Boolean));
 
@@ -321,6 +334,8 @@
         main_hand: ['weapon'],
         off_hand: ['weapon', 'shield'],
         armor: ['armor'],
+        helmet: ['helmet'],
+        boots: ['boots'],
         active: ['accessory', 'misc']
       }[this.inventoryFilter];
       if (!allowedTypes) return this.backpackItems;
@@ -332,6 +347,8 @@
         main_hand: 'broń',
         off_hand: 'broń lub tarcze',
         armor: 'pancerze',
+        helmet: 'hełmy',
+        boots: 'buty',
         active: 'aktywne przedmioty'
       }[this.inventoryFilter] || 'wszystkie przedmioty';
     },
@@ -352,6 +369,8 @@
         weapon: '⚔️',
         shield: '🔰',
         armor: '🛡️',
+        helmet: '🪖',
+        boots: '🥾',
         accessory: '💍',
         consumable: '🧪',
         misc: '🔮'
@@ -363,6 +382,8 @@
         weapon: item?.hands_required === 2 ? 'Broń dwuręczna' : 'Broń jednoręczna',
         shield: 'Tarcza',
         armor: 'Zbroja',
+        helmet: 'Hełm',
+        boots: 'Buty',
         accessory: 'Aktywny',
         consumable: 'Zużywalny',
         misc: 'Aktywny'
@@ -380,6 +401,18 @@
       if (item.target_stat === 'none') return damage;
       const stat = `+${item.stat_bonus} ${this.statAbbreviation(item.target_stat)}`;
       return damage ? `${stat} • ${damage}` : stat;
+    },
+
+    get transferTargets() {
+      return (this.session?.characters || []).filter(character =>
+        character.id !== this.selectedCharacterId && character.is_alive
+      );
+    },
+
+    get currencyLabel() {
+      const theme = this.session?.world_pack?.theme;
+      if (theme?.id === 'neo_katowice') return 'kredyty';
+      return theme?.icon_set_id === 'classic' ? 'monety' : 'środki';
     },
 
     isNewInventoryItem(itemId) {

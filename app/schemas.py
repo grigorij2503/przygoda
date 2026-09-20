@@ -76,6 +76,10 @@ class UpdatePersonalNoteRequest(BaseModel):
 class SpendStatPointRequest(BaseModel):
     stat: StatId
 
+class TransferInventoryItemRequest(BaseModel):
+    recipient_character_id: int = Field(gt=0)
+    quantity: int = Field(ge=1, le=1000000000)
+
 class AdminUpdateCharacterStatsRequest(BaseModel):
     room_code: str = Field(min_length=1, max_length=50)
     strength: int = Field(ge=0, le=12)
@@ -83,6 +87,18 @@ class AdminUpdateCharacterStatsRequest(BaseModel):
     intellect: int = Field(ge=0, le=12)
     charisma: int = Field(ge=0, le=12)
     perception: Optional[int] = Field(default=None, ge=0, le=12)
+
+class AdminAdjustCoinsRequest(BaseModel):
+    room_code: str = Field(min_length=1, max_length=50)
+    amount: int = Field(ge=-1000000, le=1000000)
+
+class AdminGrantWearableRequest(BaseModel):
+    room_code: str = Field(min_length=1, max_length=50)
+    name: str = Field(min_length=2, max_length=150)
+    description: str = Field(default="", max_length=300)
+    item_type: Literal["helmet", "boots"]
+    target_stat: StatId | Literal["none"] = "none"
+    stat_bonus: int = Field(default=0, ge=0, le=1)
 
 class InventoryItemDto(BaseModel):
     id: int
@@ -106,6 +122,7 @@ class CharacterDto(BaseModel):
     class_id: str
     level: int
     xp: int
+    coins: int = 0
     current_hp: int
     max_hp: int
     strength: int
@@ -235,7 +252,7 @@ class NewItemSchema(BaseModel):
             "np. 'Wzbudza respekt u rozmówców' albo 'Odnawia 10 punktów życia'"
         )
     )
-    item_type: Literal["weapon", "shield", "armor", "accessory", "consumable", "misc"]
+    item_type: Literal["weapon", "shield", "armor", "helmet", "boots", "accessory", "consumable", "misc"]
     target_stat: Literal["strength", "agility", "intellect", "charisma", "perception", "hp_max", "none"]
     stat_bonus: int = Field(description="Bonus do statystyki lub wartość leczenia dla consumable")
     hands_required: int = Field(

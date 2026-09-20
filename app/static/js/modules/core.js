@@ -176,6 +176,17 @@
     newInventoryItemIds: [],
     changingEquipmentItemId: null,
     inventoryFilter: 'all',
+    transferItemId: null,
+    transferRecipientId: null,
+    transferQuantity: 1,
+    transferError: '',
+    isTransferringItem: false,
+    gmCoinAmount: 1,
+    gmCoinError: '',
+    isSavingGmCoins: false,
+    gmWearableForm: { item_type: 'helmet', name: '', description: '', target_stat: 'none', stat_bonus: 0 },
+    gmWearableError: '',
+    isGrantingWearable: false,
 
     // PWA & Network
     deferredInstallPrompt: null,

@@ -24,3 +24,13 @@ router.add_api_route(
     admin_service.update_character_base_stats,
     methods=["PUT"],
 )
+router.add_api_route(
+    "/api/admin/characters/{character_id}/coins",
+    admin_service.adjust_character_coins,
+    methods=["POST"],
+)
+router.add_api_route(
+    "/api/admin/characters/{character_id}/wearables",
+    admin_service.grant_wearable_item,
+    methods=["POST"],
+)
