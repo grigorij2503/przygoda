@@ -26,8 +26,8 @@
 
                 <div class="flex flex-col items-end gap-1.5">
                   <span class="px-2 py-1 rounded text-[10px] font-medium"
-                        :class="p.has_submitted_action ? 'bg-emerald-950/80 border border-emerald-600/40 text-emerald-300' : 'bg-amber-950/60 border border-amber-600/30 text-amber-300'"
-                        x-text="p.has_submitted_action ? (p.action_submission_source === 'party_vote' ? '✓ Gotowy (drużyna)' : '✓ Gotowy') : '⏳ Czeka...'">
+                        :class="p.participation_status === 'on_break' ? 'bg-sky-950/80 border border-sky-600/40 text-sky-300' : (p.has_submitted_action ? 'bg-emerald-950/80 border border-emerald-600/40 text-emerald-300' : 'bg-amber-950/60 border border-amber-600/30 text-amber-300')"
+                        x-text="p.participation_status === 'on_break' ? '⏸ Na przerwie' : (p.has_submitted_action ? (p.action_submission_source === 'party_vote' ? '✓ Gotowy (drużyna)' : '✓ Gotowy') : '⏳ Czeka...')">
                   </span>
                   <button x-show="canOpenProxyAction(p)" x-cloak type="button"
                           @click="openProxyActionVote(p)"

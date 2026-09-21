@@ -27,7 +27,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
    - Licznik gotowości w czasie rzeczywistym (`X/Y graczy gotowych`).
    - Podczas generowania narracji przez Gemini formularz akcji jest blokowany.
    - Po określonym czasie drużyna może zagłosować nad akcją zastępczą aktywnej postaci bez deklaracji; gracz może ją nadpisać przed rozstrzygnięciem.
-   - MG może wysłać bohatera na odwracalną przerwę. Poziom, XP, HP, monety, ekwipunek i statusy pozostają bez zmian, a postać nie blokuje tur, nie otrzymuje rozwoju ani łupu, nie jest celem mechanik i nie trafia do bieżącego kontekstu narratora. Powrót włącza ją od otwartej tury bez przeliczania już ustalonego starcia.
+   - MG może wysłać bohatera na odwracalną przerwę. Poziom, XP, HP, monety, ekwipunek i statusy pozostają bez zmian, a postać nie blokuje tur, nie otrzymuje rozwoju ani łupu, nie jest celem mechanik i nie trafia do bieżącego kontekstu narratora. Powrót włącza ją od otwartej tury bez przeliczania już ustalonego starcia. Lista drużyny oznacza taką postać niebieskim statusem „Na przerwie” zamiast „Czeka”.
 4. **Ilustracje na Żądanie (Imagen 3):**
    - Przycisk *„🎨 Generuj ilustrację z tej tury”* przy każdej ukończonej turze.
    - Każda kampania może wygenerować jedną ilustrację w ciągu dnia kalendarzowego; trwały, atomowo egzekwowany limit odnawia się o północy w strefie `Europe/Warsaw` i jest widoczny w interfejsie jako czas pozostały do kolejnej generacji.
