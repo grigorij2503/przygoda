@@ -3,7 +3,7 @@ import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 
-def test_websocket_chat_communication():
+def test_websocket_chat_communication(isolated_dark_fantasy_db):
     client = TestClient(app)
 
     # 1. Pobierz sesję i stwórz postać testową
@@ -14,7 +14,7 @@ def test_websocket_chat_communication():
     char_res = client.post("/api/characters?room_code=kampania-1", json={
         "player_name": "Czatownik1",
         "name": "MówcaTestowy",
-        "character_class": "Bard",
+        "character_class": "Kleryk",
         "strength": 0,
         "agility": 1,
         "intellect": 1,
@@ -33,7 +33,7 @@ def test_websocket_chat_communication():
         chat_payload = {
             "type": "CHAT_MESSAGE",
             "author": "MówcaTestowy",
-            "character_class": "Bard",
+            "character_class": "Kleryk",
             "text": "Przygotujcie się na starcie w mroku!"
         }
         ws1.send_text(json.dumps(chat_payload))

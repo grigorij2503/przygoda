@@ -7,7 +7,7 @@ from app.database import get_db
 from app.models import GameSession, Character, Turn
 
 @pytest_asyncio.fixture(autouse=True)
-async def setup_app_lifespan():
+async def setup_app_lifespan(isolated_dark_fantasy_db):
     async with app.router.lifespan_context(app):
         async for db in get_db():
             s_res = await db.execute(select(GameSession).where(GameSession.room_code == "kampania-1"))

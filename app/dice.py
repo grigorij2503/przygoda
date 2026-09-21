@@ -120,7 +120,10 @@ def deduce_tested_attribute_details(
     best_rank = max(ranks.values())
     if best_rank > (0, 0):
         candidates = [stat for stat, rank in ranks.items() if rank == best_rank]
-        selected = max(candidates, key=lambda stat: getattr(character, stat, 0))
+        selected = max(
+            candidates,
+            key=lambda stat: int(getattr(character, stat, 0) or 0),
+        )
         confidence = 0.92 if best_rank[0] >= 3 else 0.78
         return {
             "tested_stat": selected,
@@ -151,7 +154,10 @@ def deduce_tested_attribute_details(
         "interact": ("agility", "intellect", "perception"),
         "support": ("intellect", "charisma"),
     }.get(intent, ("strength", "agility", "intellect", "charisma", "perception"))
-    selected = max(fallback_stats, key=lambda stat: getattr(character, stat, 0))
+    selected = max(
+        fallback_stats,
+        key=lambda stat: int(getattr(character, stat, 0) or 0),
+    )
     return {
         "tested_stat": selected,
         "confidence": 0.48,
@@ -202,7 +208,7 @@ def resolve_dice_roll(
     )
 
     # Wartość cechy postaci
-    stat_val = getattr(character, tested_stat, 0)
+    stat_val = int(getattr(character, tested_stat, 0) or 0)
 
     # Bonus z ekwipunku
     item_mod = calculate_item_modifier(character, tested_stat)

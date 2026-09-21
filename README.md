@@ -15,6 +15,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
    - Kryptograficznie bezpieczny generator liczb losowych (`secrets` w Pythonie); wynik jest losowy, a nie deterministyczny.
    - Narracyjny opis gracza jest podstawowym źródłem zamiaru i testowanej cechy; ważone reguły rozpoznają dominującą czynność oraz sposób wykonania zamiast wybierać pierwszy napotkany wyraz.
    - Poboczne ozdobniki, takie jak okrzyk podczas ataku, nie przebijają fizycznej metody działania; przy niejednoznacznym ataku silnik korzysta z cechy używanej broni, a następnie z najlepiej pasującej cechy postaci.
+   - Brak jeszcze niezapisanej lub historycznie nieuzupełnionej wartości cechy jest bezpiecznie traktowany jak `0`, także po dodaniu Percepcji do starszych postaci.
    - Formularz na bieżąco pokazuje nieblokującą interpretację (`zamiar • cecha`), poziom niskiej pewności i krótkie uzasadnienie; gracz może opcjonalnie skorygować oba pola przed zatwierdzeniem bez rezygnowania ze swobodnego opisu.
    - Atak na członka drużyny wskazuje cel w opisie akcji, bez listy celów ataku. Podgląd pokazuje rozpoznaną postać; przy niejednoznacznym „koledze” w większej drużynie trzeba dopisać imię.
    - Podgląd interpretacji działa przez osobny endpoint, a formularz czytelnie obsługuje zarówno błędy JSON, jak i tekstowe odpowiedzi serwera przy zatwierdzaniu akcji.
@@ -154,6 +155,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │       ├── index.html         # Szkielet dokumentu i kolejność zasobów
 │       └── partials/          # Brama, lobby, stół, panele funkcjonalne i osobne modale Jinja
 ├── tests/
+│   ├── conftest.py            # Wspólna izolowana kampania Dark Fantasy dla testów integracyjnych
 │   ├── test_combat.py         # Testy walki, wyposażenia i efektów statusu
 │   ├── test_encounter_difficulty.py # HP i odpowiedzi wroga oraz poziomy DC przeszkód
 │   ├── test_current_world_contract.py # Kontrakt regresyjny bieżącego świata, tras, klas, ksiąg, mapy i UI
@@ -372,11 +374,15 @@ Zestaw testów obejmuje mechanikę gry, API oraz komunikację czasu rzeczywisteg
 python -m pytest tests/ -v
 ```
 
+Testy przepływu lobby, akcji, pełnego rozstrzygnięcia i czatu WebSocket korzystają
+ze wspólnej fixture z tymczasową bazą SQLite oraz jawnie przypiętym
+`dark_fantasy@1`. Nie odczytują ani nie modyfikują lokalnego `ttrpg_game.db`.
+
 Zakres testów:
 - `tests/test_current_world_contract.py`:
   - Chroni publiczną tabelę tras HTTP i WebSocket oraz nazwy zdarzeń czasu rzeczywistego przed przypadkową zmianą podczas modularizacji.
   - Rozwija routery dołączane leniwie przez FastAPI, dzięki czemu porównuje faktyczne endpointy z aktualną fixture również po podziale backendu.
-  - Utrwala obecne klasy, startowy ekwipunek, księgi Czarodzieja i Kleryka, profil mapy Dark Fantasy, kształt odpowiedzi sesji (w tym saldo i status przerwy), endpoint udziału MG, zdarzenia WebSocket, trasy oraz kluczowe elementy renderowanego UI.
+  - Utrwala obecne klasy, startowy ekwipunek, księgi Czarodzieja i Kleryka, profil mapy Dark Fantasy, kształt odpowiedzi sesji (w tym poznane ataki, saldo i status przerwy), endpoint udziału MG, zdarzenia WebSocket wraz z `MARKET_UPDATED`, trasy oraz kluczowe elementy renderowanego UI.
   - Korzysta z fixture `tests/fixtures/dark_fantasy_v1_contract.json`, która jest punktem odniesienia dla przyszłego pakietu `dark_fantasy@1`.
   - Sprawdza kluczowe markery UI już po złożeniu wszystkich partiali Jinja.
   - Lokalizuje finał mapy przez stabilne `final_node_id`, niezależnie od kolejności dopisanych odnóg.
@@ -389,14 +395,14 @@ Zakres testów:
   - Obliczanie modyfikatorów z aktywnego ekwipunku.
   - Wyznaczanie progów sukcesu i kontrolowany testowo rzut k20.
 - `tests/test_full_resolution.py`:
-  - Pełny cykl rozstrzygnięcia tury, zapis narracji, aktualizacja HP/XP i awans.
+  - Pełny cykl rozstrzygnięcia tury, zapis narracji, aktualizacja HP/XP i awans w izolowanej kampanii Dark Fantasy.
 - `tests/test_frontend_module_contract.py`:
   - Renderowanie wszystkich partiali Jinja i istnienie wskazanych zasobów lokalnych.
   - Kolejność modułów CSS i skryptów Alpine oraz kompletność wersjonowanego cache PWA.
 - `tests/test_inventory_transfer.py`:
   - Niezależne sloty hełmu i butów, dostęp do pokoju, częściowy przekaz stosu oraz odrzucenie obcej kampanii, założonego przedmiotu i przekazu podczas rozstrzygania tury.
 - `tests/test_lobby_flow.py`:
-  - Konfiguracja lobby, gotowość graczy oraz kontrola dostępu do narzędzi MG.
+  - Konfiguracja lobby z jawnie wybranym `dark_fantasy@1`, gotowość graczy oraz kontrola dostępu do narzędzi MG w izolowanej bazie.
 - `tests/test_loot.py`:
   - Przyznawanie łupu i środków, jednorazowe przeszukiwanie lokacji, pustą lokację po sukcesie, usunięcie nieprzyznanego artefaktu z narracji, premię i karę założonego przeklętego przedmiotu oraz zasady craftingu.
 - `tests/test_market.py`:
@@ -409,9 +415,9 @@ Zakres testów:
   - Pobieranie strony głównej i weryfikacja hasła do pokoju.
   - Tworzenie postaci i przydzielanie startowego ekwipunku.
   - Składanie akcji tury i sprawdzanie stanu gotowości drużyny.
-  - Izolowanie ponownego użycia tury 1 przez wyczyszczenie znaczników wcześniejszego rozstrzygnięcia.
+  - Izolowana kampania Dark Fantasy i ponowne użycie tury 1 po wyczyszczeniu znaczników wcześniejszego rozstrzygnięcia.
 - `tests/test_websocket_chat.py`:
-  - Wymiana wiadomości czatu przez WebSocket z obsługą opcjonalnego początkowego snapshotu `CHAT_HISTORY` z wcześniej zapisanej bazy.
+  - Wymiana wiadomości czatu przez WebSocket prawidłowej postaci klasy Kleryk w izolowanej bazie, z obsługą opcjonalnego początkowego snapshotu `CHAT_HISTORY`.
 - `tests/test_world_registry.py`:
   - Ładowanie wszystkich 15 pakietów z domyślnym `dark_fantasy@1`, pięć kanonicznych cech rulesetu i zachowanie obecnych klas, starterów, ksiąg, mapy oraz narracji.
   - Odrzucanie nieznanej jawnej wersji i błędnych referencji oraz kontrakt odpowiedzi `GET /api/worlds`.

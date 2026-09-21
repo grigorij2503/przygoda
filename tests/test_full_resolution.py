@@ -8,7 +8,7 @@ from app.database import get_db
 from app.models import GameSession, Character, PlayerAction, Turn
 
 @pytest_asyncio.fixture(autouse=True)
-async def setup_resolution_app():
+async def setup_resolution_app(isolated_dark_fantasy_db):
     async with app.router.lifespan_context(app):
         yield
 

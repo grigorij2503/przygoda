@@ -40,6 +40,11 @@ def normalize_game_text(value: str) -> str:
     return "".join(char for char in normalized if not unicodedata.combining(char)).lower()
 
 
+def _item_quantity(item: InventoryItem) -> int:
+    """Treat an unflushed ORM default as one item without accepting zero stock."""
+    return int(item.quantity if item.quantity is not None else 1)
+
+
 def _has_token_stem(value: str, stems: Iterable[str]) -> bool:
     tokens = re.findall(r"[a-z0-9]+", normalize_game_text(value))
     return any(token.startswith(stem) for token in tokens for stem in stems)
@@ -172,7 +177,7 @@ def validate_special_action(
         if craft_item_ids is not None and (
             len(set(craft_item_ids)) != 3
             or {item.id for item in sources} != set(craft_item_ids)
-            or any(item.is_equipped or int(item.quantity or 0) < 1 for item in sources)
+            or any(item.is_equipped or _item_quantity(item) < 1 for item in sources)
             or any(item.item_type not in CRAFTABLE_ITEM_TYPES for item in sources)
         ):
             return "Wybierz trzy różne przedmioty z plecaka."
@@ -220,14 +225,14 @@ def resolve_inventory_mechanics(
         if (
             len(sources) != 3
             or len({item.item_type for item in sources}) != 1
-            or any(item.is_equipped or int(item.quantity or 0) < 1 for item in sources)
+            or any(item.is_equipped or _item_quantity(item) < 1 for item in sources)
             or any(item.item_type not in CRAFTABLE_ITEM_TYPES for item in sources)
         ):
             continue
         crafted = _build_crafted_item(character, sources, world_pack)
         resolution.new_items.append(crafted)
         for source in sources:
-            source_quantity = int(source.quantity or 1)
+            source_quantity = _item_quantity(source)
             if source_quantity > 1:
                 source.quantity = source_quantity - 1
             else:

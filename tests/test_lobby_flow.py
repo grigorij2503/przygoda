@@ -8,7 +8,7 @@ from app.database import get_db
 from app.models import GameSession, Character, Turn
 
 @pytest_asyncio.fixture(autouse=True)
-async def setup_app_lifespan():
+async def setup_app_lifespan(isolated_dark_fantasy_db):
     async with app.router.lifespan_context(app):
         yield
 
@@ -44,6 +44,8 @@ async def test_lobby_and_ready_check_flow(monkeypatch):
         # 1. Inicjalizacja Lobby dla nowego scenariusza
         setup_res = await ac.post("/api/session/setup-scenario", json={
             "room_code": "kampania-1",
+            "world_pack_id": "dark_fantasy",
+            "world_pack_version": 1,
             "scenario_type": "Krasnoludzka Twierdza opanowana przez demony ognia",
             "tone": "Grimdark Fantasy"
         })
