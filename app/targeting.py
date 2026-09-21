@@ -30,7 +30,10 @@ def infer_character_attack_target(
     clause = clause.split(" nastepnie ", 1)[0]
     clause = clause.split(" zeby ", 1)[0]
     clause = clause.split(" aby ", 1)[0]
-    others = [character for character in characters if character.id != actor.id and character.is_alive]
+    others = [
+        character for character in characters
+        if character.id != actor.id and character.is_alive and character.is_participating
+    ]
     named = []
     for character in others:
         name = _plain(character.name)

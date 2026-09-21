@@ -23,6 +23,8 @@ async def toggle_character_ready(character_id: int, db: AsyncSession = Depends(g
     char = (await db.execute(stmt)).scalar_one_or_none()
     if not char:
         raise HTTPException(status_code=404, detail="Postać nie została znaleziona")
+    if not char.is_participating:
+        raise HTTPException(status_code=409, detail="Postać na przerwie nie zgłasza gotowości")
 
     char.is_ready = not bool(char.is_ready)
     await db.commit()
@@ -131,6 +133,8 @@ async def spend_stat_point(
     char = (await db.execute(stmt)).scalar_one_or_none()
     if not char:
         raise HTTPException(status_code=404, detail="Postać nie istnieje")
+    if not char.is_participating:
+        raise HTTPException(status_code=409, detail="Postać na przerwie nie rozwija atrybutów")
 
     stat_column = getattr(Character, payload.stat)
     if getattr(char, payload.stat) >= MAX_BASE_ATTRIBUTE:
@@ -229,6 +233,13 @@ async def update_personal_note(
     return {"success": True, "content": char.personal_note}
 
 async def toggle_equip_item(char_id: int, item_id: int, db: AsyncSession = Depends(get_db)):
+    character = (
+        await db.execute(select(Character).where(Character.id == char_id))
+    ).scalar_one_or_none()
+    if not character:
+        raise HTTPException(status_code=404, detail="Postać nie istnieje")
+    if not character.is_participating:
+        raise HTTPException(status_code=409, detail="Postać na przerwie nie zmienia wyposażenia")
     stmt = select(InventoryItem).where(InventoryItem.id == item_id, InventoryItem.character_id == char_id)
     res = await db.execute(stmt)
     item = res.scalar_one_or_none()
@@ -321,8 +332,11 @@ async def transfer_inventory_item(
         raise HTTPException(status_code=404, detail="Postacie muszą należeć do tej samej kampanii")
     if sender.id == recipient.id:
         raise HTTPException(status_code=400, detail="Wybierz inną postać")
-    if not sender.is_alive or not recipient.is_alive:
-        raise HTTPException(status_code=400, detail="Przekaz wymaga dwóch żyjących postaci")
+    if (
+        not sender.is_alive or not recipient.is_alive
+        or not sender.is_participating or not recipient.is_participating
+    ):
+        raise HTTPException(status_code=400, detail="Przekaz wymaga dwóch aktywnych, żyjących postaci")
     session = (
         await db.execute(select(GameSession).where(GameSession.id == sender.session_id))
     ).scalar_one()
@@ -408,8 +422,8 @@ async def use_consumable_item(char_id: int, item_id: int, db: AsyncSession = Dep
 
     if item.item_type != "consumable":
         raise HTTPException(status_code=400, detail="Ten przedmiot nie jest zdatny do spożycia/użycia")
-    if not char.is_alive:
-        raise HTTPException(status_code=400, detail="Nieprzytomna lub martwa postać nie może używać przedmiotów.")
+    if not char.is_alive or not char.is_participating:
+        raise HTTPException(status_code=400, detail="Nieaktywna, nieprzytomna lub martwa postać nie może używać przedmiotów.")
 
     # Ulecz
     heal_amount = item.stat_bonus or 10

@@ -1,6 +1,6 @@
 # ⚔️ Gemini TTRPG Master (Multiplayer Turn-Based Web Game)
 
-Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w tym **Dark Fantasy**, **NeoKatowice 3077** (fikcyjny cyberpunk w Polsce), horrorem kosmicznym, zagadką detektywistyczną i humorystycznym RPG. Rozgrywkę prowadzi sztuczna inteligencja (**Gemini 3.8 Flash** jako Mistrz Gry). Backend odpowiada za rzuty, walkę, rozwój postaci, ekwipunek i stan kampanii, a klienci synchronizują się w czasie rzeczywistym. Aplikacja obsługuje również mapę kampanii, kategoryzowaną kronikę, zdolności klasowe, łup, crafting, czat, Web Push i generowanie ilustracji na żądanie (**Imagen 3**).
+Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w tym **Dark Fantasy**, **NeoKatowice 3077** (fikcyjny cyberpunk w Polsce), horrorem kosmicznym, zagadką detektywistyczną i humorystycznym RPG. Rozgrywkę prowadzi sztuczna inteligencja (**Gemini 3.8 Flash** jako Mistrz Gry). Backend odpowiada za rzuty, walkę, rozwój postaci, ekwipunek i stan kampanii, a klienci synchronizują się w czasie rzeczywistym. Aplikacja obsługuje również mapę kampanii, kategoryzowaną kronikę, zdolności klasowe, łup, postój z handlem i craftingiem, czat, Web Push i generowanie ilustracji na żądanie (**Imagen 3**).
 
 ---
 
@@ -22,10 +22,11 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
    - Klasyfikacja: *Krytyczny Sukces* (nat 20), *Sukces* ($\ge$ DC), *Częściowy Sukces* (DC-2 do DC-1), *Porażka*, *Krytyczna Porażka* (nat 1); domyślny próg to DC 12, lecz mechanika może go zmienić.
    - Wyzwania poza walką mają zapisany poziom: zwykłe DC 12, trudne DC `min(25, 15 + średni poziom drużyny // 2)`, kulminacyjne DC `min(30, 18 + średni poziom drużyny // 2)`. Gemini wybiera poziom dla opisanego wyzwania, a serwer wylicza próg. W trybie offline trudniejsza próba przypada co trzecią turę, a kulminacyjna co piątą.
 3. **Turn Gating (Blokada Tury):**
-   - Tura rozstrzyga się dopiero, gdy **wszyscy żywi gracze** w pokoju zatwierdzą swoje akcje.
+   - Tura rozstrzyga się dopiero, gdy **wszyscy żywi i aktywni gracze** w pokoju zatwierdzą swoje akcje.
    - Licznik gotowości w czasie rzeczywistym (`X/Y graczy gotowych`).
    - Podczas generowania narracji przez Gemini formularz akcji jest blokowany.
-   - Po określonym czasie drużyna może zagłosować nad akcją zastępczą nieaktywnej postaci; gracz może ją nadpisać przed rozstrzygnięciem.
+   - Po określonym czasie drużyna może zagłosować nad akcją zastępczą aktywnej postaci bez deklaracji; gracz może ją nadpisać przed rozstrzygnięciem.
+   - MG może wysłać bohatera na odwracalną przerwę. Poziom, XP, HP, monety, ekwipunek i statusy pozostają bez zmian, a postać nie blokuje tur, nie otrzymuje rozwoju ani łupu, nie jest celem mechanik i nie trafia do bieżącego kontekstu narratora. Powrót włącza ją od otwartej tury bez przeliczania już ustalonego starcia.
 4. **Ilustracje na Żądanie (Imagen 3):**
    - Przycisk *„🎨 Generuj ilustrację z tej tury”* przy każdej ukończonej turze.
    - Każda kampania może wygenerować jedną ilustrację w ciągu dnia kalendarzowego; trwały, atomowo egzekwowany limit odnawia się o północy w strefie `Europe/Warsaw` i jest widoczny w interfejsie jako czas pozostały do kolejnej generacji.
@@ -36,7 +37,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
    - Pasek postępu doświadczenia (XP) i automatyczny **Level Up** (wyższe HP i rozwój atrybutów).
    - Zarządzanie ekwipunkiem: dwie dłonie (broń dwuręczna zajmuje obie), pancerz, osobne sloty hełmu i butów, pięć aktywnych przedmiotów oraz mikstury leczące. Hełm jest nad głową sylwetki, buty pod stopami, a nazwy i premie broni mieszczą się w kartach bez ucinania. Dark Fantasy pokazuje sylwetkę fantasy, NeoKatowice sylwetkę techniczną, Norki sylwetkę mieszkańca wzgórz, a pozostałe światy neutralną.
    - Plecak pozwala natychmiast przekazać wybraną liczbę sztuk żyjącej postaci z tej samej kampanii, bez akcji w turze; operacja jest niedostępna podczas rozstrzygania tury. Dostęp do pokoju jest potwierdzany podpisanym ciasteczkiem, ale aplikacja nadal nie ma osobnych kont przypisanych do postaci.
-   - Każda postać ma trwałe saldo środków. Nagroda za pokonanie przeciwnika lub udane przeszukanie trafia do odbiorcy łupu; MG może dodać lub odjąć środki oraz nadać hełm albo buty z premią co najwyżej +1. Sklep nie jest jeszcze dostępny.
+   - Każda postać ma trwałe saldo środków. Nagroda za pokonanie przeciwnika lub udane przeszukanie trafia do odbiorcy łupu; MG może dodać lub odjąć środki oraz nadać hełm albo buty z premią co najwyżej +1. Środki można wydawać podczas postoju.
 6. **Brama Pokoju i Kreator Postaci:**
    - Dostęp do pokoju po podaniu hasła (`ROOM_PASSWORD`), zintegrowane nowoczesne wektorowe logo d20 oraz instalacja PWA.
    - Wybór istniejącej postaci lub kreator z alokacją punktów atrybutów i startowym ekwipunkiem.
@@ -68,6 +69,9 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
     - Typy, rzadkość, obrażenia, zajęte ręce i limity wyposażenia są egzekwowane przez backend.
     - Hełmy i buty mają osobne typy i sloty. Opublikowane pakiety v1 zachowują swoje tabele łupu, dlatego nowe elementy ochronne nadaje MG; trzy przedmioty tego samego typu można później wykorzystać w craftingu.
     - Crafting zużywa trzy zgodne przedmioty i jest dostępny przez jedną turę po pokonaniu bossa.
+    - W turze postoju po bossie pojawia się warsztat, a z 60% szansą również nazwany handlarz zapisany w Kronice. MG może ręcznie otworzyć postój z handlarzem między starciami. Oferta jest ustalana raz przez serwer na podstawie przypiętego świata, poziomu i wyposażenia drużyny; zakup, sprzedaż jednej sztuki z plecaka i jednorazowe negocjacje aktualizują stan oferty oraz saldo transakcyjnie. Ceny sprzedaży wynoszą około 30% wartości bazowej.
+    - Karta handlarza pokazuje stojącą postać w stylu wybranego świata. Aplikacja dostarcza lokalne portrety dla wszystkich 15 motywów i pokazuje ikonę zastępczą, jeśli plik portretu jest niedostępny.
+    - W warsztacie wybiera się trzy konkretne przedmioty z plecaka; ich identyfikatory trafiają do akcji tury, a zużycie następuje po udanym rozstrzygnięciu. Kradzież nie ma przycisku: wymaga jawnego opisu zamiaru i nazwania towaru. Serwer dopuszcza jedną trudną próbę na wizytę; przyłapanie oznacza karę pieniężną do wysokości salda oraz odmowę handlu teraz i podczas następnego spotkania z handlarzem.
     - Deklaracja użycia konkretnego wyposażenia jest walidowana również dla polskich znaków, np. „łuk”; niezapisane jeszcze przedmioty zachowują domyślną ilość jednej sztuki podczas rozliczania craftingu.
 12. **Narzędzia Społecznościowe i MG:**
     - Trwały czat drużyny, wzmianki, osobiste notatki oraz wspólne nadawanie nazw elementom świata.
@@ -77,6 +81,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
     - Panel narzędzi administracyjnych jest odblokowywany osobnym `GM_PIN`; zawiera m.in. konfigurację scenariusza, reset kampanii, ponowienie i ręczne rozstrzygnięcie tury.
     - MG może awaryjnie skorygować bazowe atrybuty dowolnej postaci w zakresie `0–12`; panel pokazuje zmianę łącznej puli, wymaga potwierdzenia i synchronizuje korektę z graczami. Bonusy ekwipunku, niewydane punkty awansu i już złożone akcje nie są przeliczane.
     - Panel MG pozwala skorygować saldo bez zejścia poniżej zera oraz nadać hełm lub buty do plecaka wskazanej postaci.
+    - Panel MG pozwala także wysłać postać na przerwę i przywrócić ją w trwającej kampanii. Rozpoczęcie przerwy usuwa jej ewentualną deklarację i głosowanie zastępcze z nierozstrzygniętej tury; zmiana jest blokowana podczas samego rozstrzygania.
     - MG może zapisać epilog i zakończyć kampanię po osiągnięciu celu scenariusza. Kronika oraz postacie pozostają widoczne, a składanie akcji, głosowanie zastępcze i rozstrzyganie następnych tur są zamknięte do nowego scenariusza.
     - Interfejs działa jako instalowalna PWA z service workerem, zwijanym nagłówkiem sesji i panelem akcji na telefonach oraz ekranach komputerowych do 1799 px, czytelniejszą typografią, semantycznymi modalami, obsługą klawiatury i trybem ograniczonego ruchu. Po złożeniu akcji przez wszystkich aktywnych graczy przycisk generowania kolejnej tury z AI pozostaje na górze panelu, także gdy jego treść jest zwinięta.
     - Po powrocie z uśpionej karty, zminimalizowanej przeglądarki lub zablokowanego urządzenia klient odtwarza WebSocket i pobiera aktualny stan tury; po co najmniej dwóch minutach nieobecności pokazuje krótkie powitanie wybranej postaci.
@@ -92,7 +97,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
     - Widok NeoKatowice i lokalny podgląd Neon używają technicznych nagłówków Rajdhani, metadanych monospace oraz czytelnej narracji Space Grotesk bez ozdobnego inicjału. Aktywna sytuacja ma ramkę transmisji z numerem tury i stanem sygnału, formularz akcji przypomina konsolę, a księgi zdolności pokazują moduły z jawną dostępnością i wymaganym poziomem. Pasek zagrożenia ma zwartą oprawę HUD; cyjan oznacza akcję, fiolet moduły, bursztyn ostrzeżenia, a czerwień przeciwnika. Style pozostają w plikach aplikacji i nie zmieniają opublikowanego pakietu świata.
     - Poza Dark Fantasy ramki i tła ksiąg zdolności, slotów hełmu, butów oraz aktywnych przedmiotów korzystają z palety wybranego świata. Norki pod Zielonym Wzgórzem mają ciepłą, zaokrągloną oprawę księgi i ekwipunku oraz własną rysunkową sylwetkę mieszkańca; pozostałe nowe światy pokazują miększą neutralną sylwetkę zamiast stalowego manekina. Ilustracje SVG i reguły CSS należą do aplikacji, bez zmian w opublikowanych pakietach.
     - Pilot NeoKatowice osadza przygodę w fikcyjnym Śląsku roku 3077. Haker, Neurotechnik, Egzoochroniarz i Fixer mają własne startery, szybkie akcje i księgi hacków, neuroprotokołów, systemów bojowych lub kontaktów. Pakiet dostarcza dzielnice i ikony mapy, cybernetyczny łup, zagrożenia, teksty lobby, prolog, instrukcje narratora oraz kierunek ilustracji bez treści fantasy; fallback SVG używa kanciastego motywu.
-    - Manifest PWA opisuje neutralny silnik „Przygoda”, a wersjonowane CSS/JS i service worker cache'ują także motyw. Schemat jest wersjonowany przez Alembic. Kontener wykonuje `alembic upgrade head` przed uruchomieniem serwera; bezpośredni start przez `uvicorn` zachowuje tymczasowy fallback dla starszych lokalnych baz.
+    - Manifest PWA opisuje neutralny silnik „Przygoda”, a wersjonowane CSS/JS i service worker cache'ują także motyw. Adres manifestu i ikon jest wersjonowany; karta przeglądarki używa osobnego PNG 32×32, a ikony instalowanej PWA po zmianie adresów są ponownie wykrywane przez przeglądarkę. Schemat jest wersjonowany przez Alembic. Kontener wykonuje `alembic upgrade head` przed uruchomieniem serwera; bezpośredni start przez `uvicorn` zachowuje tymczasowy fallback dla starszych lokalnych baz.
 
 ---
 
@@ -103,7 +108,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │   ├── __init__.py
 │   ├── config.py              # Konfiguracja Pydantic V2 i zmienne .env
 │   ├── database.py            # Asynchroniczny silnik SQLAlchemy i zgodnościowe uzupełnianie kolumn przy lokalnym starcie
-│   ├── models.py              # Modele ORM sesji (w tym limit ilustracji), postaci, tur, nazwanych elementów świata, czatu, mapy, push i głosowań
+│   ├── models.py              # Modele ORM sesji, udziału/przerwy postaci, tur, nazwanych elementów świata, czatu, mapy, push i głosowań
 │   ├── schemas.py             # Schematy Pydantic i Structured Output JSON dla Gemini
 │   ├── dice.py                # Serwerowe rzuty d20 i dedukcja atrybutów z kontrolowanymi wskazówkami pakietu
 │   ├── combat.py              # Skalowanie zagrożenia i DC wyzwań, zdolności, wsparcie, agonia/śmierć i statusy
@@ -118,12 +123,14 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │   ├── websocket_manager.py   # Menedżer WebSockets i broadcast zdarzeń
 │   ├── main.py                # Składanie FastAPI, middleware, mounty i rejestracja routerów
 │   ├── api/
-│   │   └── routers/           # Routery UI, auth, push, admin, sesji, postaci, tur, akcji, ilustracji, czatu i katalogu światów
+│   │   └── routers/           # Routery UI, auth, push, admin, sesji, postaci, tur, akcji, postoju, ilustracji, czatu i katalogu światów
 │   ├── services/
 │   │   ├── runtime.py         # Wspólne reguły pomocnicze, inicjalizacja i lifespan
 │   │   ├── session_service.py # Odczyt, konfiguracja, reset i prolog kampanii
 │   │   ├── character_service.py # Postacie, gotowość, rozwój, notatki, ekwipunek i przekazywanie przedmiotów
-│   │   ├── room_access.py     # Podpisany dostęp do pokoju dla przekazywania przedmiotów
+│   │   ├── admin_service.py   # PIN MG, korekty postaci i przełączanie aktywność/przerwa
+│   │   ├── room_access.py     # Podpisany dostęp do pokoju dla przekazywania przedmiotów i handlu
+│   │   ├── market_service.py  # Postój, oferta, ceny, handel, negocjacje i konsekwencje kradzieży
 │   │   ├── turn_service.py    # Interpretacja akcji i rozstrzyganie tur
 │   │   ├── chat_service.py    # Trwały czat i obsługa WebSocket
 │   │   ├── image_service.py   # Generowanie ilustracji oraz limit kampanii
@@ -135,10 +142,11 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │   │   └── packs/             # 2 pełne pakiety v1 oraz 13 deklaratywnych recipe_v1
 │   ├── static/
 │   │   ├── css/style.css      # Punkt wejścia kaskady CSS
-│   │   ├── css/modules/       # Tokeny, baza, komponenty, ekwipunek, mapa, kronika, komunikaty, responsywność, motyw i profile artystyczne theme-art.css
+│   │   ├── css/modules/       # Tokeny, baza, komponenty, ekwipunek, postój, mapa, kronika, komunikaty, responsywność i motywy
 │   │   ├── js/theme-bootstrap.js # Ustawienie motywu i kontrolowanego kształtu przed CSS
 │   │   ├── js/app.js          # Składanie głównego komponentu Alpine `rpgGame`
-│   │   ├── js/modules/        # Stan, PWA, auth/MG, sesja/postać, mapa/historia, realtime/czat, akcje i ekwipunek
+│   │   ├── js/modules/        # Stan, PWA, auth/MG, sesja/postać, mapa/historia, realtime/czat, akcje, ekwipunek i postój
+│   │   ├── img/merchants/     # Lokalne portrety handlarzy, po jednym PNG na identyfikator motywu
 │   │   ├── manifest.json      # Neutralny manifest instalowalnej PWA
 │   │   ├── sw.js              # Service worker, cache modułów i obsługa Web Push
 │   │   └── icons/             # Wektorowe logo d20 i komplet ikon PWA (192, 512, maskable, apple-touch, favicon)
@@ -155,6 +163,8 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │   ├── test_full_resolution.py # Test pełnego cyklu tury i awansu
 │   ├── test_lobby_flow.py     # Testy lobby, gotowości i uprawnień MG
 │   ├── test_loot.py           # Testy łupu oraz craftingu
+│   ├── test_market.py         # Handel i konsekwencje kradzieży w izolowanej bazie
+│   ├── test_character_breaks.py # Przerwa postaci, zachowanie postępu i powrót do gry
 │   ├── test_character_targets.py # Atak na postać odczytany z opisu i samoleczenie
 │   ├── test_turn_flow.py      # Testy API, autoryzacji i akcji
 │   ├── test_stage6_world_content.py # Próbny pakiet: klasy, księga, mapa, przeciwnik i walidacja mechanik
@@ -171,7 +181,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │       └── 0001-versioned-world-packs.md # Decyzja o deklaratywnych pakietach świata
 ├── uploads/                   # Katalog na wygenerowane obrazy z Imagen 3
 ├── data/                      # Katalog na plik bazy SQLite (w Dockerze)
-├── alembic/                   # Migracje 0001–0005, w tym epilog i kara przeklętych przedmiotów
+├── alembic/                   # Migracje 0001–0007, w tym stan postoju i odwracalne przerwy postaci
 ├── alembic.ini                # Konfiguracja migracji korzystająca z DATABASE_URL
 ├── Dockerfile                 # Zoptymalizowany obraz produkcyjny Python 3.12-slim
 ├── docker-compose.yml         # Konfiguracja uruchomieniowa kontenera
@@ -268,7 +278,9 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 W systemach Linux/macOS środowisko aktywuje polecenie `source .venv/bin/activate`, a plik konfiguracyjny tworzy `cp .env.example .env`.
 
 Aplikacja będzie dostępna pod adresem: `http://localhost:8000`.
-Migracja `0002_encounter_difficulty` dodaje poziom trudności do tur; istniejące tury zachowują zwykły poziom DC 12. Migracja `0003_inventory_wallet` dodaje saldo `coins` i nadaje historycznym postaciom `0`, bez zmiany ich ekwipunku. Migracja `0004_lore_discoveries` dodaje wybierane ataki postaci, cechy NPC i kontekst oczekującej propozycji nazwania bez usuwania dotychczasowej Kroniki. Migracja `0005_campaign_endings_cursed_items` dodaje zapis epilogu i karę przeklętych przedmiotów, zachowując dotychczasowy ekwipunek. Bezpośredni start przez `uvicorn` uzupełnia wymagane kolumny w starszych lokalnych bazach bez historii Alembic; późniejsze `alembic upgrade head` zapisuje formalną wersję schematu. Nie są potrzebne nowe zmienne `.env`. Przed migracją istniejącej kampanii wykonaj kopię bazy SQLite. `SECRET_KEY` podpisuje także ciasteczko dostępu do pokoju używane przy przekazywaniu przedmiotów.
+Migracja `0002_encounter_difficulty` dodaje poziom trudności do tur; istniejące tury zachowują zwykły poziom DC 12. Migracja `0003_inventory_wallet` dodaje saldo `coins` i nadaje historycznym postaciom `0`, bez zmiany ich ekwipunku. Migracja `0004_lore_discoveries` dodaje wybierane ataki postaci, cechy NPC i kontekst oczekującej propozycji nazwania bez usuwania dotychczasowej Kroniki. Migracja `0005_campaign_endings_cursed_items` dodaje zapis epilogu i karę przeklętych przedmiotów, zachowując dotychczasowy ekwipunek. Migracja `0006_market_post` dodaje stan wizyty handlarza i identyfikatory składników craftingu do akcji, bez zmiany starych tur. Migracja `0007_character_breaks` dodaje kontrolowany status udziału i numer rozpoczęcia przerwy; wszystkie historyczne postacie pozostają aktywne z niezmienionym poziomem i postępem. Bezpośredni start przez `uvicorn` uzupełnia wymagane kolumny w starszych lokalnych bazach bez historii Alembic; późniejsze `alembic upgrade head` zapisuje formalną wersję schematu. Nie są potrzebne nowe zmienne `.env`. Przed migracją istniejącej kampanii wykonaj kopię bazy SQLite. `SECRET_KEY` podpisuje także ciasteczko dostępu do pokoju używane przy przekazywaniu przedmiotów i handlu.
+
+Własny portret handlarza można dostarczyć jako PNG z przezroczystym tłem, zastępując odpowiedni plik w `app/static/img/merchants/`. Nazwa pliku to `theme_id` świata, np. `archipelag_korsarzy.png` lub `neo_katowice.png` (identyfikator motywu NeoKatowic różni się od ID pakietu). Interfejs wybiera portret według przypiętego świata, bez zmian w JSON pakietów i bez dodatkowej zmiennej `.env`. Po podmianie zasobu trzeba odświeżyć wersję adresu portretu w `app/static/js/modules/market.js` oraz wersję modułu i cache PWA, aby przeglądarki pobrały nowy plik.
 
 ---
 
@@ -364,7 +376,7 @@ Zakres testów:
 - `tests/test_current_world_contract.py`:
   - Chroni publiczną tabelę tras HTTP i WebSocket oraz nazwy zdarzeń czasu rzeczywistego przed przypadkową zmianą podczas modularizacji.
   - Rozwija routery dołączane leniwie przez FastAPI, dzięki czemu porównuje faktyczne endpointy z aktualną fixture również po podziale backendu.
-  - Utrwala obecne klasy, startowy ekwipunek, księgi Czarodzieja i Kleryka, profil mapy Dark Fantasy, kształt odpowiedzi sesji (w tym saldo), trasy oraz kluczowe elementy renderowanego UI.
+  - Utrwala obecne klasy, startowy ekwipunek, księgi Czarodzieja i Kleryka, profil mapy Dark Fantasy, kształt odpowiedzi sesji (w tym saldo i status przerwy), endpoint udziału MG, zdarzenia WebSocket, trasy oraz kluczowe elementy renderowanego UI.
   - Korzysta z fixture `tests/fixtures/dark_fantasy_v1_contract.json`, która jest punktem odniesienia dla przyszłego pakietu `dark_fantasy@1`.
   - Sprawdza kluczowe markery UI już po złożeniu wszystkich partiali Jinja.
   - Lokalizuje finał mapy przez stabilne `final_node_id`, niezależnie od kolejności dopisanych odnóg.
@@ -387,6 +399,10 @@ Zakres testów:
   - Konfiguracja lobby, gotowość graczy oraz kontrola dostępu do narzędzi MG.
 - `tests/test_loot.py`:
   - Przyznawanie łupu i środków, jednorazowe przeszukiwanie lokacji, pustą lokację po sukcesie, usunięcie nieprzyznanego artefaktu z narracji, premię i karę założonego przeklętego przedmiotu oraz zasady craftingu.
+- `tests/test_market.py`:
+  - Zakup i sprzedaż z aktualizacją salda, stanu oferty i plecaka oraz kara i odmowa handlu po nieudanej kradzieży w izolowanej bazie.
+- `tests/test_character_breaks.py`:
+  - Odwracalna przerwa przez endpoint MG, zachowanie poziomu/XP/HP/salda oraz usunięcie deklaracji i głosowania zastępczego z otwartej tury w izolowanej bazie.
 - `tests/test_character_targets.py`:
   - Odczyt celu ataku na postać z opisu, obrażenia improwizowanym kamieniem i leczenie własnej postaci.
 - `tests/test_turn_flow.py`:
@@ -404,7 +420,7 @@ Zakres testów:
 - `tests/test_stage9_world_recipes.py`:
   - Komplet 13 nowych pakietów, ekspansja przepisu do `WorldPack`, księgi, motywy, mapa, spokojne fallbacki i odrzucanie niedozwolonych danych.
 - `tests/test_world_migration.py`:
-  - Uruchomienie Alembic na historycznej bazie i kontrola backfillu świata, klasy, Percepcji oraz ogólnego ID zdolności bez zmiany postępu postaci; obecny head to `0005_campaign_endings_cursed_items`.
+  - Uruchomienie Alembic na historycznej bazie i kontrola addytywnego backfillu bez zmiany postępu postaci; obecny head to `0007_character_breaks`, który pozostawia dawne postacie aktywne.
 
 ---
 

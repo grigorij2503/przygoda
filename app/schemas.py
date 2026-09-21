@@ -85,6 +85,18 @@ class TransferInventoryItemRequest(BaseModel):
     recipient_character_id: int = Field(gt=0)
     quantity: int = Field(ge=1, le=1000000000)
 
+
+class MarketTransactionRequest(BaseModel):
+    character_id: int = Field(gt=0)
+    operation: Literal["buy", "sell", "haggle"]
+    offer_id: Optional[str] = Field(default=None, max_length=30)
+    item_id: Optional[int] = Field(default=None, gt=0)
+
+
+class MarketInteractionRequest(BaseModel):
+    character_id: int = Field(gt=0)
+    text: str = Field(min_length=3, max_length=500)
+
 class AdminUpdateCharacterStatsRequest(BaseModel):
     room_code: str = Field(min_length=1, max_length=50)
     strength: int = Field(ge=0, le=12)
@@ -96,6 +108,10 @@ class AdminUpdateCharacterStatsRequest(BaseModel):
 class AdminAdjustCoinsRequest(BaseModel):
     room_code: str = Field(min_length=1, max_length=50)
     amount: int = Field(ge=-1000000, le=1000000)
+
+class AdminSetParticipationRequest(BaseModel):
+    room_code: str = Field(min_length=1, max_length=50)
+    participation_status: Literal["active", "on_break"]
 
 class AdminGrantWearableRequest(BaseModel):
     room_code: str = Field(min_length=1, max_length=50)
@@ -141,6 +157,8 @@ class CharacterDto(BaseModel):
     is_alive: bool
     death_state: str = "alive"
     death_failures: int = 0
+    participation_status: Literal["active", "on_break"] = "active"
+    break_started_turn: Optional[int] = None
     is_ready: bool = False
     status_effects: List[dict] = []
     ability_book: Optional[dict] = None
@@ -164,6 +182,7 @@ class SubmitActionRequest(BaseModel):
     intent: Optional[Literal["attack", "defend", "interact", "support", "other"]] = None
     tested_stat: Optional[StatId] = None
     target_ref: Optional[str] = None
+    craft_item_ids: Optional[List[int]] = Field(default=None, min_length=3, max_length=3)
 
     @model_validator(mode="after")
     def validate_ability_alias(self) -> "SubmitActionRequest":

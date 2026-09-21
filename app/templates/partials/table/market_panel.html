@@ -1,0 +1,97 @@
+<section x-show="session?.market?.workshop_available && session?.status === 'in_progress' && !(activeEnemy?.hp > 0)" x-cloak
+         class="market-panel" aria-labelledby="market-heading">
+  <div class="market-panel__heading">
+    <div>
+      <p class="market-panel__kicker">Chwila między starciami</p>
+      <h2 id="market-heading" class="ui-heading">Postój</h2>
+    </div>
+    <div class="equipment-wallet" aria-live="polite">
+      <strong x-text="currentCharacter?.coins || 0"></strong>
+      <span x-text="currencyLabel"></span>
+    </div>
+  </div>
+
+  <div x-show="marketMerchant" class="market-merchant">
+    <div class="market-merchant__portrait" aria-hidden="true">
+      <img x-show="marketMerchantPortraitUrl && marketPortraitFailedUrl !== marketMerchantPortraitUrl"
+           :src="marketMerchantPortraitUrl" @error="marketPortraitFailedUrl = marketMerchantPortraitUrl"
+           alt="" loading="lazy" decoding="async">
+      <span x-show="!marketMerchantPortraitUrl || marketPortraitFailedUrl === marketMerchantPortraitUrl">🧑</span>
+    </div>
+    <div class="market-merchant__copy">
+      <p class="market-merchant__role" x-text="marketMerchant?.role"></p>
+      <h3 x-text="marketMerchant?.name"></h3>
+      <p x-text="marketMerchant?.greeting"></p>
+    </div>
+  </div>
+  <p x-show="!marketMerchant" class="market-panel__note">Nie pojawił się handlarz. Warsztat jest jednak dostępny w tej turze.</p>
+  <p x-show="marketBanned && marketMerchant" class="market-panel__error" role="status">Ten handlarz odmawia obsługi wybranej postaci.</p>
+  <p x-show="currentCharacter?.participation_status === 'on_break'" class="market-panel__note" role="status">Postać na przerwie może oglądać postój, ale nie handluje ani nie korzysta z warsztatu.</p>
+
+  <div class="market-tabs" role="group" aria-label="Czynności podczas postoju">
+    <button x-show="marketMerchant" type="button" @click="marketTab = 'buy'" :aria-pressed="marketTab === 'buy'" :class="marketTab === 'buy' ? 'is-active' : ''">Kup</button>
+    <button x-show="marketMerchant" type="button" @click="marketTab = 'sell'" :aria-pressed="marketTab === 'sell'" :class="marketTab === 'sell' ? 'is-active' : ''">Sprzedaj</button>
+    <button type="button" @click="marketTab = 'workshop'" :aria-pressed="marketTab === 'workshop' || !marketMerchant" :class="marketTab === 'workshop' || !marketMerchant ? 'is-active' : ''">Warsztat</button>
+  </div>
+
+  <div x-show="marketTab === 'buy' && marketMerchant" class="market-list">
+    <template x-for="offer in session?.market?.offers || []" :key="offer.id">
+      <article class="market-item">
+        <div class="market-item__details">
+          <strong x-text="offer.name"></strong>
+          <span x-text="offer.description"></span>
+          <small x-text="[itemTypeLabel(offer), itemBonusLabel(offer)].filter(Boolean).join(' · ')"></small>
+        </div>
+        <div class="market-item__actions">
+          <span class="market-item__price" x-text="`${marketPrice(offer)} ${currencyLabel}`"></span>
+          <span class="market-item__stock" x-text="offer.stock > 0 ? `Pozostało: ${offer.stock}` : 'Wyprzedane'"></span>
+          <button type="button" @click="marketTransaction('buy', offer)" :disabled="marketBusy || marketBanned || currentCharacter?.participation_status === 'on_break' || session?.is_turn_resolving || offer.stock < 1 || (currentCharacter?.coins || 0) < marketPrice(offer)">Kup</button>
+          <button type="button" class="market-item__quiet" @click="marketTransaction('haggle', offer)" :disabled="marketBusy || marketBanned || currentCharacter?.participation_status === 'on_break' || session?.is_turn_resolving || offer.stock < 1 || (session?.market?.negotiated || []).includes(selectedCharacterId)">Negocjuj</button>
+        </div>
+      </article>
+    </template>
+  </div>
+
+  <div x-show="marketTab === 'sell' && marketMerchant" class="market-list">
+    <p class="market-panel__note">Możesz sprzedać przedmioty z plecaka, po jednej sztuce naraz.</p>
+    <template x-for="item in (currentCharacter?.inventory || []).filter(entry => !entry.is_equipped && entry.quantity > 0)" :key="item.id">
+      <article class="market-item">
+        <div class="market-item__details">
+          <strong x-text="item.name"></strong>
+          <span x-text="item.description"></span>
+          <small x-text="`W plecaku: ${item.quantity}`"></small>
+        </div>
+        <div class="market-item__actions">
+          <span class="market-item__price" x-text="`${marketSellPrice(item)} ${currencyLabel}`"></span>
+          <button type="button" @click="marketTransaction('sell', null, item)" :disabled="marketBusy || marketBanned || currentCharacter?.participation_status === 'on_break' || session?.is_turn_resolving">Sprzedaj 1</button>
+        </div>
+      </article>
+    </template>
+    <p x-show="!(currentCharacter?.inventory || []).some(item => !item.is_equipped && item.quantity > 0)" class="market-panel__note">Plecak jest pusty.</p>
+  </div>
+
+  <div x-show="marketTab === 'workshop' || !marketMerchant" class="market-workshop">
+    <p>Wybierz trzy różne przedmioty tego samego typu. Przygotujesz z nich akcję na tę turę; materiały znikną tylko po udanym rzucie.</p>
+    <div class="market-workshop__items">
+      <template x-for="item in marketCraftItems" :key="item.id">
+        <label class="market-workshop__choice" :class="marketCraftItemIds.includes(item.id) ? 'is-selected' : ''">
+          <input type="checkbox" :checked="marketCraftItemIds.includes(item.id)" @change="toggleMarketCraftItem(item); $event.target.checked = marketCraftItemIds.includes(item.id)" :disabled="currentCharacter?.participation_status === 'on_break' || session?.is_turn_resolving">
+          <span x-text="item.name"></span>
+          <small x-text="itemTypeLabel(item)"></small>
+        </label>
+      </template>
+    </div>
+    <p x-show="marketCraftItems.length < 3" class="market-panel__note">Potrzebujesz trzech przedmiotów w plecaku.</p>
+    <button type="button" class="market-workshop__prepare" @click="prepareMarketCraft()" :disabled="marketCraftItemIds.length !== 3 || currentCharacter?.participation_status === 'on_break' || session?.is_turn_resolving">Przygotuj akcję craftingu</button>
+  </div>
+
+  <form x-show="marketMerchant && !marketBanned" @submit.prevent="marketInteract()" class="market-interact">
+    <label for="market-interaction">Powiedz lub opisz działanie przy stoisku</label>
+    <div>
+      <input id="market-interaction" type="text" maxlength="500" minlength="3" x-model="marketInteractionText" placeholder="Co robisz?" :disabled="marketBusy || currentCharacter?.participation_status === 'on_break' || session?.is_turn_resolving">
+      <button type="submit" :disabled="marketBusy || currentCharacter?.participation_status === 'on_break' || session?.is_turn_resolving || !marketInteractionText.trim()">Działaj</button>
+    </div>
+  </form>
+  <p x-show="marketFeedback" x-text="marketFeedback" class="market-panel__feedback" role="status"></p>
+  <p x-show="marketError" x-text="marketError" class="market-panel__error" role="alert"></p>
+</section>

@@ -75,7 +75,8 @@ def test_alembic_backfills_existing_campaign_without_changing_progress(tmp_path)
     ).fetchone()
     character = connection.execute(
         "SELECT level, xp, current_hp, max_hp, strength, agility, intellect, "
-        "charisma, perception, class_id, coins FROM characters WHERE id = 1"
+        "charisma, perception, class_id, coins, participation_status, break_started_turn "
+        "FROM characters WHERE id = 1"
     ).fetchone()
     action = connection.execute(
         "SELECT magic_ability_id, ability_id FROM player_actions WHERE id = 1"
@@ -83,11 +84,19 @@ def test_alembic_backfills_existing_campaign_without_changing_progress(tmp_path)
     turn = connection.execute(
         "SELECT session_id, turn_number, challenge_tier FROM turns WHERE id = 1"
     ).fetchone()
+    market = connection.execute(
+        "SELECT market_state, market_revision FROM game_sessions WHERE id = 1"
+    ).fetchone()
+    craft_item_ids = connection.execute(
+        "SELECT craft_item_ids FROM player_actions WHERE id = 1"
+    ).fetchone()
     revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
     connection.close()
 
     assert session == ("Stara kampania", 7, "dark_fantasy", 1)
-    assert character == (9, 1234, 17, 35, 3, 2, 7, 1, 0, "wizard", 0)
+    assert character == (9, 1234, 17, 35, 3, 2, 7, 1, 0, "wizard", 0, "active", None)
     assert action == ("lightning_bolt", "lightning_bolt")
     assert turn == (1, 7, "standard")
-    assert revision == ("0005_campaign_endings_cursed_items",)
+    assert market == ("{}", 0)
+    assert craft_item_ids == (None,)
+    assert revision == ("0007_character_breaks",)

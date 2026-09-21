@@ -58,11 +58,14 @@
             <div class="flex items-center gap-2">
               <button @click="toggleReady()"
                       type="button"
+                      :disabled="currentCharacter?.participation_status === 'on_break'"
                       class="px-5 py-2.5 rounded-xl font-fantasy text-xs font-bold transition flex items-center gap-2 shadow-lg"
-                      :class="isCurrentCharacterReady 
+                      :class="currentCharacter?.participation_status === 'on_break'
+                        ? 'bg-slate-900 border border-sky-800 text-sky-300 opacity-70 cursor-not-allowed'
+                        : isCurrentCharacterReady
                         ? 'bg-emerald-600 hover:bg-emerald-500 text-slate-950 shadow-emerald-950/50' 
                         : 'bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/50 text-amber-300 animate-pulse'">
-                <span x-text="isCurrentCharacterReady ? '✓ JESTEŚ GOTOWY' : '⏳ OZNACZ: JESTEM GOTOWY'"></span>
+                <span x-text="currentCharacter?.participation_status === 'on_break' ? '⏸ POSTAĆ NA PRZERWIE' : (isCurrentCharacterReady ? '✓ JESTEŚ GOTOWY' : '⏳ OZNACZ: JESTEM GOTOWY')"></span>
               </button>
               <button @click="selectedCharacterId = null" class="text-xs text-gray-400 hover:text-white px-2 py-1">
                 Zmień
@@ -107,8 +110,8 @@
                 
                 <!-- Status Gotowości -->
                 <span class="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold tracking-wider uppercase shrink-0"
-                      :class="char.is_ready ? 'bg-emerald-950 border border-emerald-500 text-emerald-300' : 'bg-slate-950 border border-slate-700 text-gray-400'"
-                      x-text="char.is_ready ? '✓ GOTOWY' : '⏳ CZEKA'">
+                      :class="char.participation_status === 'on_break' ? 'bg-sky-950 border border-sky-600 text-sky-300' : (char.is_ready ? 'bg-emerald-950 border border-emerald-500 text-emerald-300' : 'bg-slate-950 border border-slate-700 text-gray-400')"
+                      x-text="char.participation_status === 'on_break' ? '⏸ PRZERWA' : (char.is_ready ? '✓ GOTOWY' : '⏳ CZEKA')">
                 </span>
               </div>
 

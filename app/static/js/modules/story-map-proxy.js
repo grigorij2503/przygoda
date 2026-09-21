@@ -408,7 +408,9 @@
 
     get totalAlivePlayers() {
       if (!this.session) return 0;
-      return this.session.characters.filter(c => c.is_alive).length;
+      return this.session.characters.filter(
+        c => c.is_alive && c.participation_status !== 'on_break'
+      ).length;
     },
 
     get hasOpenProxyDecision() {
@@ -448,6 +450,7 @@
       ) return false;
       return Boolean(
         this.currentCharacter?.is_alive &&
+        this.currentCharacter?.participation_status !== 'on_break' &&
         this.currentCharacter?.has_submitted_action &&
         this.currentCharacter?.action_submission_source === 'player'
       );
@@ -513,7 +516,9 @@
 
     get lobbyAliveCharacters() {
       if (!this.session?.characters) return [];
-      return this.session.characters.filter(c => c.is_alive);
+      return this.session.characters.filter(
+        c => c.is_alive && c.participation_status !== 'on_break'
+      );
     },
 
     get lobbyReadyCount() {

@@ -600,6 +600,25 @@ Po udanym przeszukaniu oraz pokonaniu przeciwnika odbiorca łupu zyskuje także
 łupu dla hełmów i butów; nadaje je MG. Dostęp do pokoju nie oznacza wyłącznego
 własnictwa postaci, ponieważ gra nie ma indywidualnych kont graczy.
 
+### Odbiór postoju i handlu
+
+Na osobnej bazie odbiorowej lub kopii kampanii po migracji `0006_market_post`
+pokonać głównego przeciwnika i przejść do następnej tury: warsztat powinien być
+dostępny, a handlarz pojawiać się losowo bez zmiany oferty po odświeżeniu.
+Gdy handlarza nie ma, MG może otworzyć go ręcznie. Sprawdzić zakup, sprzedaż
+jednej sztuki stosu, brak salda ujemnego, jedną próbę negocjacji na postać i
+odświeżenie drugiego klienta przez WebSocket. W warsztacie wybrać trzy konkretne
+przedmioty tego samego typu, zatwierdzić akcję i upewnić się, że tylko udany
+rzut zużywa składniki. W polu opisu przy stoisku podać wyraźną próbę kradzieży
+i nazwę oferowanego przedmiotu; nie ma osobnego przycisku. Po przyłapaniu
+sprawdzić karę do wysokości posiadanych środków, zamknięcie handlu dla tej
+postaci, zmianę usposobienia NPC w Kronice i odmowę w następnym spotkaniu.
+Sprawdzić również stojący portret właściwy dla motywu świata, czytelność karty
+na telefonie i ikonę zastępczą przy brakującym pliku; własną grafikę można
+podmienić w `app/static/img/merchants/<theme_id>.png` bez zmiany pakietu świata.
+Następna tura oraz oba rodzaje restartu zamykają stary postój. Nie wykonywać
+tych czynności na aktywnej bazie kampanii.
+
 ### Odbiór odkryć Kroniki
 
 Na osobnej bazie lub kopii kampanii po migracji `0004_lore_discoveries` sprawdzić,

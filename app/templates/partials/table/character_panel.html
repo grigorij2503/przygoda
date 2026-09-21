@@ -8,8 +8,8 @@
               </p>
             </div>
             <span class="px-2.5 py-1 rounded-full text-xs font-mono"
-                  :class="deathStateClass(currentCharacter)"
-                  x-text="deathStateLabel(currentCharacter)">
+                  :class="currentCharacter?.participation_status === 'on_break' ? 'bg-sky-950 border border-sky-600 text-sky-300' : deathStateClass(currentCharacter)"
+                  x-text="currentCharacter?.participation_status === 'on_break' ? `⏸ Przerwa od tury ${currentCharacter?.break_started_turn}` : deathStateLabel(currentCharacter)">
             </span>
           </div>
 
@@ -52,7 +52,7 @@
                    : 'Maksymalny poziom'"></div>
           </div>
 
-          <button x-show="(currentCharacter?.unspent_stat_points || 0) > 0" x-cloak
+          <button x-show="currentCharacter?.participation_status !== 'on_break' && (currentCharacter?.unspent_stat_points || 0) > 0" x-cloak
                   type="button" @click="statPointError = ''; showLevelUpModal = true"
                   class="w-full mb-5 px-4 py-3 rounded-xl border border-amber-500/60 bg-gradient-to-r from-amber-950/80 to-yellow-950/60 hover:border-amber-400 text-amber-200 text-xs font-fantasy font-bold transition shadow-lg shadow-amber-950/30 flex items-center justify-center gap-2">
             <span>⭐</span>

@@ -107,11 +107,16 @@ async def resolve_turn_endpoint(payload: ResolveTurnRequest = ResolveTurnRequest
     if not turn:
         raise HTTPException(status_code=404, detail="Brak aktywnej tury w sesji")
 
-    if not turn.actions:
-        raise HTTPException(status_code=400, detail="Żaden gracz nie złożył jeszcze akcji w tej turze")
-
-    alive_characters = [character for character in session.characters if character.is_alive]
+    alive_characters = [
+        character for character in session.characters
+        if character.is_alive and character.is_participating
+    ]
+    if not alive_characters:
+        raise HTTPException(status_code=400, detail="Brak aktywnych, żyjących postaci w tej turze")
     submitted_ids = {action.character_id for action in turn.actions}
+    active_character_ids = {character.id for character in alive_characters}
+    if not (submitted_ids & active_character_ids):
+        raise HTTPException(status_code=400, detail="Żaden aktywny gracz nie złożył jeszcze akcji w tej turze")
     missing_characters = [character.name for character in alive_characters if character.id not in submitted_ids]
     if missing_characters:
         raise HTTPException(
@@ -184,6 +189,8 @@ async def interpret_action(payload: InterpretActionRequest, db: AsyncSession = D
     character = (await db.execute(c_stmt)).scalar_one_or_none()
     if not character:
         raise HTTPException(status_code=404, detail="Postać nie istnieje")
+    if not character.is_participating:
+        raise HTTPException(status_code=409, detail="Postać jest na przerwie i nie bierze udziału w turze")
 
     world_pack = get_session_world_pack(character.session)
     ability, ability_error = validate_ability_action(
@@ -249,6 +256,8 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
         raise HTTPException(status_code=404, detail="Postać nie istnieje")
     if not character.is_alive:
         raise HTTPException(status_code=400, detail="Postać w agonii, stabilna lub martwa nie może składać akcji.")
+    if not character.is_participating:
+        raise HTTPException(status_code=409, detail="Postać jest na przerwie i nie może składać akcji")
     if character.session.status == "completed":
         raise HTTPException(status_code=409, detail="Kampania została zakończona")
 
@@ -317,6 +326,8 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
         support_target = (await db.execute(target_stmt)).scalar_one_or_none()
         if not support_target:
             raise HTTPException(status_code=400, detail="Wskaż postać z drużyny.")
+        if not support_target.is_participating:
+            raise HTTPException(status_code=400, detail="Postać na przerwie nie może być celem wsparcia.")
         is_revive = bool(magic_ability and magic_ability["mechanic_key"] == "revive")
         if is_revive and support_target.death_state != "dead":
             raise HTTPException(status_code=400, detail="Ta zdolność wymaga wskazania poległego bohatera.")
@@ -349,6 +360,7 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
         uses_magic=bool(magic_ability),
         campaign_map=session.campaign_map,
         world_pack=world_pack,
+        craft_item_ids=payload.craft_item_ids,
     )
     if special_action_error:
         raise HTTPException(status_code=400, detail=special_action_error)
@@ -374,6 +386,9 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
             status_code=400,
             detail="Mechanika tej tury została już rozliczona; można ponowić wyłącznie narrację.",
         )
+    await db.refresh(character, attribute_names=["participation_status"])
+    if not character.is_participating:
+        raise HTTPException(status_code=409, detail="Postać została wysłana na przerwę")
 
     # Sprawdź czy gracz już złożył akcję w tej turze
     act_stmt = select(PlayerAction).where(PlayerAction.turn_id == turn.id)
@@ -391,6 +406,7 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
         existing_action.target_ref = action_target_ref
         existing_action.tested_stat = resolved_stat
         existing_action.submission_source = "player"
+        existing_action.craft_item_ids = payload.craft_item_ids
         existing_action.submitted_at = datetime.now(timezone.utc)
     else:
         new_action = PlayerAction(
@@ -404,6 +420,7 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
             target_ref=action_target_ref,
             tested_stat=resolved_stat,
             submission_source="player",
+            craft_item_ids=payload.craft_item_ids,
         )
         db.add(new_action)
     if proxy_was_overridden:
@@ -424,12 +441,16 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
     # Pobierz wszystkie żywe postacie w tej sesji
     all_chars_stmt = (
         select(Character)
-        .where(Character.session_id == session.id, Character.is_alive == True)
+        .where(
+            Character.session_id == session.id,
+            Character.is_alive == True,
+            Character.participation_status == "active",
+        )
     )
     all_chars = (await db.execute(all_chars_stmt)).scalars().all()
 
     total_alive_players = len(all_chars)
-    ready_count = len(submitted_ids)
+    ready_count = len(submitted_ids & {character.id for character in all_chars})
 
     # Powiadom graczy o złożeniu akcji
     await ws_manager.broadcast_to_session(session.id, {
@@ -497,6 +518,9 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             )
             characters = (await db.execute(c_stmt)).scalars().all()
             char_map = {c.id: c for c in characters}
+            participating_characters = [
+                character for character in characters if character.is_participating
+            ]
             lore_stmt = select(NamedLoreEntity).where(NamedLoreEntity.session_id == session_id)
             lore_entities = (await db.execute(lore_stmt)).scalars().all()
             learned_attacks = {
@@ -517,14 +541,16 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             # 1. Mechanika tury jest zapisywana dokładnie raz. Retry ponawia wyłącznie narrację.
             actions_with_rolls = []
             if turn.mechanics_resolved_at is None:
-                living_characters = [character for character in characters if character.is_alive]
+                living_characters = [
+                    character for character in participating_characters if character.is_alive
+                ]
                 average_level = (
                     sum(character.level for character in living_characters) / len(living_characters)
                     if living_characters else 1
                 )
                 for action in turn.actions:
                     char = char_map.get(action.character_id)
-                    if not char:
+                    if not char or not char.is_participating:
                         continue
 
                     action.intent = infer_action_intent(action.action_text, action.intent)
@@ -570,20 +596,20 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                 if session.active_boss_name and session.active_boss_hp and session.active_boss_hp > 0:
                     turn.combat_events = resolve_boss_turn(
                         session,
-                        list(characters),
+                        list(participating_characters),
                         list(turn.actions),
                         world_pack=world_pack,
                     )
                 else:
                     turn.combat_events = resolve_status_turn(
-                        list(characters),
+                        list(participating_characters),
                         list(turn.actions),
                         world_pack=world_pack,
                     )
                 inventory_resolution = resolve_inventory_mechanics(
                     session,
                     turn,
-                    list(characters),
+                    list(participating_characters),
                     campaign_map,
                     world_pack=world_pack,
                 )
@@ -601,12 +627,27 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                     if owner and consumed_item in owner.inventory:
                         owner.inventory.remove(consumed_item)
                     await db.delete(consumed_item)
+                for event in inventory_resolution.events:
+                    if event.get("type") == "merchant_arrived" and not any(
+                        lore.category == "npc" and lore.custom_name == event["name"]
+                        for lore in lore_entities
+                    ):
+                        db.add(NamedLoreEntity(
+                            session_id=session.id,
+                            category="npc",
+                            original_description=event["greeting"],
+                            custom_name=event["name"],
+                            discovered_turn_number=turn.turn_number,
+                            map_node_id=campaign_map.current_node_id if campaign_map else None,
+                            npc_disposition="reserved",
+                            npc_goal="Handluje podczas postoju drużyny.",
+                        ))
                 turn.mechanics_resolved_at = datetime.now(timezone.utc)
                 await db.commit()
 
             for action in turn.actions:
                 char = char_map.get(action.character_id)
-                if not char:
+                if not char or not char.is_participating:
                     continue
                 party_target = (
                     char_map.get(int(action.target_ref))
@@ -656,7 +697,7 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                 session=session,
                 turn=turn,
                 actions_with_rolls=actions_with_rolls,
-                characters=characters,
+                characters=participating_characters,
                 lore_entities=lore_entities,
                 map_context=map_context,
             )
@@ -665,6 +706,9 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                 list(turn.combat_events or []),
                 world_pack,
             )
+            for event in (turn.combat_events or []):
+                if isinstance(event, dict) and event.get("type") == "merchant_arrived":
+                    gemini_result.gm_story_narration += "\n\n" + event["greeting"]
             for consequence in gemini_result.player_consequences:
                 consequence.individual_summary = (
                     strip_loot_claims(
@@ -721,7 +765,7 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             )
             for conseq in gemini_result.player_consequences:
                 char = char_map.get(conseq.character_id)
-                if not char:
+                if not char or not char.is_participating:
                     continue
 
                 # Przypisanie indywidualnego podsumowania do rekordu akcji
@@ -807,7 +851,9 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             )
 
             opportunity = gemini_result.naming_opportunity
-            living = [character for character in characters if character.is_alive]
+            living = [
+                character for character in participating_characters if character.is_alive
+            ]
             if opportunity and not session.pending_naming_category and living:
                 category = opportunity.category
                 evidence = opportunity.scene_evidence.strip()

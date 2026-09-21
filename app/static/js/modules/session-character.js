@@ -37,6 +37,11 @@
           this.actionInterpretation = null;
           this.showActionInterpretationControls = false;
           this.isEditingSubmittedAction = false;
+          this.marketCraftItemIds = [];
+          this.marketInteractionText = '';
+          this.marketFeedback = '';
+          this.marketError = '';
+          this.marketTab = 'buy';
           this.turnError = '';
         }
         const serverNow = Date.parse(data.server_time);
@@ -90,12 +95,13 @@
         }
 
         const unspentStatPoints = this.currentCharacter?.unspent_stat_points || 0;
-        if (unspentStatPoints > 0 && (
+        const characterOnBreak = this.currentCharacter?.participation_status === 'on_break';
+        if (!characterOnBreak && unspentStatPoints > 0 && (
           previousUnspentStatPoints === undefined ||
           unspentStatPoints > previousUnspentStatPoints
         )) {
           this.showLevelUpModal = true;
-        } else if (unspentStatPoints === 0) {
+        } else if (characterOnBreak || unspentStatPoints === 0) {
           this.showLevelUpModal = false;
         }
 
@@ -417,7 +423,9 @@
 
     get transferTargets() {
       return (this.session?.characters || []).filter(character =>
-        character.id !== this.selectedCharacterId && character.is_alive
+        character.id !== this.selectedCharacterId &&
+        character.is_alive &&
+        character.participation_status !== 'on_break'
       );
     },
 

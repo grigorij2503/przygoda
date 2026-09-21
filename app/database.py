@@ -46,6 +46,8 @@ async def init_db():
             ("game_sessions", "last_loot_character_id", "INTEGER"),
             ("game_sessions", "looted_location_ids", "JSON"),
             ("game_sessions", "crafting_available_until_turn", "INTEGER NOT NULL DEFAULT 0"),
+            ("game_sessions", "market_state", "JSON NOT NULL DEFAULT '{}'"),
+            ("game_sessions", "market_revision", "INTEGER NOT NULL DEFAULT 0"),
             ("game_sessions", "last_image_generated_at", "DATETIME"),
             ("game_sessions", "pending_naming_category", "VARCHAR(50)"),
             ("game_sessions", "pending_naming_prompt", "TEXT"),
@@ -67,6 +69,8 @@ async def init_db():
             ("characters", "status_effects", "JSON"),
             ("characters", "death_state", "VARCHAR(20) NOT NULL DEFAULT 'alive'"),
             ("characters", "death_failures", "INTEGER NOT NULL DEFAULT 0"),
+            ("characters", "participation_status", "VARCHAR(20) NOT NULL DEFAULT 'active'"),
+            ("characters", "break_started_turn", "INTEGER"),
             ("inventory_items", "hands_required", "INTEGER NOT NULL DEFAULT 1"),
             ("inventory_items", "damage_power", "INTEGER NOT NULL DEFAULT 0"),
             ("inventory_items", "curse_stat", "VARCHAR(50)"),
@@ -88,6 +92,7 @@ async def init_db():
             ("player_actions", "hp_delta", "INTEGER NOT NULL DEFAULT 0"),
             ("player_actions", "xp_gained", "INTEGER NOT NULL DEFAULT 0"),
             ("player_actions", "submission_source", "VARCHAR(30) NOT NULL DEFAULT 'player'"),
+            ("player_actions", "craft_item_ids", "JSON"),
             ("named_lore_entities", "discovered_turn_number", "INTEGER"),
             ("named_lore_entities", "map_node_id", "VARCHAR(100)"),
             ("named_lore_entities", "npc_disposition", "VARCHAR(20)"),
@@ -101,6 +106,10 @@ async def init_db():
                 pass
         await conn.execute(text(
             "UPDATE characters SET coins = 0 WHERE coins IS NULL OR coins < 0"
+        ))
+        await conn.execute(text(
+            "UPDATE characters SET participation_status = 'active' "
+            "WHERE participation_status IS NULL OR participation_status NOT IN ('active', 'on_break')"
         ))
         await conn.execute(text(
             "UPDATE named_lore_entities SET discovered_turn_number = "

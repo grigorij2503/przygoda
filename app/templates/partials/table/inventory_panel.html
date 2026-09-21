@@ -248,7 +248,7 @@
                   <div class="inventory-item__actions">
                     <button x-show="item.item_type === 'consumable'" type="button" @click.stop="markInventoryItemSeen(item.id); useItem(item.id)" class="inventory-action inventory-action--use">Użyj</button>
                     <button x-show="item.item_type !== 'consumable'" type="button" @click.stop="toggleEquip(item)" :disabled="changingEquipmentItemId === item.id" class="inventory-action">Załóż</button>
-                    <button type="button" @click.stop="startItemTransfer(item)" :disabled="transferTargets.length === 0 || !currentCharacter?.is_alive || session?.is_turn_resolving" class="inventory-action">Przekaż</button>
+                    <button type="button" @click.stop="startItemTransfer(item)" :disabled="transferTargets.length === 0 || !currentCharacter?.is_alive || currentCharacter?.participation_status === 'on_break' || session?.is_turn_resolving" class="inventory-action">Przekaż</button>
                   </div>
                   <form x-show="transferItemId === item.id" x-cloak @click.stop @submit.prevent="transferItem(item)" class="inventory-transfer-form">
                     <label>Odbiorca

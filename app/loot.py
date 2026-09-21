@@ -131,6 +131,7 @@ def validate_special_action(
     uses_magic: bool,
     campaign_map: CampaignMap | None,
     world_pack: WorldPack | None = None,
+    craft_item_ids: list[int] | None = None,
 ) -> str | None:
     world_pack = world_pack or get_default_world_pack()
     crafting = has_crafting_intent(action_text, world_pack)
@@ -163,12 +164,25 @@ def validate_special_action(
             return "Nie możesz scalać ani ulepszać przedmiotów podczas aktywnej walki."
         if int(session.crafting_available_until_turn or 0) != current_turn_number:
             return world_pack.crafting_profile.workshop_unavailable_message
-        sources = infer_crafting_source_items(action_text, inventory, world_pack)
+        sources = (
+            [item for item in inventory if item.id in craft_item_ids]
+            if craft_item_ids is not None
+            else infer_crafting_source_items(action_text, inventory, world_pack)
+        )
+        if craft_item_ids is not None and (
+            len(set(craft_item_ids)) != 3
+            or {item.id for item in sources} != set(craft_item_ids)
+            or any(item.is_equipped or int(item.quantity or 0) < 1 for item in sources)
+            or any(item.item_type not in CRAFTABLE_ITEM_TYPES for item in sources)
+        ):
+            return "Wybierz trzy różne przedmioty z plecaka."
         if len(sources) != 3:
             return "Crafting wymaga wskazania w akcji dokładnie trzech posiadanych przedmiotów."
         item_types = {item.item_type for item in sources}
         if len(item_types) != 1:
             return "Scalić można tylko trzy przedmioty tego samego typu."
+    elif craft_item_ids is not None:
+        return "Wybór przedmiotów wymaga deklaracji craftingu."
     return None
 
 
@@ -198,8 +212,17 @@ def resolve_inventory_mechanics(
         character = next((item for item in characters if item.id == action.character_id), None)
         if not character or action.outcome_tier not in CRAFTING_SUCCESS_TIERS:
             continue
-        sources = infer_crafting_source_items(action.action_text, character.inventory, world_pack)
-        if len(sources) != 3 or len({item.item_type for item in sources}) != 1:
+        sources = (
+            [item for item in character.inventory if item.id in action.craft_item_ids]
+            if action.craft_item_ids is not None
+            else infer_crafting_source_items(action.action_text, character.inventory, world_pack)
+        )
+        if (
+            len(sources) != 3
+            or len({item.item_type for item in sources}) != 1
+            or any(item.is_equipped or int(item.quantity or 0) < 1 for item in sources)
+            or any(item.item_type not in CRAFTABLE_ITEM_TYPES for item in sources)
+        ):
             continue
         crafted = _build_crafted_item(character, sources, world_pack)
         resolution.new_items.append(crafted)
@@ -219,8 +242,23 @@ def resolve_inventory_mechanics(
 
     if boss_defeated:
         session.crafting_available_until_turn = turn.turn_number + 1
+        from app.services.market_service import open_market_visit
+
+        merchant = open_market_visit(
+            session, characters, world_pack, turn.turn_number + 1
+        )
+        if merchant:
+            resolution.events.append({
+                "type": "merchant_arrived",
+                "name": merchant["name"],
+                "role": merchant["role"],
+                "greeting": merchant["greeting"],
+            })
         recipient = _choose_recipient(
-            [character for character in characters if character.is_alive],
+            [
+                character for character in characters
+                if character.is_alive and character.is_participating
+            ],
             session.last_loot_character_id,
         )
         if recipient:
@@ -257,7 +295,10 @@ def resolve_inventory_mechanics(
     looted_locations.append(node_id)
     session.looted_location_ids = looted_locations
 
-    living_by_id = {character.id: character for character in characters if character.is_alive}
+    living_by_id = {
+        character.id: character for character in characters
+        if character.is_alive and character.is_participating
+    }
     successful_actions = [
         action for action in search_actions
         if action.character_id in living_by_id and action.outcome_tier in LOOT_SUCCESS_TIERS

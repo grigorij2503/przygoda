@@ -56,6 +56,7 @@ from app.services.world_service import (
     resolve_requested_world_pack,
     serialize_world_runtime,
 )
+from app.services.market_service import item_sell_value, serialize_market
 from app.websocket_manager import ws_manager
 from app.worlds.registry import WORLD_PACK_REGISTRY, WorldPackNotFoundError
 
@@ -82,7 +83,11 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
         if game_session.status != "completed" else False
     )
     for character in game_session.characters:
-        if character.current_hp <= 0 and getattr(character, "death_state", "alive") == "alive":
+        if (
+            character.is_participating
+            and character.current_hp <= 0
+            and getattr(character, "death_state", "alive") == "alive"
+        ):
             set_character_downed(character)
             session_changed = True
     if game_session.campaign_map is None:
@@ -93,7 +98,10 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
         None,
     )
     now = datetime.now(timezone.utc)
-    alive_character_ids = {character.id for character in game_session.characters if character.is_alive}
+    alive_character_ids = {
+        character.id for character in game_session.characters
+        if character.is_alive and character.is_participating
+    }
     characters_by_id = {character.id: character for character in game_session.characters}
     finalized_proxy_actions = []
     if current_turn and not game_session.is_turn_resolving and game_session.status != "completed":
@@ -161,6 +169,8 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
             "is_alive": c.is_alive,
             "death_state": getattr(c, "death_state", "alive") or "alive",
             "death_failures": int(getattr(c, "death_failures", 0) or 0),
+            "participation_status": c.participation_status or "active",
+            "break_started_turn": c.break_started_turn,
             "is_ready": bool(getattr(c, "is_ready", False)),
             "status_effects": status_list(c.status_effects),
             "ability_book": get_ability_book(world_pack, c.class_id, c.level),
@@ -195,6 +205,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
             "proxy_action": {
                 "available": bool(
                     c.is_alive
+                    and c.is_participating
                     and not current_action
                     and current_turn
                     and current_turn.status == "waiting_for_actions"
@@ -206,7 +217,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
                 "available_at": proxy_available_at.isoformat() if proxy_available_at else None,
                 "options": (
                     proxy_decision.options if proxy_decision else build_proxy_action_options(game_session, c)
-                ) if c.is_alive and current_turn else [],
+                ) if c.is_alive and c.is_participating and current_turn else [],
                 "decision": (
                     serialize_proxy_decision(proxy_decision, alive_character_ids)
                     if proxy_decision else None
@@ -344,6 +355,15 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
                 in (game_session.looted_location_ids or [])
             ),
         },
+        "market": {
+            **serialize_market(game_session),
+            "sell_prices": {
+                str(item.id): item_sell_value(item)
+                for character in game_session.characters
+                for item in character.inventory
+                if not item.is_equipped
+            },
+        } if serialize_market(game_session) else None,
         "status": getattr(game_session, "status", "in_progress") or "in_progress",
         "active_enemy": {
             "name": game_session.active_boss_name,
@@ -483,6 +503,8 @@ async def reset_campaign(
         session.last_loot_character_id = None
         session.looted_location_ids = []
         session.crafting_available_until_turn = 0
+        session.market_state = {}
+        session.market_revision = int(session.market_revision or 0) + 1
         session.pending_naming_category = None
         session.pending_naming_prompt = None
         session.pending_naming_character_id = None
@@ -493,7 +515,15 @@ async def reset_campaign(
         await db.execute(
             update(Character)
             .where(Character.session_id == session.id)
-            .values(status_effects=[], death_state="alive", death_failures=0, is_alive=True)
+            .values(
+                status_effects=[],
+                death_state="alive",
+                death_failures=0,
+                is_alive=True,
+                participation_status="active",
+                break_started_turn=None,
+                is_ready=False,
+            )
         )
 
         # Nowa kampania nie dziedziczy nazwanych odkryć z poprzedniej.
@@ -576,6 +606,8 @@ async def setup_scenario(
     session.last_loot_character_id = None
     session.looted_location_ids = []
     session.crafting_available_until_turn = 0
+    session.market_state = {}
+    session.market_revision = int(session.market_revision or 0) + 1
     session.pending_naming_category = None
     session.pending_naming_prompt = None
     session.pending_naming_character_id = None
@@ -642,7 +674,7 @@ async def start_prologue(payload: PrologueRequest, db: AsyncSession = Depends(ge
     if session.status == "completed":
         raise HTTPException(status_code=409, detail="Zakończona kampania wymaga nowego scenariusza")
 
-    alive_chars = [c for c in session.characters if c.is_alive]
+    alive_chars = [c for c in session.characters if c.is_alive and c.is_participating]
     if not alive_chars:
         raise HTTPException(status_code=400, detail="Brak postaci w drużynie. Stwórz postać przed wyruszeniem!")
 
@@ -852,7 +884,7 @@ async def trigger_naming(
     if session.is_turn_resolving or session.pending_naming_category:
         raise HTTPException(status_code=400, detail="Poczekaj na zakończenie bieżącego odkrycia lub tury")
 
-    alive_chars = [c for c in session.characters if c.is_alive]
+    alive_chars = [c for c in session.characters if c.is_alive and c.is_participating]
     if not alive_chars:
         raise HTTPException(status_code=400, detail="Brak żywych bohaterów w sesji")
 

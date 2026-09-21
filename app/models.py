@@ -30,6 +30,8 @@ class GameSession(Base):
     last_loot_character_id = Column(Integer, nullable=True)
     looted_location_ids = Column(JSON, default=list)
     crafting_available_until_turn = Column(Integer, nullable=False, default=0)
+    market_state = Column(JSON, nullable=False, default=dict)
+    market_revision = Column(Integer, nullable=False, default=0)
     last_image_generated_at = Column(DateTime, nullable=True)
 
     pending_naming_category = Column(String(50), nullable=True)  # boss, location, weapon, attack
@@ -84,12 +86,18 @@ class Character(Base):
     is_alive = Column(Boolean, default=True)
     death_state = Column(String(20), nullable=False, default="alive")  # alive, downed, stable, dead
     death_failures = Column(Integer, nullable=False, default=0)
+    participation_status = Column(String(20), nullable=False, default="active")  # active, on_break
+    break_started_turn = Column(Integer, nullable=True)
     is_ready = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     session = relationship("GameSession", back_populates="characters")
     inventory = relationship("InventoryItem", back_populates="character", cascade="all, delete-orphan")
     actions = relationship("PlayerAction", back_populates="character", cascade="all, delete-orphan")
+
+    @property
+    def is_participating(self) -> bool:
+        return (self.participation_status or "active") == "active"
 
 
 class WebPushSubscription(Base):
@@ -188,6 +196,7 @@ class PlayerAction(Base):
     hp_delta = Column(Integer, nullable=False, default=0)
     xp_gained = Column(Integer, nullable=False, default=0)
     submission_source = Column(String(30), nullable=False, default="player")
+    craft_item_ids = Column(JSON, nullable=True)
     submitted_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     turn = relationship("Turn", back_populates="actions")

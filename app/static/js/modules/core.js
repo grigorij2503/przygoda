@@ -131,6 +131,8 @@
     gmOriginalStats: null,
     gmStatError: '',
     isSavingGmStats: false,
+    participationError: '',
+    isSavingParticipation: false,
 
     // Party Chat
     chatMessages: [],
@@ -194,6 +196,13 @@
     gmWearableForm: { item_type: 'helmet', name: '', description: '', target_stat: 'none', stat_bonus: 0 },
     gmWearableError: '',
     isGrantingWearable: false,
+    marketTab: 'buy',
+    marketBusy: false,
+    marketPortraitFailedUrl: '',
+    marketError: '',
+    marketFeedback: '',
+    marketInteractionText: '',
+    marketCraftItemIds: [],
 
     // PWA & Network
     deferredInstallPrompt: null,

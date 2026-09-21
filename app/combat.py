@@ -225,7 +225,10 @@ def build_enemy_encounter(
 ) -> dict:
     world_pack = world_pack or get_default_world_pack()
     profile = world_pack.enemy_profile
-    party = [character for character in characters if character.is_alive]
+    party = [
+        character for character in characters
+        if character.is_alive and character.is_participating
+    ]
     average_level = sum(character.level for character in party) / len(party) if party else 1
     armor = max(1, min(4, int(average_level // 2)))
     defense_dc = 11 + min(4, int(average_level // 2))
@@ -460,6 +463,7 @@ def _resolve_support_action(
         candidates = [
             item for item in characters
             if item.id != actor.id
+            and item.is_participating
             and (
                 getattr(item, "death_state", "alive") == "dead"
                 if is_resurrection
@@ -756,7 +760,10 @@ def _resolve_boss_response(
 ) -> None:
     if not session.active_boss_hp or session.active_boss_hp <= 0:
         return
-    alive = [character for character in characters if character.is_alive]
+    alive = [
+        character for character in characters
+        if character.is_alive and character.is_participating
+    ]
     if not alive:
         return
     action_by_character = {action.character_id: action for action in actions}
@@ -867,7 +874,7 @@ def _resolve_character_attack(
     )
     if target is None:
         return False
-    if not target.is_alive:
+    if not target.is_alive or not target.is_participating:
         events.append({"type": "character_attack", "actor": actor.name,
                        "target": target.name, "damage": 0})
         return True
@@ -931,7 +938,7 @@ def resolve_boss_turn(
     )
     for action in ordered_actions:
         character = next((item for item in characters if item.id == action.character_id), None)
-        if not character or not character.is_alive:
+        if not character or not character.is_alive or not character.is_participating:
             continue
         intent = infer_action_intent(action.action_text, action.intent)
         action.intent = intent
@@ -1041,11 +1048,11 @@ def resolve_status_turn(
     action_by_character = {action.character_id: action for action in actions}
     for character in characters:
         action = action_by_character.get(character.id)
-        if action and character.is_alive:
+        if action and character.is_alive and character.is_participating:
             _tick_character_effects(character, action, events)
     for action in actions:
         actor = next((item for item in characters if item.id == action.character_id), None)
-        if not actor or not actor.is_alive:
+        if not actor or not actor.is_alive or not actor.is_participating:
             continue
         if infer_action_intent(action.action_text, action.intent) == "attack" and (
             _resolve_character_attack(actor, action, characters, actions, events)

@@ -32,6 +32,8 @@
                 <div>
                   <h4 class="text-lg font-fantasy font-bold text-amber-200 group-hover:text-amber-400 transition" x-text="char.name"></h4>
                   <p class="text-xs text-gray-400"><span x-text="char.character_class"></span> • Poziom <span x-text="char.level"></span></p>
+                  <p x-show="char.participation_status === 'on_break'" class="mt-1 text-xs text-sky-300"
+                     x-text="`⏸ Na przerwie od tury ${char.break_started_turn}`"></p>
                 </div>
                 <span class="text-xs bg-amber-500/10 border border-amber-500/30 text-amber-300 px-2.5 py-1 rounded-full font-mono">
                   Gracz: <span x-text="char.player_name"></span>
@@ -58,7 +60,7 @@
                     🗑️
                   </button>
                   <span class="text-amber-400 flex items-center gap-1 font-fantasy group-hover:translate-x-1 transition">
-                    Graj tą postacią →
+                    <span x-text="char.participation_status === 'on_break' ? 'Podejrzyj postać →' : 'Graj tą postacią →'"></span>
                   </span>
                 </div>
               </div>

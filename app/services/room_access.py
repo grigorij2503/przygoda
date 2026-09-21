@@ -1,4 +1,4 @@
-"""Short-lived signed room access for inventory transfers."""
+"""Short-lived signed room access for inventory and market actions."""
 
 import hashlib
 import hmac
@@ -37,5 +37,5 @@ def require_room(request: Request) -> None:
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Zaloguj się ponownie do pokoju, aby przekazać przedmiot.",
+            detail="Zaloguj się ponownie do pokoju, aby zmienić ekwipunek lub saldo.",
         )

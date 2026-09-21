@@ -30,7 +30,7 @@ async def vote_for_proxy_action(
         .where(Character.id == target_character_id)
     )
     target = (await db.execute(target_stmt)).scalar_one_or_none()
-    if not target or not target.is_alive:
+    if not target or not target.is_alive or not target.is_participating:
         raise HTTPException(status_code=404, detail="Nie znaleziono aktywnej postaci")
 
     session = target.session
@@ -51,6 +51,9 @@ async def vote_for_proxy_action(
     turn = (await db.execute(turn_stmt)).scalar_one_or_none()
     if not turn or turn.status != "waiting_for_actions" or turn.mechanics_resolved_at is not None:
         raise HTTPException(status_code=400, detail="Brak aktywnej tury oczekującej na akcje")
+    await db.refresh(target, attribute_names=["participation_status"])
+    if not target.is_participating:
+        raise HTTPException(status_code=409, detail="Postać została wysłana na przerwę")
 
     existing_action = next(
         (action for action in turn.actions if action.character_id == target_character_id),
@@ -69,7 +72,11 @@ async def vote_for_proxy_action(
 
     alive_characters = (
         await db.execute(
-            select(Character).where(Character.session_id == session.id, Character.is_alive == True)
+            select(Character).where(
+                Character.session_id == session.id,
+                Character.is_alive == True,
+                Character.participation_status == "active",
+            )
         )
     ).scalars().all()
     alive_character_ids = {character.id for character in alive_characters}

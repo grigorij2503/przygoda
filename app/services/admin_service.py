@@ -2,14 +2,28 @@ import secrets
 import time
 
 from fastapi import Depends, HTTPException, Response, status
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 
 from app.config import settings
 from app.database import get_db
-from app.models import Character, GameSession, InventoryItem
-from app.schemas import AdminAdjustCoinsRequest, AdminGrantWearableRequest, AdminUpdateCharacterStatsRequest, VerifyGmPinRequest
+from app.models import (
+    Character,
+    GameSession,
+    InventoryItem,
+    PlayerAction,
+    ProxyActionDecision,
+    ProxyActionVote,
+    Turn,
+)
+from app.schemas import (
+    AdminAdjustCoinsRequest,
+    AdminGrantWearableRequest,
+    AdminSetParticipationRequest,
+    AdminUpdateCharacterStatsRequest,
+    VerifyGmPinRequest,
+)
 from app.services.runtime import (
     GM_SESSION_COOKIE,
     GM_SESSION_TTL_SECONDS,
@@ -177,6 +191,111 @@ async def adjust_character_coins(
         "character_id": character.id,
         "character_name": character.name,
         "coins": character.coins,
+    }
+
+
+async def set_character_participation(
+    character_id: int,
+    payload: AdminSetParticipationRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    require_gm(request)
+    stmt = (
+        select(Character, GameSession)
+        .join(GameSession)
+        .where(
+            Character.id == character_id,
+            GameSession.room_code == payload.room_code,
+        )
+        .with_for_update()
+    )
+    row = (await db.execute(stmt)).one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Postać nie istnieje w tym pokoju")
+    character, session = row
+    if session.is_turn_resolving:
+        raise HTTPException(
+            status_code=409,
+            detail="Nie można zmienić udziału postaci podczas rozstrzygania tury",
+        )
+    if character.participation_status == payload.participation_status:
+        return {
+            "success": True,
+            "character_id": character.id,
+            "character_name": character.name,
+            "participation_status": character.participation_status,
+            "break_started_turn": character.break_started_turn,
+        }
+
+    if payload.participation_status == "on_break":
+        current_turn = (
+            await db.execute(
+                select(Turn).where(
+                    Turn.session_id == session.id,
+                    Turn.turn_number == session.current_turn_number,
+                )
+            )
+        ).scalar_one_or_none()
+        if current_turn and current_turn.mechanics_resolved_at is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="Mechanika bieżącej tury została już rozliczona; najpierw dokończ narrację",
+            )
+        if current_turn is not None:
+            decision_ids = list((await db.execute(
+                select(ProxyActionDecision.id).where(
+                    ProxyActionDecision.turn_id == current_turn.id,
+                    ProxyActionDecision.target_character_id == character.id,
+                )
+            )).scalars())
+            if decision_ids:
+                await db.execute(
+                    delete(ProxyActionVote).where(
+                        ProxyActionVote.decision_id.in_(decision_ids)
+                    )
+                )
+                await db.execute(
+                    delete(ProxyActionDecision).where(
+                        ProxyActionDecision.id.in_(decision_ids)
+                    )
+                )
+            await db.execute(
+                delete(PlayerAction).where(
+                    PlayerAction.turn_id == current_turn.id,
+                    PlayerAction.character_id == character.id,
+                )
+            )
+        character.participation_status = "on_break"
+        character.break_started_turn = session.current_turn_number
+        character.is_ready = False
+        if session.pending_naming_character_id == character.id:
+            session.pending_naming_category = None
+            session.pending_naming_prompt = None
+            session.pending_naming_character_id = None
+            session.pending_naming_character_name = None
+            session.pending_naming_turn_number = None
+            session.pending_naming_map_node_id = None
+            session.pending_naming_question = None
+    else:
+        character.participation_status = "active"
+        character.break_started_turn = None
+        character.is_ready = False
+
+    await db.commit()
+    await ws_manager.broadcast_to_session(session.id, {
+        "type": "CHARACTER_PARTICIPATION_UPDATED",
+        "character_id": character.id,
+        "character_name": character.name,
+        "participation_status": character.participation_status,
+        "break_started_turn": character.break_started_turn,
+    })
+    return {
+        "success": True,
+        "character_id": character.id,
+        "character_name": character.name,
+        "participation_status": character.participation_status,
+        "break_started_turn": character.break_started_turn,
     }
 
 

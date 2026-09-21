@@ -75,7 +75,15 @@
           </div>
 
           <!-- Formularz złożenia akcji -->
-          <div x-show="!session?.is_turn_resolving && !hasSubmittedCurrentTurn && !currentCharacter?.is_alive"
+          <div x-show="!session?.is_turn_resolving && !hasSubmittedCurrentTurn && currentCharacter?.participation_status === 'on_break'"
+               class="rounded-xl border border-sky-700/50 bg-sky-950/35 p-4 text-sm text-sky-100">
+            <strong class="font-fantasy">⏸️ POSTAĆ NA PRZERWIE</strong>
+            <p class="mt-1 text-gray-300">
+              Nie uczestniczysz w turach i nie otrzymujesz XP ani łupów. Twój poziom i cały stan postaci pozostają bez zmian do przywrócenia przez MG.
+            </p>
+          </div>
+
+          <div x-show="!session?.is_turn_resolving && !hasSubmittedCurrentTurn && currentCharacter?.participation_status !== 'on_break' && !currentCharacter?.is_alive"
                class="rounded-xl border border-rose-700/50 bg-rose-950/35 p-4 text-sm text-rose-100">
             <button type="button" @click="mobileActionPanelCollapsed = true"
                     class="compact-panel-collapse-trigger ml-auto mb-3 items-center gap-1.5 text-[11px] text-gray-400 hover:text-rose-300 transition"
@@ -93,7 +101,7 @@
             <p class="mt-1 text-gray-300" x-show="currentCharacter?.death_state === 'dead'">Zwykłe leczenie nie działa. Potrzebna jest odblokowana zdolność o efekcie wskrzeszenia.</p>
           </div>
 
-          <div x-show="!session?.is_turn_resolving && !hasSubmittedCurrentTurn && currentCharacter?.is_alive">
+          <div x-show="!session?.is_turn_resolving && !hasSubmittedCurrentTurn && currentCharacter?.is_alive && currentCharacter?.participation_status !== 'on_break'">
             <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
               <span class="text-xs font-fantasy font-bold text-amber-300 tracking-wider flex items-center gap-1.5">
                 <span class="ui-theme-icon ui-theme-icon--action" aria-hidden="true">⚔️</span> DEKLARACJA AKCJI BOHATERA (TURA #<span x-text="session?.current_turn_number"></span>)
@@ -140,7 +148,7 @@
 
             <div x-show="session?.inventory_rules?.crafting_available" x-cloak
                  class="mb-3 rounded-lg border border-cyan-600/40 bg-cyan-950/30 px-3 py-2 text-[11px] text-cyan-200">
-              🔨 Warsztat jest dostępny w tej turze. Crafting jest całą akcją: wpisz dokładne nazwy trzech przedmiotów tego samego typu, które chcesz scalić.
+              🔨 Warsztat jest dostępny w tej turze. Wybierz trzy przedmioty w panelu Postój albo wpisz ich dokładne nazwy. Crafting zajmuje całą akcję.
             </div>
             <p class="mb-3 text-[10px] text-gray-500">
               Jedna tura obejmuje jeden główny zamiar. Każdą lokację można przeszukać tylko raz, a główny przeciwnik pozostawia jeden wspólny łup.
@@ -164,7 +172,7 @@
               </div>
               <label for="action-description" class="sr-only">Opis akcji bohatera</label>
               <textarea id="action-description" x-model="actionText"
-                        @input="actionInterpretation = null; actionInterpretationRequestId += 1"
+                        @input="actionInterpretation = null; actionInterpretationRequestId += 1; marketCraftItemIds = []"
                         @input.debounce.350ms="interpretAction()" rows="2" placeholder="Opisz dokładnie co zamierza zrobić Twoja postać... Silnik odczyta zamiar, dobierze atrybut i rzuci d20."
                         class="action-console__input w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 transition resize-none"></textarea>
 

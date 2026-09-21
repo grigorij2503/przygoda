@@ -308,6 +308,44 @@
       }
     },
 
+    async setGmCharacterParticipation(participationStatus) {
+      const character = this.gmStatCharacter;
+      this.participationError = '';
+      if (!character || this.isSavingParticipation) return;
+      const isBreak = participationStatus === 'on_break';
+      const question = isBreak
+        ? `Wysłać postać „${character.name}” na przerwę? Zachowa poziom, XP, HP i ekwipunek, ale nie będzie uczestniczyć w turach.`
+        : `Przywrócić postać „${character.name}” do gry od bieżącej tury?`;
+      if (!confirm(question)) return;
+
+      this.isSavingParticipation = true;
+      try {
+        const res = await fetch(`/api/admin/characters/${character.id}/participation`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            room_code: this.roomCode,
+            participation_status: participationStatus
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 403) { this.requireGmUnlock(); return; }
+        if (!res.ok) throw new Error(data.detail || 'Nie udało się zmienić udziału postaci.');
+        await this.fetchSession();
+        this.loadGmCharacterStats();
+        this.addToast(
+          isBreak
+            ? `${data.character_name} jest na przerwie od tury ${data.break_started_turn}.`
+            : `${data.character_name} wraca do gry.`,
+          'success'
+        );
+      } catch (err) {
+        this.participationError = err.message;
+      } finally {
+        this.isSavingParticipation = false;
+      }
+    },
+
     async adjustGmCoins() {
       const character = this.gmStatCharacter;
       const amount = Number(this.gmCoinAmount);

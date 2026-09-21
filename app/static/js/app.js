@@ -22,6 +22,7 @@ document.addEventListener('alpine:init', () => {
     features.storyMapProxy,
     features.realtimeChat,
     features.campaignActions,
-    features.equipmentImages
+    features.equipmentImages,
+    features.market
   ));
 });

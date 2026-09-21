@@ -254,7 +254,8 @@
             named_attack_id: this.namedAttackId,
             intent: this.actionIntent,
             tested_stat: this.actionTestedStat,
-            target_ref: this.actionTargetRef
+            target_ref: this.actionTargetRef,
+            craft_item_ids: this.marketCraftItemIds.length === 3 ? this.marketCraftItemIds : null
           })
         });
         if (!res.ok) return;
@@ -396,6 +397,7 @@
 
     setQuickAction(text, intent = null, targetRef = null, testedStat = null) {
       this.actionText = text;
+      this.marketCraftItemIds = [];
       this.magicAbilityId = null;
       this.namedAttackId = null;
       this.actionIntent = intent;
@@ -449,6 +451,7 @@
     selectMagicAbility(ability) {
       if (!ability?.unlocked) return;
       this.actionText = ability.action_text;
+      this.marketCraftItemIds = [];
       this.magicAbilityId = ability.id;
       this.namedAttackId = null;
       this.actionIntent = ability.intent || null;

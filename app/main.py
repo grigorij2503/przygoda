@@ -16,6 +16,7 @@ from app.api.routers import (
     characters,
     chat,
     images,
+    market,
     push,
     sessions,
     turns,
@@ -55,6 +56,7 @@ for router in (
     turns.router,
     actions.router,
     images.router,
+    market.router,
     chat.router,
     worlds.router,
 ):

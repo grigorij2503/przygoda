@@ -256,6 +256,18 @@
           break;
         }
 
+        case 'CHARACTER_PARTICIPATION_UPDATED':
+          if (msg.character_id === this.selectedCharacterId && !this.isSavingParticipation) {
+            this.addToast(
+              msg.participation_status === 'on_break'
+                ? `Twoja postać jest na przerwie od tury ${msg.break_started_turn}. Jej poziom i stan zostały zachowane.`
+                : 'MG przywrócił Twoją postać do gry.',
+              'info'
+            );
+          }
+          await this.fetchSession();
+          break;
+
         case 'CHARACTER_COINS_UPDATED':
           if (this.selectedCharacterId === msg.character_id && !this.isSavingGmCoins) {
             this.addToast(`MG zmienił saldo: ${msg.coins} ${this.currencyLabel}.`, 'info');
@@ -275,6 +287,10 @@
             this.addToast(`${msg.sender_name} przekazał Ci ${msg.quantity} × ${msg.item_name}.`, 'success');
           }
           await this.fetchSession('transfer');
+          break;
+
+        case 'MARKET_UPDATED':
+          await this.fetchSession('market');
           break;
 
         case 'IMAGE_GENERATING':

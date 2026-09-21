@@ -30,6 +30,11 @@ router.add_api_route(
     methods=["POST"],
 )
 router.add_api_route(
+    "/api/admin/characters/{character_id}/participation",
+    admin_service.set_character_participation,
+    methods=["PUT"],
+)
+router.add_api_route(
     "/api/admin/characters/{character_id}/wearables",
     admin_service.grant_wearable_item,
     methods=["POST"],

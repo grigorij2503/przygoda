@@ -8,6 +8,11 @@
         <button @click="closeGmTools()" class="text-gray-400 hover:text-white text-lg" aria-label="Zamknij narzędzia Mistrza Gry">✕</button>
       </div>
       <div class="space-y-4">
+        <div x-show="session?.status === 'in_progress'" class="p-4 rounded-xl bg-slate-950/70 border border-amber-900/50 space-y-2">
+          <p class="text-sm font-bold text-amber-300">Postój i handlarz</p>
+          <p class="text-xs text-gray-400">Otwiera handel i warsztat na bieżącą turę, jeśli postój nie jest już aktywny.</p>
+          <button type="button" class="inventory-action" @click="openMarketAsGm()" :disabled="marketBusy || session?.is_turn_resolving || (activeEnemy?.hp > 0) || !!session?.market?.merchant">Otwórz postój</button>
+        </div>
         <form @submit.prevent="saveGmCharacterStats()" class="p-4 rounded-xl bg-slate-950/70 border border-amber-900/50">
           <p class="text-sm font-bold text-amber-300 mb-1">🛠️ Awaryjna korekta atrybutów</p>
           <p class="text-xs text-gray-400 mb-3">Ustawia bazowe wartości postaci. Nie zmienia bonusów ekwipunku, niewydanych punktów awansu ani już złożonych akcji.</p>
@@ -50,6 +55,19 @@
             </button>
           </div>
         </form>
+
+        <div x-show="gmStatCharacter" class="p-4 rounded-xl bg-slate-950/70 border border-amber-900/50 space-y-3">
+          <p class="text-sm font-bold text-amber-300">⏸️ Udział w kampanii</p>
+          <p class="text-xs text-gray-400">
+            Przerwa zachowuje poziom, XP, HP, monety i ekwipunek. Postać nie składa akcji, nie otrzymuje nagród i nie pojawia się w bieżącej narracji.
+          </p>
+          <p x-show="gmStatCharacter?.participation_status === 'on_break'" class="text-xs text-sky-300"
+             x-text="`Na przerwie od tury ${gmStatCharacter?.break_started_turn}.`"></p>
+          <p x-show="participationError" x-text="participationError" role="alert" class="text-xs text-rose-300"></p>
+          <button type="button" class="inventory-action" :disabled="isSavingParticipation || session?.is_turn_resolving"
+                  @click="setGmCharacterParticipation(gmStatCharacter?.participation_status === 'on_break' ? 'active' : 'on_break')"
+                  x-text="gmStatCharacter?.participation_status === 'on_break' ? 'Przywróć do gry' : 'Wyślij na przerwę'"></button>
+        </div>
 
         <div x-show="gmStatCharacter" class="p-4 rounded-xl bg-slate-950/70 border border-amber-900/50 space-y-3">
           <p class="text-sm font-bold text-amber-300">🎒 Ekwipunek postaci</p>
