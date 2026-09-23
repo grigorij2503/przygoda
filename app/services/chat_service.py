@@ -7,10 +7,11 @@ from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy import select
 
 from app.database import AsyncSessionLocal
-from app.models import Character, ChatMessage
+from app.models import Character, ChatMessage, GameSession
 from app.push_service import schedule_web_push
 from app.services.runtime import CHAT_HISTORY_LIMIT, logger
 from app.websocket_manager import ws_manager
+from app.services.room_access import get_authorized_room
 
 
 def chat_message_payload(message: ChatMessage) -> dict:
@@ -85,6 +86,23 @@ async def save_chat_message(
 
 
 async def websocket_endpoint(websocket: WebSocket, session_id: int, character_id: int):
+    authorized_room = get_authorized_room(websocket)
+    async with AsyncSessionLocal() as db:
+        session = await db.get(GameSession, session_id)
+        character_matches = character_id == 0 or (
+            await db.execute(select(Character.id).where(
+                Character.id == character_id,
+                Character.session_id == session_id,
+            ))
+        ).scalar_one_or_none() is not None
+    if (
+        session is None
+        or authorized_room is None
+        or (authorized_room != "*" and authorized_room != session.room_code)
+        or not character_matches
+    ):
+        await websocket.close(code=4403)
+        return
     await ws_manager.connect(websocket, session_id, character_id)
     # Broadcast że gracz dołączył
     await ws_manager.broadcast_to_session(session_id, {

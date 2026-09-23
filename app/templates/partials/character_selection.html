@@ -32,6 +32,7 @@
                 <div>
                   <h4 class="text-lg font-fantasy font-bold text-amber-200 group-hover:text-amber-400 transition" x-text="char.name"></h4>
                   <p class="text-xs text-gray-400"><span x-text="char.character_class"></span> • Poziom <span x-text="char.level"></span></p>
+                  <p class="mt-1 text-[11px] text-gray-500" x-text="narrativeFormLabel(char.narrative_form)"></p>
                   <p x-show="char.participation_status === 'on_break'" class="mt-1 text-xs text-sky-300"
                      x-text="`⏸ Na przerwie od tury ${char.break_started_turn}`"></p>
                 </div>

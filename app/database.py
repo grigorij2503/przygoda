@@ -33,6 +33,8 @@ async def init_db():
         await conn.run_sync(Base.metadata.create_all)
         # Tymczasowy fallback zgodności dla uruchomień bez polecenia Alembic.
         new_columns = [
+            ("game_sessions", "room_password_hash", "VARCHAR(255)"),
+            ("game_sessions", "scenario_type", "VARCHAR(200)"),
             ("game_sessions", "active_boss_name", "VARCHAR(100)"),
             ("game_sessions", "active_boss_title", "VARCHAR(150)"),
             ("game_sessions", "active_boss_hp", "INTEGER"),
@@ -62,6 +64,7 @@ async def init_db():
             ("game_sessions", "world_pack_version", "INTEGER NOT NULL DEFAULT 1"),
             ("characters", "is_ready", "BOOLEAN"),
             ("characters", "class_id", "VARCHAR(80) NOT NULL DEFAULT 'cleric'"),
+            ("characters", "narrative_form", "VARCHAR(20) NOT NULL DEFAULT 'neutral'"),
             ("characters", "perception", "INTEGER NOT NULL DEFAULT 0"),
             ("characters", "personal_note", "TEXT NOT NULL DEFAULT ''"),
             ("characters", "unspent_stat_points", "INTEGER NOT NULL DEFAULT 0"),
@@ -110,6 +113,11 @@ async def init_db():
         await conn.execute(text(
             "UPDATE characters SET participation_status = 'active' "
             "WHERE participation_status IS NULL OR participation_status NOT IN ('active', 'on_break')"
+        ))
+        await conn.execute(text(
+            "UPDATE characters SET narrative_form = 'neutral' "
+            "WHERE narrative_form IS NULL "
+            "OR narrative_form NOT IN ('masculine', 'feminine', 'neutral')"
         ))
         await conn.execute(text(
             "UPDATE named_lore_entities SET discovered_turn_number = "

@@ -27,7 +27,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
    - Licznik gotowości w czasie rzeczywistym (`X/Y graczy gotowych`).
    - Podczas generowania narracji przez Gemini formularz akcji jest blokowany.
    - Po określonym czasie drużyna może zagłosować nad akcją zastępczą aktywnej postaci bez deklaracji; gracz może ją nadpisać przed rozstrzygnięciem.
-   - MG może wysłać bohatera na odwracalną przerwę. Poziom, XP, HP, monety, ekwipunek i statusy pozostają bez zmian, a postać nie blokuje tur, nie otrzymuje rozwoju ani łupu, nie jest celem mechanik i nie trafia do bieżącego kontekstu narratora. Powrót włącza ją od otwartej tury bez przeliczania już ustalonego starcia. Lista drużyny oznacza taką postać niebieskim statusem „Na przerwie” zamiast „Czeka”.
+   - MG może wysłać bohatera na odwracalną przerwę. Poziom, XP, HP, monety, ekwipunek i statusy pozostają bez zmian, a postać nie blokuje tur, nie otrzymuje rozwoju ani łupu, nie jest celem mechanik i nie trafia do bieżącego kontekstu narratora. Powrót włącza ją od otwartej tury bez przeliczania już ustalonego starcia. Lista drużyny oznacza taką postać niebieskim statusem „Na przerwie” zamiast „Czeka” i nie pokazuje dla niej głosowania nad ruchem zastępczym nawet po upływie limitu czasu.
 4. **Ilustracje na Żądanie (Imagen 3):**
    - Przycisk *„🎨 Generuj ilustrację z tej tury”* przy każdej ukończonej turze.
    - Każda kampania może wygenerować jedną ilustrację w ciągu dnia kalendarzowego; trwały, atomowo egzekwowany limit odnawia się o północy w strefie `Europe/Warsaw` i jest widoczny w interfejsie jako czas pozostały do kolejnej generacji.
@@ -39,9 +39,12 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
    - Zarządzanie ekwipunkiem: dwie dłonie (broń dwuręczna zajmuje obie), pancerz, osobne sloty hełmu i butów, pięć aktywnych przedmiotów oraz mikstury leczące. Hełm jest nad głową sylwetki, buty pod stopami, a nazwy i premie broni mieszczą się w kartach bez ucinania. Dark Fantasy pokazuje sylwetkę fantasy, NeoKatowice sylwetkę techniczną, Norki sylwetkę mieszkańca wzgórz, a pozostałe światy neutralną.
    - Plecak pozwala natychmiast przekazać wybraną liczbę sztuk żyjącej postaci z tej samej kampanii, bez akcji w turze; operacja jest niedostępna podczas rozstrzygania tury. Dostęp do pokoju jest potwierdzany podpisanym ciasteczkiem, ale aplikacja nadal nie ma osobnych kont przypisanych do postaci.
    - Każda postać ma trwałe saldo środków. Nagroda za pokonanie przeciwnika lub udane przeszukanie trafia do odbiorcy łupu; MG może dodać lub odjąć środki oraz nadać hełm albo buty z premią co najwyżej +1. Środki można wydawać podczas postoju.
-6. **Brama Pokoju i Kreator Postaci:**
-   - Dostęp do pokoju po podaniu hasła (`ROOM_PASSWORD`), zintegrowane nowoczesne wektorowe logo d20 oraz instalacja PWA.
-   - Wybór istniejącej postaci lub kreator z alokacją punktów atrybutów i startowym ekwipunkiem.
+6. **Wiele Równoległych Pokoi i Kreator Postaci:**
+   - Brama przyjmuje kod pokoju i jego własne hasło. Każdy stół ma niezależną kampanię, świat, postacie, tury, mapę, kronikę, czat, postój, powiadomienia i dzienny limit ilustracji.
+   - MG może utworzyć kolejny stół bezpośrednio na ekranie wejścia, wybierając świat, scenariusz i ton oraz podając nowy kod, hasło graczy i `GM_PIN`. Wybrany scenariusz jest zapisany od początku lobby. Link `/?room=kod-pokoju` otwiera właściwy stół, a powiadomienia Web Push prowadzą do przypisanej kampanii.
+   - Hasła nowych stołów są zapisywane wyłącznie jako skróty PBKDF2. Podpisane ciasteczko wskazuje konkretny pokój; API i WebSocket odrzucają próbę użycia dostępu do innej kampanii.
+   - Istniejąca `kampania-1` oraz jej postacie i postęp pozostają bez zmian. Przy pierwszym logowaniu dotychczasowy `ROOM_PASSWORD` zostaje przeniesiony do skrótu hasła tej sesji.
+   - Wybór istniejącej postaci lub kreator z alokacją punktów atrybutów, startowym ekwipunkiem i formą narracji: męską, żeńską albo neutralną. To ustawienie wpływa wyłącznie na język opowieści; nie zmienia statystyk, klasy ani mechaniki i nie jest odgadywane z imienia.
    - Generator Wstępu do Kampanii AI (wybór scenariusza i motywu, generowanie wstępu i natychmiastowy reset stołu).
 7. **Powiadomienia Web Push bez Firebase:**
    - Systemowe powiadomienia po zakończeniu tury oraz przy wzmiankach `@postać` i `@all`.
@@ -130,7 +133,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │   │   ├── session_service.py # Odczyt, konfiguracja, reset i prolog kampanii
 │   │   ├── character_service.py # Postacie, gotowość, rozwój, notatki, ekwipunek i przekazywanie przedmiotów
 │   │   ├── admin_service.py   # PIN MG, korekty postaci i przełączanie aktywność/przerwa
-│   │   ├── room_access.py     # Podpisany dostęp do pokoju dla przekazywania przedmiotów i handlu
+│   │   ├── room_access.py     # Skróty haseł oraz podpisany, związany z kodem dostęp do pokoju
 │   │   ├── market_service.py  # Postój, oferta, ceny, handel, negocjacje i konsekwencje kradzieży
 │   │   ├── turn_service.py    # Interpretacja akcji i rozstrzyganie tur
 │   │   ├── chat_service.py    # Trwały czat i obsługa WebSocket
@@ -166,6 +169,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │   ├── test_lobby_flow.py     # Testy lobby, gotowości i uprawnień MG
 │   ├── test_loot.py           # Testy łupu oraz craftingu
 │   ├── test_market.py         # Handel i konsekwencje kradzieży w izolowanej bazie
+│   ├── test_multi_room_access.py # Niezależne hasła, izolacja pokoi i zachowanie starej kampanii
 │   ├── test_character_breaks.py # Przerwa postaci, zachowanie postępu i powrót do gry
 │   ├── test_character_targets.py # Atak na postać odczytany z opisu i samoleczenie
 │   ├── test_turn_flow.py      # Testy API, autoryzacji i akcji
@@ -183,7 +187,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │       └── 0001-versioned-world-packs.md # Decyzja o deklaratywnych pakietach świata
 ├── uploads/                   # Katalog na wygenerowane obrazy z Imagen 3
 ├── data/                      # Katalog na plik bazy SQLite (w Dockerze)
-├── alembic/                   # Migracje 0001–0007, w tym stan postoju i odwracalne przerwy postaci
+├── alembic/                   # Migracje 0001–0009, w tym wiele pokoi, scenariusz sesji i formę narracji
 ├── alembic.ini                # Konfiguracja migracji korzystająca z DATABASE_URL
 ├── Dockerfile                 # Zoptymalizowany obraz produkcyjny Python 3.12-slim
 ├── docker-compose.yml         # Konfiguracja uruchomieniowa kontenera
@@ -222,7 +226,7 @@ GEMINI_FALLBACK_MODEL=gemini-3.6-flash
 # Model generowania ilustracji scen na żądanie
 IMAGEN_MODEL=imagen-3.0-generate-002
 
-# Hasło dostępu do sesji dla Ciebie i znajomych
+# Hasło startowe zachowanej kampanii `kampania-1`; nowe pokoje dostają własne hasła w UI
 ROOM_PASSWORD=dragon2026
 
 # Osobny PIN do narzędzi Mistrza Gry
@@ -243,6 +247,16 @@ VAPID_SUBJECT=mailto:admin@twojadomena.pl
 PROXY_ACTION_WAIT_HOURS=8
 PROXY_ACTION_VOTE_HOURS=2
 ```
+
+Po uruchomieniu dotychczasowa gra jest dostępna pod kodem `kampania-1` i starym
+`ROOM_PASSWORD`. Aby uruchomić drugą kampanię, na bramie wybierz
+`UTWÓRZ NOWY STÓŁ JAKO MG`, podaj unikalny kod (małe litery, cyfry i myślniki),
+hasło graczy oraz `GM_PIN`, a także wybierz świat, scenariusz i ton opowieści.
+Nowy pokój startuje jako niezależne lobby z już zapisanym wyborem. Przeglądarka przechowuje kod
+ostatniego pokoju, ale nie zapisuje hasła graczy w `localStorage`.
+Jedna przeglądarka utrzymuje naraz jedno ciasteczko pokoju; przełączenie kodu wymaga
+ponownego logowania, ale nie wpływa na stan żadnej kampanii. Różne grupy i urządzenia
+mogą równolegle korzystać z różnych stołów na tym samym serwerze.
 
 Web Push wymaga HTTPS poza środowiskiem `localhost`. Po uzupełnieniu wartości VAPID
 uruchom aplikację ponownie, wybierz postać i użyj przycisku `Push wył.` w panelu czatu.
@@ -280,7 +294,7 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 W systemach Linux/macOS środowisko aktywuje polecenie `source .venv/bin/activate`, a plik konfiguracyjny tworzy `cp .env.example .env`.
 
 Aplikacja będzie dostępna pod adresem: `http://localhost:8000`.
-Migracja `0002_encounter_difficulty` dodaje poziom trudności do tur; istniejące tury zachowują zwykły poziom DC 12. Migracja `0003_inventory_wallet` dodaje saldo `coins` i nadaje historycznym postaciom `0`, bez zmiany ich ekwipunku. Migracja `0004_lore_discoveries` dodaje wybierane ataki postaci, cechy NPC i kontekst oczekującej propozycji nazwania bez usuwania dotychczasowej Kroniki. Migracja `0005_campaign_endings_cursed_items` dodaje zapis epilogu i karę przeklętych przedmiotów, zachowując dotychczasowy ekwipunek. Migracja `0006_market_post` dodaje stan wizyty handlarza i identyfikatory składników craftingu do akcji, bez zmiany starych tur. Migracja `0007_character_breaks` dodaje kontrolowany status udziału i numer rozpoczęcia przerwy; wszystkie historyczne postacie pozostają aktywne z niezmienionym poziomem i postępem. Bezpośredni start przez `uvicorn` uzupełnia wymagane kolumny w starszych lokalnych bazach bez historii Alembic; późniejsze `alembic upgrade head` zapisuje formalną wersję schematu. Nie są potrzebne nowe zmienne `.env`. Przed migracją istniejącej kampanii wykonaj kopię bazy SQLite. `SECRET_KEY` podpisuje także ciasteczko dostępu do pokoju używane przy przekazywaniu przedmiotów i handlu.
+Migracja `0002_encounter_difficulty` dodaje poziom trudności do tur; istniejące tury zachowują zwykły poziom DC 12. Migracja `0003_inventory_wallet` dodaje saldo `coins` i nadaje historycznym postaciom `0`, bez zmiany ich ekwipunku. Migracja `0004_lore_discoveries` dodaje wybierane ataki postaci, cechy NPC i kontekst oczekującej propozycji nazwania bez usuwania dotychczasowej Kroniki. Migracja `0005_campaign_endings_cursed_items` dodaje zapis epilogu i karę przeklętych przedmiotów, zachowując dotychczasowy ekwipunek. Migracja `0006_market_post` dodaje stan wizyty handlarza i identyfikatory składników craftingu do akcji, bez zmiany starych tur. Migracja `0007_character_breaks` dodaje kontrolowany status udziału i numer rozpoczęcia przerwy; wszystkie historyczne postacie pozostają aktywne z niezmienionym poziomem i postępem. Migracja `0008_multi_room_access` dodaje nullable skrót hasła pokoju bez resetowania sesji, postaci ani tur. Migracja `0009_scenario_narrative_form` zapisuje scenariusz sesji i kontrolowaną formę narracji postaci; historyczne kampanie zachowują przebieg, a ich postacie otrzymują formę neutralną. Bezpośredni start przez `uvicorn` uzupełnia wymagane kolumny w starszych lokalnych bazach bez historii Alembic; późniejsze `alembic upgrade head` zapisuje formalną wersję schematu. Nie są potrzebne nowe zmienne `.env`. Przed migracją istniejącej kampanii wykonaj kopię bazy SQLite. `SECRET_KEY` podpisuje ciasteczko związane z kodem pokoju i używane przez chronione operacje HTTP oraz WebSocket.
 
 Własny portret handlarza można dostarczyć jako PNG z przezroczystym tłem, zastępując odpowiedni plik w `app/static/img/merchants/`. Nazwa pliku to `theme_id` świata, np. `archipelag_korsarzy.png` lub `neo_katowice.png` (identyfikator motywu NeoKatowic różni się od ID pakietu). Interfejs wybiera portret według przypiętego świata, bez zmian w JSON pakietów i bez dodatkowej zmiennej `.env`. Po podmianie zasobu trzeba odświeżyć wersję adresu portretu w `app/static/js/modules/market.js` oraz wersję modułu i cache PWA, aby przeglądarki pobrały nowy plik.
 
@@ -411,6 +425,8 @@ Zakres testów:
   - Odwracalna przerwa przez endpoint MG, zachowanie poziomu/XP/HP/salda oraz usunięcie deklaracji i głosowania zastępczego z otwartej tury w izolowanej bazie.
 - `tests/test_character_targets.py`:
   - Odczyt celu ataku na postać z opisu, obrażenia improwizowanym kamieniem i leczenie własnej postaci.
+- `tests/test_multi_room_access.py`:
+  - Niezależne hasła i stan równoległych pokoi, przypięcie świata/scenariusza przy tworzeniu oraz zachowanie historycznej kampanii i neutralnej formy narracji.
 - `tests/test_turn_flow.py`:
   - Pobieranie strony głównej i weryfikacja hasła do pokoju.
   - Tworzenie postaci i przydzielanie startowego ekwipunku.
@@ -426,7 +442,7 @@ Zakres testów:
 - `tests/test_stage9_world_recipes.py`:
   - Komplet 13 nowych pakietów, ekspansja przepisu do `WorldPack`, księgi, motywy, mapa, spokojne fallbacki i odrzucanie niedozwolonych danych.
 - `tests/test_world_migration.py`:
-  - Uruchomienie Alembic na historycznej bazie i kontrola addytywnego backfillu bez zmiany postępu postaci; obecny head to `0007_character_breaks`, który pozostawia dawne postacie aktywne.
+  - Uruchomienie Alembic na historycznej bazie i kontrola addytywnego backfillu bez zmiany postępu postaci; obecny head to `0009_scenario_narrative_form`, który dodaje scenariusz sesji i neutralną formę narracji historycznych postaci.
 
 ---
 

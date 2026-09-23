@@ -36,13 +36,16 @@ from app.services.runtime import (
     require_gm,
 )
 from app.websocket_manager import ws_manager
+from app.services.room_access import require_room
 
 
 async def get_admin_status(request: Request):
+    require_room(request)
     return {"authenticated": is_gm_authenticated(request)}
 
 
 async def unlock_admin_tools(payload: VerifyGmPinRequest, response: Response, request: Request):
+    require_room(request)
     if not settings.GM_PIN:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -94,6 +97,7 @@ async def update_character_base_stats(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    require_room(request, payload.room_code)
     require_gm(request)
     stmt = (
         select(Character)
@@ -155,6 +159,7 @@ async def adjust_character_coins(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    require_room(request, payload.room_code)
     require_gm(request)
     if payload.amount == 0:
         raise HTTPException(status_code=400, detail="Podaj zmianę różną od zera")
@@ -200,6 +205,7 @@ async def set_character_participation(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    require_room(request, payload.room_code)
     require_gm(request)
     stmt = (
         select(Character, GameSession)
@@ -305,6 +311,7 @@ async def grant_wearable_item(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    require_room(request, payload.room_code)
     require_gm(request)
     character = (
         await db.execute(

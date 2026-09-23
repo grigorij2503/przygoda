@@ -57,11 +57,17 @@ from app.services.world_service import (
     serialize_world_runtime,
 )
 from app.services.market_service import item_sell_value, serialize_market
+from app.services.room_access import require_room
 from app.websocket_manager import ws_manager
 from app.worlds.registry import WORLD_PACK_REGISTRY, WorldPackNotFoundError
 
 
-async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = Depends(get_db)):
+async def get_current_session(
+    request: Request,
+    room_code: str = "kampania-1",
+    db: AsyncSession = Depends(get_db),
+):
+    require_room(request, room_code)
     stmt = (
         select(GameSession)
         .where(GameSession.room_code == room_code)
@@ -154,6 +160,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
             "name": c.name,
             "character_class": c.character_class,
             "class_id": c.class_id,
+            "narrative_form": c.narrative_form or "neutral",
             "level": c.level,
             "xp": c.xp,
             "coins": int(c.coins or 0),
@@ -322,6 +329,7 @@ async def get_current_session(room_code: str = "kampania-1", db: AsyncSession = 
         "world_pack_version": world_pack.version,
         "world_pack": serialize_world_runtime(world_pack),
         "title": game_session.title,
+        "scenario_type": game_session.scenario_type,
         "setting_theme": game_session.setting_theme,
         "campaign_intro": game_session.campaign_intro,
         "campaign_epilogue": game_session.campaign_epilogue or "",
@@ -435,6 +443,7 @@ async def finish_campaign(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    require_room(request, payload.room_code)
     require_gm(request)
     epilogue = payload.epilogue.strip()
     if len(epilogue) < 20:
@@ -474,6 +483,7 @@ async def reset_campaign(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    require_room(request, payload.room_code)
     require_gm(request)
 
     stmt = select(GameSession).where(GameSession.room_code == payload.room_code)
@@ -563,6 +573,7 @@ async def setup_scenario(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    require_room(request, payload.room_code)
     require_gm(request)
     stmt = (
         select(GameSession)
@@ -584,6 +595,7 @@ async def setup_scenario(
 
     narrative_profile = world_pack.narrative_profile
     scenario_type = payload.scenario_type or narrative_profile.scenario_options[0]
+    session.scenario_type = scenario_type
     session.title = narrative_profile.lobby_title_template.format(
         scenario_type=scenario_type
     )
@@ -657,7 +669,12 @@ async def setup_scenario(
 
     return {"success": True, "status": "lobby"}
 
-async def start_prologue(payload: PrologueRequest, db: AsyncSession = Depends(get_db)):
+async def start_prologue(
+    payload: PrologueRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    require_room(request, payload.room_code)
     stmt = (
         select(GameSession)
         .where(GameSession.room_code == payload.room_code)
@@ -687,13 +704,20 @@ async def start_prologue(payload: PrologueRequest, db: AsyncSession = Depends(ge
                 detail=f"Nie wszyscy gracze są gotowi do drogi! Oczekujemy na: {', '.join(not_ready)}"
             )
 
+    world_pack = get_session_world_pack(session)
+    scenario_type = (
+        payload.scenario_type
+        or session.scenario_type
+        or world_pack.narrative_profile.scenario_options[0]
+    )
     prologue_data = await generate_party_prologue_ai(
         session=session,
         characters=alive_chars,
-        scenario_type=payload.scenario_type or get_session_world_pack(session).narrative_profile.scenario_options[0],
+        scenario_type=scenario_type,
         tone=payload.tone or session.setting_theme
     )
 
+    session.scenario_type = scenario_type
     session.title = prologue_data.title
     session.setting_theme = prologue_data.setting_theme
     session.campaign_intro = prologue_data.prologue_story
@@ -711,7 +735,7 @@ async def start_prologue(payload: PrologueRequest, db: AsyncSession = Depends(ge
     turn1.challenge_tier = "standard"
     turn1.suggested_actions = prologue_data.suggested_actions
     turn1.status = "waiting_for_actions"
-    turn1.image_prompt = get_session_world_pack(session).narrative_profile.initial_image_prompt
+    turn1.image_prompt = world_pack.narrative_profile.initial_image_prompt
 
     if session.campaign_map is None:
         await replace_campaign_map(db, session)
@@ -729,7 +753,11 @@ async def start_prologue(payload: PrologueRequest, db: AsyncSession = Depends(ge
 
     return {"success": True, "prologue": prologue_data}
 
-async def name_entity(payload: NameEntityRequest, db: AsyncSession = Depends(get_db)):
+async def name_entity(
+    payload: NameEntityRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
     s_stmt = (
         select(GameSession)
         .where(GameSession.id == payload.session_id)
@@ -741,6 +769,7 @@ async def name_entity(payload: NameEntityRequest, db: AsyncSession = Depends(get
     session = (await db.execute(s_stmt)).scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Sesja nie istnieje")
+    require_room(request, session.room_code)
     if session.is_turn_resolving:
         raise HTTPException(status_code=400, detail="Rozstrzyganie tej tury już trwa")
     if not session.pending_naming_category:
@@ -871,14 +900,14 @@ async def trigger_naming(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    require_gm(request)
-
     s_stmt = select(GameSession).where(GameSession.id == payload.session_id).options(
         selectinload(GameSession.characters), selectinload(GameSession.campaign_map)
     )
     session = (await db.execute(s_stmt)).scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Sesja nie istnieje")
+    require_room(request, session.room_code)
+    require_gm(request)
     if session.status == "completed":
         raise HTTPException(status_code=409, detail="Kampania została zakończona")
     if session.is_turn_resolving or session.pending_naming_category:

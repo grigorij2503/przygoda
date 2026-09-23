@@ -11,6 +11,7 @@ from app.database import get_db
 from app.models import Character, GameSession, WebPushSubscription
 from app.push_service import is_web_push_configured
 from app.schemas import DeletePushSubscriptionRequest, SavePushSubscriptionRequest
+from app.services.room_access import require_room
 
 
 async def get_push_config():
@@ -26,8 +27,6 @@ async def save_push_subscription(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    if payload.password != settings.ROOM_PASSWORD:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Nieprawidłowe hasło do pokoju gry")
     if not is_web_push_configured():
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Web Push nie jest skonfigurowany")
 
@@ -41,6 +40,7 @@ async def save_push_subscription(
     ).scalar_one_or_none()
     if not game_session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sesja nie została znaleziona")
+    require_room(request, game_session.room_code)
 
     character = (
         await db.execute(
@@ -74,15 +74,18 @@ async def save_push_subscription(
 
 async def delete_push_subscription(
     payload: DeletePushSubscriptionRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    if payload.password != settings.ROOM_PASSWORD:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Nieprawidłowe hasło do pokoju gry")
-
-    result = await db.execute(
-        delete(WebPushSubscription).where(
-            WebPushSubscription.endpoint == payload.endpoint.strip()
-        )
-    )
+    require_room(request, payload.room_code)
+    session = (
+        await db.execute(select(GameSession).where(GameSession.room_code == payload.room_code))
+    ).scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sesja nie została znaleziona")
+    result = await db.execute(delete(WebPushSubscription).where(
+        WebPushSubscription.endpoint == payload.endpoint.strip(),
+        WebPushSubscription.session_id == session.id,
+    ))
     await db.commit()
     return {"success": True, "deleted": bool(result.rowcount)}

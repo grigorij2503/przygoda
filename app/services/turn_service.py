@@ -2,7 +2,7 @@ import asyncio
 import secrets
 from datetime import datetime, timezone
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -48,12 +48,18 @@ from app.services.runtime import (
     validate_action_item_claim,
 )
 from app.services.world_service import get_session_world_pack
+from app.services.room_access import require_room
 from app.targeting import infer_character_attack_target
 from app.websocket_manager import ws_manager
 from app.worlds.models import WorldPack
 
 
-async def retry_turn(room_code: str = "kampania-1", db: AsyncSession = Depends(get_db)):
+async def retry_turn(
+    request: Request,
+    room_code: str = "kampania-1",
+    db: AsyncSession = Depends(get_db),
+):
+    require_room(request, room_code)
     s_stmt = (
         select(GameSession)
         .where(GameSession.room_code == room_code)
@@ -85,7 +91,12 @@ async def retry_turn(room_code: str = "kampania-1", db: AsyncSession = Depends(g
     asyncio.create_task(resolve_turn_background(session.id, turn.id))
     return {"success": True, "message": "Zadanie ponowione"}
 
-async def resolve_turn_endpoint(payload: ResolveTurnRequest = ResolveTurnRequest(), db: AsyncSession = Depends(get_db)):
+async def resolve_turn_endpoint(
+    request: Request,
+    payload: ResolveTurnRequest = ResolveTurnRequest(),
+    db: AsyncSession = Depends(get_db),
+):
+    require_room(request, payload.room_code)
     s_stmt = (
         select(GameSession)
         .where(GameSession.room_code == payload.room_code)
@@ -180,7 +191,11 @@ def interpret_player_action(
     }
 
 
-async def interpret_action(payload: InterpretActionRequest, db: AsyncSession = Depends(get_db)):
+async def interpret_action(
+    payload: InterpretActionRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
     c_stmt = (
         select(Character)
         .options(selectinload(Character.session), selectinload(Character.inventory))
@@ -189,6 +204,7 @@ async def interpret_action(payload: InterpretActionRequest, db: AsyncSession = D
     character = (await db.execute(c_stmt)).scalar_one_or_none()
     if not character:
         raise HTTPException(status_code=404, detail="Postać nie istnieje")
+    require_room(request, character.session.room_code)
     if not character.is_participating:
         raise HTTPException(status_code=409, detail="Postać jest na przerwie i nie bierze udziału w turze")
 
@@ -240,7 +256,11 @@ async def require_learned_attack(
     return attack
 
 
-async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends(get_db)):
+async def submit_action(
+    payload: SubmitActionRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
     # Pobierz postać z sesją
     c_stmt = (
         select(Character)
@@ -254,6 +274,7 @@ async def submit_action(payload: SubmitActionRequest, db: AsyncSession = Depends
     character = c_res.scalar_one_or_none()
     if not character:
         raise HTTPException(status_code=404, detail="Postać nie istnieje")
+    require_room(request, character.session.room_code)
     if not character.is_alive:
         raise HTTPException(status_code=400, detail="Postać w agonii, stabilna lub martwa nie może składać akcji.")
     if not character.is_participating:

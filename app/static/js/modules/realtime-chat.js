@@ -333,7 +333,7 @@
           this.addToast(`Postać "${msg.character_name}" została usunięta z drużyny`, 'info');
           if (this.selectedCharacterId === msg.character_id) {
             this.selectedCharacterId = null;
-            localStorage.removeItem('rpg_selected_char');
+            localStorage.removeItem(`rpg_selected_char:${this.roomCode}`);
           }
           await this.fetchSession();
           break;

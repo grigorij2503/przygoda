@@ -20,8 +20,8 @@
         window.TTRPG_THEME?.applyPackTheme(data.world_pack?.theme, data.world_pack?.key);
         if (previousWorldKey !== data.world_pack?.key) {
           this.selectedWorldKey = data.world_pack?.key || '';
-          this.scenarioChoice = data.world_pack?.scenario_options?.[0] || '';
-          this.scenarioTone = data.world_pack?.setting_theme || '';
+          this.scenarioChoice = data.scenario_type || data.world_pack?.scenario_options?.[0] || '';
+          this.scenarioTone = data.setting_theme || data.world_pack?.setting_theme || '';
         }
         if (!this.worldClasses.some(item => item.id === this.newChar.class_id)) {
           this.newChar.class_id = this.worldClasses[0]?.id || '';
@@ -131,7 +131,7 @@
       this.newInventoryItemIds = [];
       this.inventoryFilter = 'all';
       this.transferItemId = null;
-      localStorage.setItem('rpg_selected_char', charId);
+      localStorage.setItem(`rpg_selected_char:${this.roomCode}`, charId);
       this.initWebSocket();
       this.syncPushSubscription();
       this.addToast(`Wybrano postać: ${this.currentCharacter?.name}`, 'success');
@@ -149,7 +149,7 @@
           // Jeśli usunięto aktualnie wybraną postać, odznacz ją
           if (this.selectedCharacterId === charId) {
             this.selectedCharacterId = null;
-            localStorage.removeItem('rpg_selected_char');
+            localStorage.removeItem(`rpg_selected_char:${this.roomCode}`);
           }
           // Odśwież sesję
           await this.loadSession();
@@ -185,6 +185,14 @@
 
     classIcon(character) {
       return this.classDefinition(character?.class_id)?.icon || '👤';
+    },
+
+    narrativeFormLabel(value) {
+      return {
+        masculine: 'narracja męska',
+        feminine: 'narracja żeńska',
+        neutral: 'narracja neutralna'
+      }[value] || 'narracja neutralna';
     },
 
     attributeDefinition(stat) {

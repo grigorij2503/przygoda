@@ -1,13 +1,48 @@
 from datetime import datetime
 from typing import List, Optional, Literal
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 StatId = Literal["strength", "agility", "intellect", "charisma", "perception"]
+NarrativeForm = Literal["masculine", "feminine", "neutral"]
 
 # --- Auth & Session ---
 class VerifyPasswordRequest(BaseModel):
-    password: str
+    room_code: str = Field(default="kampania-1", min_length=3, max_length=50)
+    password: str = Field(min_length=1, max_length=128)
+
+    @field_validator("room_code")
+    @classmethod
+    def normalize_room_code(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not normalized or any(
+            character not in "abcdefghijklmnopqrstuvwxyz0123456789-"
+            for character in normalized
+        ):
+            raise ValueError("Kod pokoju może zawierać małe litery, cyfry i myślniki")
+        return normalized
+
+
+class CreateRoomRequest(BaseModel):
+    room_code: str = Field(min_length=3, max_length=50)
+    password: str = Field(min_length=6, max_length=128)
+    title: str = Field(default="", max_length=200)
+    gm_pin: str = Field(min_length=1, max_length=128)
+    world_pack_id: Optional[str] = Field(default=None, max_length=80)
+    world_pack_version: Optional[int] = Field(default=None, ge=1)
+    scenario_type: str = Field(default="", max_length=200)
+    tone: str = Field(default="", max_length=200)
+
+    @field_validator("room_code")
+    @classmethod
+    def normalize_room_code(cls, value: str) -> str:
+        return VerifyPasswordRequest.normalize_room_code(value)
+
+    @model_validator(mode="after")
+    def validate_world_reference(self) -> "CreateRoomRequest":
+        if (self.world_pack_id is None) != (self.world_pack_version is None):
+            raise ValueError("world_pack_id and world_pack_version must be provided together")
+        return self
 
 class VerifyGmPinRequest(BaseModel):
     pin: str = Field(min_length=1, max_length=128)
@@ -22,12 +57,13 @@ class BrowserPushSubscription(BaseModel):
 
 class SavePushSubscriptionRequest(BaseModel):
     room_code: str = Field(min_length=1, max_length=50)
-    password: str
+    password: str = ""
     character_id: int
     subscription: BrowserPushSubscription
 
 class DeletePushSubscriptionRequest(BaseModel):
-    password: str
+    room_code: str = Field(default="kampania-1", min_length=1, max_length=50)
+    password: str = ""
     endpoint: str = Field(min_length=1, max_length=2048)
 
 class CreateSessionRequest(BaseModel):
@@ -69,6 +105,7 @@ class CreateCharacterRequest(BaseModel):
     name: str
     character_class: str = ""
     class_id: Optional[str] = Field(default=None, max_length=80)
+    narrative_form: NarrativeForm = "neutral"
     strength: int = Field(ge=0, le=4, default=2)
     agility: int = Field(ge=0, le=4, default=1)
     intellect: int = Field(ge=0, le=4, default=1)
@@ -143,6 +180,7 @@ class CharacterDto(BaseModel):
     name: str
     character_class: str
     class_id: str
+    narrative_form: NarrativeForm = "neutral"
     level: int
     xp: int
     coins: int = 0

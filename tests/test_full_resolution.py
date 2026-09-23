@@ -1,4 +1,5 @@
 import asyncio
+import time
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
@@ -6,6 +7,7 @@ from sqlalchemy import delete, select
 from app.main import app, resolve_turn_background
 from app.database import get_db
 from app.models import GameSession, Character, PlayerAction, Turn
+from app.services.room_access import ROOM_SESSION_COOKIE, create_room_session_token
 
 @pytest_asyncio.fixture(autouse=True)
 async def setup_resolution_app(isolated_dark_fantasy_db):
@@ -15,6 +17,7 @@ async def setup_resolution_app(isolated_dark_fantasy_db):
 @pytest.mark.asyncio
 async def test_full_turn_resolution_and_level_up():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        ac.cookies.set(ROOM_SESSION_COOKIE, create_room_session_token(int(time.time()) + 3600))
         # Pobierz sesję
         sess_res = await ac.get("/api/session?room_code=kampania-1")
         assert sess_res.status_code == 200

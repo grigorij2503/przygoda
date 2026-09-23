@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,15 +10,24 @@ from app.models import GameSession, Turn
 from app.schemas import GenerateImageRequest
 from app.services.runtime import image_generation_day_bounds
 from app.services.world_service import get_session_world_pack
+from app.services.room_access import require_room
 from app.websocket_manager import ws_manager
 
 
-async def generate_turn_image(payload: GenerateImageRequest, db: AsyncSession = Depends(get_db)):
+async def generate_turn_image(
+    payload: GenerateImageRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
     stmt = select(Turn).where(Turn.id == payload.turn_id)
     res = await db.execute(stmt)
     turn = res.scalar_one_or_none()
     if not turn:
         raise HTTPException(status_code=404, detail="Tura nie istnieje")
+    session = (
+        await db.execute(select(GameSession).where(GameSession.id == turn.session_id))
+    ).scalar_one()
+    require_room(request, session.room_code)
 
     if turn.image_url:
         return {"success": True, "image_url": turn.image_url}
@@ -26,9 +35,6 @@ async def generate_turn_image(payload: GenerateImageRequest, db: AsyncSession = 
     if turn.is_generating_image:
         return {"success": True, "message": "Generowanie już trwa"}
 
-    session = (
-        await db.execute(select(GameSession).where(GameSession.id == turn.session_id))
-    ).scalar_one()
     world_pack = get_session_world_pack(session)
     narrative_profile = world_pack.narrative_profile
 

@@ -8,6 +8,18 @@
     isAuthenticated: false,
     authError: '',
     isLoggingIn: false,
+    showRoomCreation: false,
+    isCreatingRoom: false,
+    roomCreationError: '',
+    newRoom: {
+      room_code: '',
+      password: '',
+      title: '',
+      gm_pin: '',
+      world_key: '',
+      scenario_type: '',
+      tone: ''
+    },
 
     // Session data
     session: null,
@@ -87,6 +99,7 @@
       name: '',
       character_class: '',
       class_id: '',
+      narrative_form: 'neutral',
       strength: 2,
       agility: 1,
       intellect: 1,
@@ -271,16 +284,16 @@
         this.isPWAInstalled = true;
       }
 
-      // Sprawdź zapisaną sesję w localStorage
-      const savedPw = localStorage.getItem('rpg_room_pw');
-      const savedChar = localStorage.getItem('rpg_selected_char');
-      if (savedPw) {
-        this.roomPassword = savedPw;
-        this.login(true);
-      }
+      // Przywróć wybrany pokój bez przechowywania jego hasła w przeglądarce.
+      const requestedRoom = new URLSearchParams(window.location.search).get('room');
+      const savedRoom = localStorage.getItem('rpg_room_code');
+      this.roomCode = (requestedRoom || savedRoom || 'kampania-1').trim().toLowerCase();
+      localStorage.removeItem('rpg_room_pw');
+      const savedChar = localStorage.getItem(`rpg_selected_char:${this.roomCode}`);
       if (savedChar) {
         this.selectedCharacterId = parseInt(savedChar, 10);
       }
+      this.restoreRoomAccess();
     },
 
   });

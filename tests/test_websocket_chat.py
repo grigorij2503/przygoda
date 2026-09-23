@@ -1,10 +1,16 @@
 import json
+import time
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app
+from app.services.room_access import ROOM_SESSION_COOKIE, create_room_session_token
 
 def test_websocket_chat_communication(isolated_dark_fantasy_db):
     client = TestClient(app)
+    client.cookies.set(
+        ROOM_SESSION_COOKIE,
+        create_room_session_token(int(time.time()) + 3600, "kampania-1"),
+    )
 
     # 1. Pobierz sesję i stwórz postać testową
     sess_res = client.get("/api/session?room_code=kampania-1")
@@ -48,7 +54,7 @@ def test_websocket_chat_communication(isolated_dark_fantasy_db):
         assert "time" in chat_response
 
         # 5. Podłącz drugiego gracza i sprawdź czy dostanie CHAT_HISTORY z tą wiadomością
-        with client.websocket_connect(f"/ws/{session_id}/9999") as ws2:
+        with client.websocket_connect(f"/ws/{session_id}/0") as ws2:
             # Pierwsza wiadomość to PLAYER_CONNECTED dla drugiego gracza
             connected_msg = ws2.receive_json()
             assert connected_msg["type"] == "PLAYER_CONNECTED"

@@ -8,6 +8,8 @@ class GameSession(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     room_code = Column(String(50), unique=True, index=True, nullable=False)
+    room_password_hash = Column(String(255), nullable=True)
+    scenario_type = Column(String(200), nullable=True)
     world_pack_id = Column(String(80), nullable=False, default="dark_fantasy")
     world_pack_version = Column(Integer, nullable=False, default=1)
     title = Column(String(200), default="Wyprawa do Przeklętej Twierdzy")
@@ -70,6 +72,7 @@ class Character(Base):
     name = Column(String(100), nullable=False)
     character_class = Column(String(100), default="Wojownik")
     class_id = Column(String(80), nullable=False, default="warrior")
+    narrative_form = Column(String(20), nullable=False, default="neutral")
     level = Column(Integer, default=1)
     xp = Column(Integer, default=0)
     current_hp = Column(Integer, default=25)

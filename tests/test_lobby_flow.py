@@ -1,11 +1,13 @@
 import pytest
 import pytest_asyncio
+import time
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy import select
 from app.main import app
 from app.config import settings
 from app.database import get_db
 from app.models import GameSession, Character, Turn
+from app.services.room_access import ROOM_SESSION_COOKIE, create_room_session_token
 
 @pytest_asyncio.fixture(autouse=True)
 async def setup_app_lifespan(isolated_dark_fantasy_db):
@@ -38,6 +40,7 @@ async def test_manual_naming_requires_gm_unlock():
 async def test_lobby_and_ready_check_flow(monkeypatch):
     monkeypatch.setattr(settings, "GM_PIN", "test-gm-pin")
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        ac.cookies.set(ROOM_SESSION_COOKIE, create_room_session_token(int(time.time()) + 3600))
         unlock_res = await ac.post("/api/admin/unlock", json={"pin": "test-gm-pin"})
         assert unlock_res.status_code == 200
 
@@ -57,6 +60,7 @@ async def test_lobby_and_ready_check_flow(monkeypatch):
         assert sess_res.status_code == 200
         data = sess_res.json()
         assert data["status"] == "lobby"
+        assert data["scenario_type"] == "Krasnoludzka Twierdza opanowana przez demony ognia"
         assert "Wyprawa: Krasnoludzka Twierdza" in data["title"]
 
         # 3. Utwórz postać w lobby
@@ -64,6 +68,7 @@ async def test_lobby_and_ready_check_flow(monkeypatch):
             "player_name": "LobbyTester",
             "name": "ThorgalLobby",
             "character_class": "Wojownik",
+            "narrative_form": "feminine",
             "strength": 2,
             "agility": 1,
             "intellect": 1,
@@ -77,6 +82,7 @@ async def test_lobby_and_ready_check_flow(monkeypatch):
         chars = sess_res.json()["characters"]
         my_char = next(c for c in chars if c["id"] == char_id)
         assert my_char["is_ready"] is False
+        assert my_char["narrative_form"] == "feminine"
 
         # 5. Próba startu bez gotowości powinna zwrócić błąd 400
         start_fail = await ac.post("/api/session/start-prologue", json={

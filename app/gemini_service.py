@@ -32,6 +32,19 @@ logger = logging.getLogger(__name__)
 # Wycisz ostrzeżenia AFC biblioteki google-genai
 logging.getLogger("google_genai.models").setLevel(logging.ERROR)
 
+NARRATIVE_FORM_INSTRUCTIONS = {
+    "masculine": "forma męska",
+    "feminine": "forma żeńska",
+    "neutral": "forma neutralna: używaj imienia i unikaj zgadywania płci",
+}
+
+
+def narrative_form_instruction(character: Character) -> str:
+    return NARRATIVE_FORM_INSTRUCTIONS.get(
+        getattr(character, "narrative_form", "neutral") or "neutral",
+        NARRATIVE_FORM_INSTRUCTIONS["neutral"],
+    )
+
 def get_genai_client() -> Optional[genai.Client]:
     api_key = settings.GEMINI_API_KEY.strip()
     if not api_key:
@@ -110,7 +123,8 @@ async def generate_party_prologue_ai(
             for attribute in world_pack.attributes
         )
         party_descriptions.append(
-            f"• {c.name} ({c.character_class}, gracz: {c.player_name}) — {stats}"
+            f"• {c.name} ({c.character_class}, gracz: {c.player_name}, "
+            f"{narrative_form_instruction(c)}) — {stats}"
         )
 
     party_text = "\n".join(party_descriptions) if party_descriptions else world_pack.terminology.party
@@ -124,6 +138,8 @@ async def generate_party_prologue_ai(
         f"Świat: {world_pack.display_name}\n\n"
         f"WYMAGANIA DLA PROLOGU:\n"
         f"1. Wymień każdego {profile.prologue_character_noun} z imienia i klasy, bez zmieniania danych postaci.\n"
+        "1a. Stosuj zapisaną formę narracji każdej postaci. Klasa ani imię nie określają płci. "
+        "Dla formy neutralnej używaj imienia i konstrukcji bez rodzaju gramatycznego.\n"
         f"2. Osadź zdarzenie inicjujące i drogę do pierwszego wyzwania w podanej scenerii.\n"
         f"3. Nie wprowadzaj motywów sprzecznych z instrukcjami aktywnego świata.\n"
         f"4. Zwróć dokładnie 3 {profile.prologue_action_qualifier}, klasowo neutralne suggested_actions, "
@@ -240,6 +256,8 @@ async def resolve_turn_with_gemini(
             "character_id": c.id,
             "name": c.name,
             "class": c.character_class,
+            "narrative_form": c.narrative_form or "neutral",
+            "narrative_form_instruction": narrative_form_instruction(c),
             "hp": f"{c.current_hp}/{c.max_hp}",
             "death_state": getattr(c, "death_state", "alive") or "alive",
             "death_failures": int(getattr(c, "death_failures", 0) or 0),
@@ -384,6 +402,8 @@ async def resolve_turn_with_gemini(
         "Jeśli bada lub używa zdolności, opisz materialny efekt zgodny z profilem świata i definicją zdolności.\n"
         "2. WYNIKI RZUTÓW: Bezwzględnie podporządkuj powodzenie zamiarów rzutom kości (critical_success, success, partial_success, failure, critical_failure).\n"
         "3. STAN ZDROWIA I ZAGROŻENIA: W narracji wspominaj o stanie fizycznym bohaterów – ranach, krwawieniu, zmęczeniu, utracie tchu lub determinacji.\n"
+        "3a. FORMA NARRACJI POSTACI: Pole narrative_form w party_status jest wiążące. "
+        "Nie wnioskuj płci z imienia ani klasy. Dla neutral używaj imienia i unikaj form nacechowanych rodzajem.\n"
         "4. CIĄGŁOŚĆ OPOWIEŚCI: Nie twórz suchych raportów punktowych. Każda tura to żywy fragment opowieści zgodnej z profilem aktywnego świata.\n\n"
         "Nie streszczaj ponownie zamkniętych wydarzeń z wcześniejszych tur. Pokonanego wcześniej głównego przeciwnika wspominaj tylko wtedy, gdy potwierdzają to bieżące combat_events albo deklaracja gracza bezpośrednio dotyczy jego pozostałości.\n\n"
         "5. PRAWDZIWY EKWIPUNEK: Pole inventory przy postaci jest jedynym źródłem prawdy o posiadanych przedmiotach. Nie pozwalaj użyć ani uzyskać korzyści z przedmiotu, którego tam nie ma. Broń, tarcza, zbroja, hełm, buty i aktywne akcesoria dają korzyść tylko, gdy mają equipped=true. Jeśli deklaracja mimo zabezpieczeń odwołuje się do nieposiadanego przedmiotu, opisz brak przedmiotu i improwizację zgodną z wynikiem rzutu, zamiast materializować wyposażenie.\n"

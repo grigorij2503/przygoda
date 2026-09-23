@@ -10,30 +10,113 @@
         const res = await fetch('/api/verify-password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: this.roomPassword })
+          body: JSON.stringify({ room_code: this.roomCode.trim().toLowerCase(), password: this.roomPassword })
         });
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          throw new Error('Niepoprawne hasło do pokoju gry.');
+          throw new Error(data.detail || 'Niepoprawny kod pokoju lub hasło.');
         }
+        this.roomCode = data.room_code;
         this.isAuthenticated = true;
-        localStorage.setItem('rpg_room_pw', this.roomPassword);
+        localStorage.setItem('rpg_room_code', this.roomCode);
+        window.history.replaceState({}, '', `/?room=${encodeURIComponent(this.roomCode)}`);
+        const savedCharacter = localStorage.getItem(`rpg_selected_char:${this.roomCode}`);
+        this.selectedCharacterId = savedCharacter ? parseInt(savedCharacter, 10) : null;
         await this.fetchSession();
         this.initWebSocket();
+        this.roomPassword = '';
       } catch (err) {
         if (!isAuto) this.authError = err.message;
         this.isAuthenticated = false;
-        localStorage.removeItem('rpg_room_pw');
       } finally {
         this.isLoggingIn = false;
       }
     },
 
+    async restoreRoomAccess() {
+      try {
+        const res = await fetch(`/api/room-access?room_code=${encodeURIComponent(this.roomCode)}`, { cache: 'no-store' });
+        if (!res.ok) return;
+        this.isAuthenticated = true;
+        await this.fetchSession();
+        this.initWebSocket();
+      } catch (error) {
+        logger('Nie udało się przywrócić dostępu do pokoju', error);
+      }
+    },
+
+    async createRoom() {
+      this.roomCreationError = '';
+      this.isCreatingRoom = true;
+      try {
+        const selectedWorld = this.newRoomWorldSummary;
+        if (!selectedWorld || !this.newRoom.scenario_type) {
+          throw new Error('Wybierz świat i scenariusz nowej kampanii.');
+        }
+        const res = await fetch('/api/rooms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            room_code: this.newRoom.room_code,
+            password: this.newRoom.password,
+            title: this.newRoom.title,
+            gm_pin: this.newRoom.gm_pin,
+            world_pack_id: selectedWorld.id,
+            world_pack_version: selectedWorld.version,
+            scenario_type: this.newRoom.scenario_type,
+            tone: this.newRoom.tone
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || 'Nie udało się utworzyć pokoju.');
+        this.roomCode = data.room_code;
+        this.roomPassword = this.newRoom.password;
+        this.newRoom = {
+          room_code: '', password: '', title: '', gm_pin: '',
+          world_key: '', scenario_type: '', tone: ''
+        };
+        this.showRoomCreation = false;
+        await this.login();
+      } catch (error) {
+        this.roomCreationError = error.message;
+      } finally {
+        this.isCreatingRoom = false;
+      }
+    },
+
+    async toggleRoomCreation() {
+      this.showRoomCreation = !this.showRoomCreation;
+      this.roomCreationError = '';
+      if (!this.showRoomCreation) return;
+      if (!this.worldCatalog.length) await this.loadWorldCatalog();
+      if (!this.newRoom.world_key) {
+        this.newRoom.world_key = this.selectedWorldKey || this.worldCatalog[0]?.key || '';
+      }
+      this.selectRoomWorld();
+    },
+
+    get newRoomWorldSummary() {
+      return this.worldCatalog.find(world => world.key === this.newRoom.world_key) || null;
+    },
+
+    get newRoomScenarioOptions() {
+      return this.newRoomWorldSummary?.scenario_options || [];
+    },
+
+    selectRoomWorld() {
+      const selected = this.newRoomWorldSummary;
+      if (!selected) return;
+      this.newRoom.scenario_type = selected.scenario_options?.[0] || '';
+      this.newRoom.tone = selected.setting_theme || '';
+    },
+
     async logout() {
-      fetch('/api/admin/lock', { method: 'POST' }).catch(() => {});
-      fetch('/api/logout', { method: 'POST' }).catch(() => {});
       await this.disablePushNotifications(true);
+      await fetch('/api/admin/lock', { method: 'POST' }).catch(() => {});
+      await fetch('/api/logout', { method: 'POST' }).catch(() => {});
       this.clearNotifications();
       this.isAuthenticated = false;
+      this.session = null;
       this.isGmAuthenticated = false;
       this.showGmAuthModal = false;
       this.showIntroModal = false;
@@ -41,8 +124,7 @@
       this.gmAuthError = '';
       this.resetConfirmation = '';
       this.selectedCharacterId = null;
-      localStorage.removeItem('rpg_room_pw');
-      localStorage.removeItem('rpg_selected_char');
+      localStorage.removeItem(`rpg_selected_char:${this.roomCode}`);
       this.closeWebSocket();
       this.chatMessages = [];
       this.chatSessionId = null;

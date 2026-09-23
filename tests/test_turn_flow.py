@@ -5,6 +5,8 @@ from sqlalchemy import select
 from app.main import app
 from app.database import get_db
 from app.models import GameSession, Character, Turn
+from app.config import settings
+from app.services.room_access import ROOM_SESSION_COOKIE, create_room_session_token
 
 @pytest_asyncio.fixture(autouse=True)
 async def setup_app_lifespan(isolated_dark_fantasy_db):
@@ -71,6 +73,10 @@ async def test_api_health_and_session():
 @pytest.mark.asyncio
 async def test_character_creation_and_action():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        login = await ac.post("/api/verify-password", json={
+            "room_code": "kampania-1", "password": settings.ROOM_PASSWORD,
+        })
+        assert login.status_code == 200
         # Stwórz postać
         char_payload = {
             "player_name": "TestGracz",

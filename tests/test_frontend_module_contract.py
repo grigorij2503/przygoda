@@ -11,6 +11,7 @@ INDEX_PATH = ROOT / "app" / "templates" / "index.html"
 STATIC_ROOT = ROOT / "app" / "static"
 STYLE_PATH = STATIC_ROOT / "css" / "style.css"
 SERVICE_WORKER_PATH = STATIC_ROOT / "sw.js"
+STORY_MAP_PROXY_PATH = STATIC_ROOT / "js" / "modules" / "story-map-proxy.js"
 
 
 def local_static_path(url: str) -> Path:
@@ -72,12 +73,12 @@ def test_local_frontend_assets_are_precached_and_scripts_load_before_alpine():
     )
 
     assert all(f"'{url}'" in service_worker for url in local_assets)
-    assert "const CACHE_NAME = 'ttrpg-gemini-v50';" in service_worker
+    assert "const CACHE_NAME = 'ttrpg-gemini-v53';" in service_worker
 
     scripts = re.findall(r'<script[^>]+src="([^"]+)"', index_source)
-    app_index = scripts.index("/static/js/app.js?v=32")
+    app_index = scripts.index("/static/js/app.js?v=34")
     assert scripts.index("/static/js/theme-bootstrap.js?v=33") < scripts.index(
-        "/static/js/modules/core.js?v=37"
+        "/static/js/modules/core.js?v=39"
     )
     alpine_index = scripts.index(
         "https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"
@@ -88,3 +89,14 @@ def test_local_frontend_assets_are_precached_and_scripts_load_before_alpine():
     ]
     assert feature_indexes
     assert max(feature_indexes) < app_index < alpine_index
+
+
+def test_character_break_never_exposes_proxy_vote_after_wait_timer():
+    source = STORY_MAP_PROXY_PATH.read_text(encoding="utf-8")
+    method = source.split("canOpenProxyAction(character) {", 1)[1].split(
+        "openProxyActionVote(character) {", 1
+    )[0]
+    break_guard = "character?.participation_status === 'on_break'"
+    timer_fallback = "this.proxyNow >= availableAt"
+    assert break_guard in method
+    assert method.index(break_guard) < method.index(timer_fallback)

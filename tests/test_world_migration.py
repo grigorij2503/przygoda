@@ -70,12 +70,13 @@ def test_alembic_backfills_existing_campaign_without_changing_progress(tmp_path)
 
     connection = sqlite3.connect(database_path)
     session = connection.execute(
-        "SELECT title, current_turn_number, world_pack_id, world_pack_version "
+        "SELECT title, current_turn_number, world_pack_id, world_pack_version, scenario_type "
         "FROM game_sessions WHERE id = 1"
     ).fetchone()
     character = connection.execute(
         "SELECT level, xp, current_hp, max_hp, strength, agility, intellect, "
-        "charisma, perception, class_id, coins, participation_status, break_started_turn "
+        "charisma, perception, class_id, coins, participation_status, break_started_turn, "
+        "narrative_form "
         "FROM characters WHERE id = 1"
     ).fetchone()
     action = connection.execute(
@@ -85,7 +86,7 @@ def test_alembic_backfills_existing_campaign_without_changing_progress(tmp_path)
         "SELECT session_id, turn_number, challenge_tier FROM turns WHERE id = 1"
     ).fetchone()
     market = connection.execute(
-        "SELECT market_state, market_revision FROM game_sessions WHERE id = 1"
+        "SELECT market_state, market_revision, room_password_hash FROM game_sessions WHERE id = 1"
     ).fetchone()
     craft_item_ids = connection.execute(
         "SELECT craft_item_ids FROM player_actions WHERE id = 1"
@@ -93,10 +94,12 @@ def test_alembic_backfills_existing_campaign_without_changing_progress(tmp_path)
     revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()
     connection.close()
 
-    assert session == ("Stara kampania", 7, "dark_fantasy", 1)
-    assert character == (9, 1234, 17, 35, 3, 2, 7, 1, 0, "wizard", 0, "active", None)
+    assert session == ("Stara kampania", 7, "dark_fantasy", 1, None)
+    assert character == (
+        9, 1234, 17, 35, 3, 2, 7, 1, 0, "wizard", 0, "active", None, "neutral"
+    )
     assert action == ("lightning_bolt", "lightning_bolt")
     assert turn == (1, 7, "standard")
-    assert market == ("{}", 0)
+    assert market == ("{}", 0, None)
     assert craft_item_ids == (None,)
-    assert revision == ("0007_character_breaks",)
+    assert revision == ("0009_scenario_narrative_form",)

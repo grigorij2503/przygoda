@@ -7,9 +7,15 @@
         <img src="/static/icons/icon.svg" alt="Logo Przygoda RPG" class="w-full h-full object-contain">
       </div>
       <h1 class="text-3xl font-fantasy font-bold text-amber-300 tracking-wider mb-2">BRAMA PRZYGODY</h1>
-      <p class="text-gray-400 text-sm mb-6">Wpisz hasło do stołu gry, aby dołączyć do drużyny i rozpocząć sesję z Mistrzem Gry Gemini.</p>
+      <p class="text-gray-400 text-sm mb-6">Wpisz kod i hasło stołu, aby dołączyć do właściwej kampanii.</p>
 
       <form @submit.prevent="login()" class="space-y-4">
+        <div>
+          <label for="room-code" class="block text-xs font-semibold text-amber-400/80 uppercase tracking-widest text-left mb-1">Kod pokoju</label>
+          <input id="room-code" type="text" x-model.trim="roomCode" autocomplete="username" placeholder="np. kampania-1"
+                 pattern="[a-z0-9-]{3,50}" required
+                 class="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition">
+        </div>
         <div>
           <label for="room-password" class="block text-xs font-semibold text-amber-400/80 uppercase tracking-widest text-left mb-1">Hasło do Pokoju</label>
           <input id="room-password" type="password" x-model="roomPassword" placeholder="Wpisz hasło sesji..."
@@ -24,6 +30,11 @@
           <span x-show="isLoggingIn">WERYFIKACJA...</span>
         </button>
 
+        <button type="button" @click="toggleRoomCreation()"
+                class="w-full py-2.5 px-4 bg-slate-900/90 hover:bg-slate-800 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-fantasy transition">
+          <span x-text="showRoomCreation ? 'ANULUJ TWORZENIE STOŁU' : 'UTWÓRZ NOWY STÓŁ JAKO MG'"></span>
+        </button>
+
         <!-- Przycisk Instalacji PWA na ekranie logowania -->
         <template x-if="canInstallPWA">
           <div class="pt-2">
@@ -34,6 +45,48 @@
           </div>
         </template>
       </form>
+
+      <form x-show="showRoomCreation" x-cloak @submit.prevent="createRoom()" class="mt-5 pt-5 border-t border-slate-700/70 space-y-3 text-left">
+        <p class="text-xs text-gray-400">Nowy stół rozpocznie niezależną kampanię. Do utworzenia potrzebny jest administracyjny PIN MG.</p>
+        <input type="text" x-model.trim="newRoom.room_code" required pattern="[a-z0-9-]{3,50}" placeholder="Kod nowego pokoju"
+               aria-label="Kod nowego pokoju" class="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
+        <div>
+          <label for="new-room-world" class="block text-xs text-amber-400/90 uppercase mb-1">Świat kampanii</label>
+          <select id="new-room-world" x-model="newRoom.world_key" @change="selectRoomWorld()" required
+                  :disabled="isLoadingWorldCatalog || worldCatalog.length === 0"
+                  class="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-4 py-2.5 text-white disabled:opacity-50">
+            <template x-for="world in worldCatalog" :key="world.key">
+              <option :value="world.key" x-text="world.display_name"></option>
+            </template>
+          </select>
+        </div>
+        <div>
+          <label for="new-room-scenario" class="block text-xs text-amber-400/90 uppercase mb-1">Scenariusz</label>
+          <select id="new-room-scenario" x-model="newRoom.scenario_type" required
+                  :disabled="newRoomScenarioOptions.length === 0"
+                  class="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-4 py-2.5 text-white disabled:opacity-50">
+            <template x-for="scenario in newRoomScenarioOptions" :key="scenario">
+              <option :value="scenario" x-text="scenario"></option>
+            </template>
+          </select>
+        </div>
+        <div>
+          <label for="new-room-tone" class="block text-xs text-amber-400/90 uppercase mb-1">Klimat</label>
+          <input id="new-room-tone" type="text" x-model.trim="newRoom.tone" maxlength="200" required placeholder="Klimat kampanii"
+                 class="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
+        </div>
+        <input type="text" x-model.trim="newRoom.title" maxlength="200" placeholder="Nazwa stołu (opcjonalnie)"
+               aria-label="Nazwa nowego stołu" class="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
+        <input type="password" x-model="newRoom.password" required minlength="6" maxlength="128" autocomplete="new-password" placeholder="Hasło graczy (min. 6 znaków)"
+               aria-label="Hasło nowego pokoju" class="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
+        <input type="password" x-model="newRoom.gm_pin" required autocomplete="off" placeholder="PIN Mistrza Gry"
+               aria-label="PIN Mistrza Gry" class="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
+        <div x-show="roomCreationError" x-text="roomCreationError" class="text-red-400 text-sm bg-red-950/50 border border-red-800/50 rounded-lg p-2.5"></div>
+        <p x-show="worldCatalogError" x-text="worldCatalogError" class="text-red-400 text-xs"></p>
+        <button type="submit" :disabled="isCreatingRoom || isLoadingWorldCatalog || !newRoomWorldSummary || !newRoom.scenario_type"
+                class="w-full py-3 px-4 bg-amber-700 hover:bg-amber-600 text-slate-950 font-fantasy font-bold rounded-lg disabled:opacity-50">
+          <span x-text="isCreatingRoom ? 'TWORZENIE...' : 'UTWÓRZ I WEJDŹ'"></span>
+        </button>
+      </form>
     </div>
   </div>
-

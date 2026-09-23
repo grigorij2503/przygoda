@@ -119,7 +119,6 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           room_code: this.roomCode,
-          password: this.roomPassword,
           character_id: this.selectedCharacterId,
           subscription: subscription.toJSON()
         })
@@ -175,7 +174,7 @@
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              password: this.roomPassword,
+              room_code: this.roomCode,
               endpoint: subscription.endpoint
             })
           });

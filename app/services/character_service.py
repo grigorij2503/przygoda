@@ -1,6 +1,7 @@
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.inventory import EQUIPMENT_SLOT_LIMITS, equipment_slot_group, hands_used
@@ -18,11 +19,16 @@ from app.worlds.registry import WORLD_PACK_REGISTRY, WorldPackNotFoundError
 from app.websocket_manager import ws_manager
 
 
-async def toggle_character_ready(character_id: int, db: AsyncSession = Depends(get_db)):
-    stmt = select(Character).where(Character.id == character_id)
+async def toggle_character_ready(
+    character_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(Character).options(selectinload(Character.session)).where(Character.id == character_id)
     char = (await db.execute(stmt)).scalar_one_or_none()
     if not char:
         raise HTTPException(status_code=404, detail="Postać nie została znaleziona")
+    require_room(request, char.session.room_code)
     if not char.is_participating:
         raise HTTPException(status_code=409, detail="Postać na przerwie nie zgłasza gotowości")
 
@@ -40,9 +46,11 @@ async def toggle_character_ready(character_id: int, db: AsyncSession = Depends(g
 
 async def create_character(
     payload: CreateCharacterRequest,
+    request: Request,
     room_code: str = "kampania-1",
     db: AsyncSession = Depends(get_db)
 ):
+    require_room(request, room_code)
     stmt = select(GameSession).where(GameSession.room_code == room_code)
     res = await db.execute(stmt)
     session = res.scalar_one_or_none()
@@ -79,6 +87,7 @@ async def create_character(
         name=payload.name.strip(),
         character_class=class_definition.name,
         class_id=class_definition.id,
+        narrative_form=payload.narrative_form,
         level=1,
         xp=0,
         current_hp=max_hp,
@@ -119,6 +128,7 @@ async def create_character(
             "player_name": char.player_name,
             "character_class": char.character_class,
             "class_id": char.class_id,
+            "narrative_form": char.narrative_form,
         }
     })
 
@@ -127,12 +137,14 @@ async def create_character(
 async def spend_stat_point(
     char_id: int,
     payload: SpendStatPointRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = select(Character).where(Character.id == char_id)
+    stmt = select(Character).options(selectinload(Character.session)).where(Character.id == char_id)
     char = (await db.execute(stmt)).scalar_one_or_none()
     if not char:
         raise HTTPException(status_code=404, detail="Postać nie istnieje")
+    require_room(request, char.session.room_code)
     if not char.is_participating:
         raise HTTPException(status_code=409, detail="Postać na przerwie nie rozwija atrybutów")
 
@@ -179,12 +191,17 @@ async def spend_stat_point(
         "unspent_stat_points": char.unspent_stat_points,
     }
 
-async def delete_character(char_id: int, db: AsyncSession = Depends(get_db)):
-    stmt = select(Character).where(Character.id == char_id)
+async def delete_character(
+    char_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(Character).options(selectinload(Character.session)).where(Character.id == char_id)
     res = await db.execute(stmt)
     char = res.scalar_one_or_none()
     if not char:
         raise HTTPException(status_code=404, detail="Postać nie istnieje")
+    require_room(request, char.session.room_code)
 
     session_id = char.session_id
     char_name = char.name
@@ -208,36 +225,49 @@ async def delete_character(char_id: int, db: AsyncSession = Depends(get_db)):
 
     return {"success": True, "message": f"Postać {char_name} została usunięta"}
 
-async def get_personal_note(char_id: int, db: AsyncSession = Depends(get_db)):
-    stmt = select(Character).where(Character.id == char_id)
+async def get_personal_note(
+    char_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(Character).options(selectinload(Character.session)).where(Character.id == char_id)
     res = await db.execute(stmt)
     char = res.scalar_one_or_none()
     if not char:
         raise HTTPException(status_code=404, detail="Postać nie istnieje")
+    require_room(request, char.session.room_code)
 
     return {"content": char.personal_note or ""}
 
 async def update_personal_note(
     char_id: int,
     payload: UpdatePersonalNoteRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = select(Character).where(Character.id == char_id)
+    stmt = select(Character).options(selectinload(Character.session)).where(Character.id == char_id)
     res = await db.execute(stmt)
     char = res.scalar_one_or_none()
     if not char:
         raise HTTPException(status_code=404, detail="Postać nie istnieje")
+    require_room(request, char.session.room_code)
 
     char.personal_note = payload.content
     await db.commit()
     return {"success": True, "content": char.personal_note}
 
-async def toggle_equip_item(char_id: int, item_id: int, db: AsyncSession = Depends(get_db)):
+async def toggle_equip_item(
+    char_id: int,
+    item_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
     character = (
-        await db.execute(select(Character).where(Character.id == char_id))
+        await db.execute(select(Character).options(selectinload(Character.session)).where(Character.id == char_id))
     ).scalar_one_or_none()
     if not character:
         raise HTTPException(status_code=404, detail="Postać nie istnieje")
+    require_room(request, character.session.room_code)
     if not character.is_participating:
         raise HTTPException(status_code=409, detail="Postać na przerwie nie zmienia wyposażenia")
     stmt = select(InventoryItem).where(InventoryItem.id == item_id, InventoryItem.character_id == char_id)
@@ -321,8 +351,7 @@ async def transfer_inventory_item(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    require_room(request)
-    sender = (await db.execute(select(Character).where(Character.id == char_id))).scalar_one_or_none()
+    sender = (await db.execute(select(Character).options(selectinload(Character.session)).where(Character.id == char_id))).scalar_one_or_none()
     recipient = (
         await db.execute(
             select(Character).where(Character.id == payload.recipient_character_id)
@@ -330,6 +359,7 @@ async def transfer_inventory_item(
     ).scalar_one_or_none()
     if not sender or not recipient or sender.session_id != recipient.session_id:
         raise HTTPException(status_code=404, detail="Postacie muszą należeć do tej samej kampanii")
+    require_room(request, sender.session.room_code)
     if sender.id == recipient.id:
         raise HTTPException(status_code=400, detail="Wybierz inną postać")
     if (
@@ -408,8 +438,13 @@ async def transfer_inventory_item(
     })
     return {"success": True, "item_name": item_name, "quantity": payload.quantity}
 
-async def use_consumable_item(char_id: int, item_id: int, db: AsyncSession = Depends(get_db)):
-    c_stmt = select(Character).where(Character.id == char_id)
+async def use_consumable_item(
+    char_id: int,
+    item_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    c_stmt = select(Character).options(selectinload(Character.session)).where(Character.id == char_id)
     c_res = await db.execute(c_stmt)
     char = c_res.scalar_one_or_none()
 
@@ -419,6 +454,7 @@ async def use_consumable_item(char_id: int, item_id: int, db: AsyncSession = Dep
 
     if not char or not item:
         raise HTTPException(status_code=404, detail="Nie znaleziono postaci lub przedmiotu")
+    require_room(request, char.session.room_code)
 
     if item.item_type != "consumable":
         raise HTTPException(status_code=400, detail="Ten przedmiot nie jest zdatny do spożycia/użycia")

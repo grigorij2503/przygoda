@@ -38,8 +38,8 @@ async def serve_favicon():
     return FileResponse(fav_path, media_type="image/png")
 
 async def serve_ui(request: Request, db: AsyncSession = Depends(get_db)):
-    # Match the room selected by the current Alpine shell before it runs.
-    room_code = "kampania-1"
+    # Dopasuj motyw do pokoju z linku przed uruchomieniem Alpine.
+    room_code = (request.query_params.get("room") or "kampania-1").strip().lower()
     session = (
         await db.execute(select(GameSession).where(GameSession.room_code == room_code))
     ).scalar_one_or_none()

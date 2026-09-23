@@ -1,5 +1,6 @@
 import ast
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,7 @@ from app.magic import get_magic_book
 from app.main import app
 from app.map_generator import GENERATOR_VERSION, generate_campaign_map, serialize_campaign_map
 from app.models import CampaignMap, Character, GameSession
+from app.services.room_access import ROOM_SESSION_COOKIE, create_room_session_token
 
 
 CONTRACT_PATH = Path(__file__).parent / "fixtures" / "dark_fantasy_v1_contract.json"
@@ -165,6 +167,7 @@ async def test_existing_classes_keep_starter_items_and_session_shape(
     dark_fantasy_contract,
 ):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        client.cookies.set(ROOM_SESSION_COOKIE, create_room_session_token(int(time.time()) + 3600))
         created_ids = []
         for index, (class_name, class_contract) in enumerate(
             dark_fantasy_contract["classes"].items(),
@@ -206,6 +209,7 @@ async def test_existing_classes_keep_starter_items_and_session_shape(
         character = characters_by_class[class_name]
         assert set(character) == set(dark_fantasy_contract["character_response_keys"])
         assert character["class_id"] == class_contract["class_id"]
+        assert character["narrative_form"] == "neutral"
         assert character["perception"] == 0
         assert sorted(item["name"] for item in character["inventory"]) == sorted(
             class_contract["starter_items"]

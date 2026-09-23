@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -17,11 +17,13 @@ from app.services.runtime import (
     serialize_proxy_decision,
 )
 from app.websocket_manager import ws_manager
+from app.services.room_access import require_room
 
 
 async def vote_for_proxy_action(
     target_character_id: int,
     payload: ProxyActionVoteRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     target_stmt = (
@@ -34,6 +36,7 @@ async def vote_for_proxy_action(
         raise HTTPException(status_code=404, detail="Nie znaleziono aktywnej postaci")
 
     session = target.session
+    require_room(request, session.room_code)
     if session.status == "completed":
         raise HTTPException(status_code=409, detail="Kampania została zakończona")
     if session.is_turn_resolving:

@@ -53,7 +53,9 @@ async def test_transfer_splits_stack_and_rejects_invalid_destinations():
             payload = {"recipient_character_id": 2, "quantity": 2}
             assert (await client.post(endpoint, json=payload)).status_code == 403
             assert (await client.post(
-                "/api/verify-password", json={"password": settings.ROOM_PASSWORD}
+                "/api/verify-password", json={
+                    "room_code": "transfer-room", "password": settings.ROOM_PASSWORD,
+                }
             )).status_code == 200
             assert (await client.post(endpoint, json=payload)).status_code == 200
             assert (await client.post(endpoint, json={"recipient_character_id": 3, "quantity": 1})).status_code == 404

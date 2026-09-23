@@ -227,8 +227,8 @@ async def transact(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    require_room(request)
     session, character, state = await _load_visit(db, payload.character_id)
+    require_room(request, session.room_code)
     if payload.operation in {"buy", "haggle"}:
         offer = _offer(state, payload.offer_id)
         if payload.operation == "haggle":
@@ -298,8 +298,8 @@ async def interact(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    require_room(request)
     session, character, state = await _load_visit(db, payload.character_id)
+    require_room(request, session.room_code)
     normalized = _plain(payload.text)
     words = re.findall(r"[a-z0-9]+", normalized)
     stealing = any(word.startswith(stem) for word in words for stem in THEFT_STEMS) or any(
@@ -350,6 +350,7 @@ async def open_post_manually(
     room_code: str = "kampania-1",
     db: AsyncSession = Depends(get_db),
 ) -> dict:
+    require_room(request, room_code)
     require_gm(request)
     session = (await db.execute(
         select(GameSession).options(selectinload(GameSession.campaign_map)).where(GameSession.room_code == room_code)

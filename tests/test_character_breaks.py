@@ -14,6 +14,7 @@ from app.database import Base, get_db
 from app.main import app
 from app.models import Character, GameSession, PlayerAction, ProxyActionDecision, Turn
 from app.services.runtime import GM_SESSION_COOKIE, create_gm_session_token
+from app.services.room_access import ROOM_SESSION_COOKIE, create_room_session_token
 
 
 @pytest_asyncio.fixture
@@ -82,6 +83,10 @@ async def isolated_character_break():
             client.cookies.set(
                 GM_SESSION_COOKIE,
                 create_gm_session_token(int(time.time()) + 3600),
+            )
+            client.cookies.set(
+                ROOM_SESSION_COOKIE,
+                create_room_session_token(int(time.time()) + 3600, "break-isolated"),
             )
             yield client, factory, character_id
     finally:
