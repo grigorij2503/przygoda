@@ -1,6 +1,21 @@
 (() => {
   'use strict';
   const features = window.TTRPG_FEATURES = window.TTRPG_FEATURES || {};
+
+  async function readResponsePayload(response) {
+    const body = await response.text();
+    if (!body) return {};
+    try {
+      return JSON.parse(body);
+    } catch (_error) {
+      return {
+        detail: response.ok
+          ? 'Serwer zwrócił nieprawidłową odpowiedź.'
+          : `Serwer zwrócił błąd (HTTP ${response.status}). Spróbuj ponownie.`
+      };
+    }
+  }
+
   features.equipmentImages = {
     // --- Ekwipunek ---
     startItemTransfer(item) {
@@ -112,18 +127,21 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ turn_id: turnId })
         });
+        const data = await readResponsePayload(res);
         if (!res.ok) {
-          const err = await res.json();
-          if (res.status === 429 && err.detail?.next_available_at && this.session) {
+          if (res.status === 429 && data.detail?.next_available_at && this.session) {
             this.session.image_generation = {
               ...(this.session.image_generation || {}),
               can_generate: false,
-              next_available_at: err.detail.next_available_at
+              next_available_at: data.detail.next_available_at
             };
           }
-          throw new Error(err.detail?.message || err.detail || 'Błąd generowania obrazu');
+          throw new Error(data.detail?.message || data.detail || 'Błąd generowania obrazu');
         }
-        const data = await res.json();
+        if (data.pending || !data.image_url) {
+          this.addToast(data.message || 'Generowanie ilustracji już trwa...', 'info');
+          return;
+        }
         if (turn) {
           turn.image_url = data.image_url;
           turn.is_generating_image = false;
