@@ -148,6 +148,17 @@
                 <p class="story-narration" x-text="t.gm_narration"></p>
               </div>
 
+              <div x-show="t.status === 'completed' && mechanicalCombatEvents(t).length > 0" x-cloak
+                   class="mb-5 rounded-xl border border-slate-700/70 bg-slate-950/65 p-4">
+                <h4 class="mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">Mechaniczny zapis tury</h4>
+                <div class="flex flex-wrap gap-2">
+                  <template x-for="(event, eventIndex) in mechanicalCombatEvents(t)" :key="eventIndex">
+                    <span class="rounded-md border px-2 py-1 font-mono text-[10px]"
+                          :class="combatEventClass(event)" x-text="combatEventText(event)"></span>
+                  </template>
+                </div>
+              </div>
+
               <!-- Sytuacja i Wyzwanie dla tury w toku (np. Tura 3) -->
               <div x-show="t.status !== 'completed'" class="story-transmission mb-5 p-5 rounded-xl bg-gradient-to-br from-amber-950/30 via-slate-950 to-slate-950 border border-amber-500/40 shadow-lg">
                 <div class="story-transmission__signal" aria-hidden="true">

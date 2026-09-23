@@ -27,7 +27,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
    - Licznik gotowości w czasie rzeczywistym (`X/Y graczy gotowych`).
    - Podczas generowania narracji przez Gemini formularz akcji jest blokowany.
    - Po określonym czasie drużyna może zagłosować nad akcją zastępczą aktywnej postaci bez deklaracji; gracz może ją nadpisać przed rozstrzygnięciem.
-   - MG może wysłać bohatera na odwracalną przerwę. Poziom, XP, HP, monety, ekwipunek i statusy pozostają bez zmian, a postać nie blokuje tur, nie otrzymuje rozwoju ani łupu, nie jest celem mechanik i nie trafia do bieżącego kontekstu narratora. Powrót włącza ją od otwartej tury bez przeliczania już ustalonego starcia. Lista drużyny oznacza taką postać niebieskim statusem „Na przerwie” zamiast „Czeka” i nie pokazuje dla niej głosowania nad ruchem zastępczym nawet po upływie limitu czasu.
+  - MG może wysłać bohatera na odwracalną przerwę. Poziom, XP, HP, monety, ekwipunek i statusy pozostają bez zmian, a postać nie blokuje tur, nie otrzymuje rozwoju ani łupu, nie jest celem mechanik i nie trafia do bieżącego kontekstu narratora. Powrót włącza ją od otwartej tury bez przeliczania HP, pancerza ani DC już ustalonego starcia. Lista drużyny oznacza taką postać niebieskim statusem „Na przerwie”, a postać obezwładnioną stanem agonii/stabilizacji/śmierci zamiast „Czeka”; żadna z nich nie udostępnia głosowania nad ruchem zastępczym.
 4. **Ilustracje na Żądanie (Imagen 3):**
    - Przycisk *„🎨 Generuj ilustrację z tej tury”* przy każdej ukończonej turze.
    - Każda kampania może wygenerować jedną ilustrację w ciągu dnia kalendarzowego; trwały, atomowo egzekwowany limit odnawia się o północy w strefie `Europe/Warsaw` i jest widoczny w interfejsie jako czas pozostały do kolejnej generacji.
@@ -56,10 +56,11 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
    - Widok automatycznie kadruje odkryty obszar, obsługuje powiększanie, pomniejszanie, przeciąganie oraz szybki powrót do pozycji drużyny. Przebyte połączenia i drzwi są odróżnione od niezbadanych przejść.
 9. **Starcia i Efekty Statusu:**
    - HP nowego głównego zagrożenia odpowiada około 3–4 turam oczekiwanych obrażeń żywej drużyny, z uwzględnieniem trafień k20, wyposażenia i pancerza. Parametry starcia są ustalane przy jego rozpoczęciu; pancerz, DC obrony, fazy, cechy specjalne i zapowiadane akcje nadal działają. Spokojniejsze kampanie mogą prowadzić tury bez starcia.
-   - Wróg odpowiada raz przy 1–2 żywych graczach, dwa razy przy 3–4 i trzy razy przy co najmniej 5; wybiera różne cele. Samotny bohater otrzymuje słabszy pojedynczy cios. Trwające wcześniej starcia bez zapisanego licznika zachowują jedną odpowiedź na turę.
+  - Wróg odpowiada raz przy 1–2 żywych graczach, dwa razy przy 3–4 i trzy razy przy co najmniej 5; wybiera różne cele. Liczba zapisana przy utworzeniu starcia jest maksimum, a każda odpowiedź i jej zapowiedź są ograniczane do aktualnej liczby uczestniczących żywych postaci. Samotny bohater otrzymuje słabszy pojedynczy cios. Trwające wcześniej starcia bez zapisanego licznika zachowują najwyżej jedną odpowiedź na turę.
    - Osobne rozstrzyganie ataku, obrony, wsparcia wskazanego sojusznika i efektów czasowych postaci oraz przeciwnika.
    - Trafienie w członka drużyny odejmuje HP przez silnik, także poza starciem z głównym przeciwnikiem; rzut kamieniem ma niższe obrażenia improwizowane. Leczenie i oczyszczenie mogą wskazywać samego rzucającego, wskrzeszenie pozostaje skierowane do innej poległej postaci.
-   - Jawne stany `agonia → stabilny / śmierć`: postać w agonii otrzymuje jedną porażkę śmierci na turę, trzecia oznacza zgon; wsparcie może stabilizować lub podnieść bohatera.
+  - Jawne stany `agonia → stabilny / śmierć`: postać w agonii otrzymuje jedną porażkę śmierci na turę, trzecia oznacza zgon; wsparcie może stabilizować lub podnieść bohatera. Gdy cała aktywna drużyna jest obezwładniona, panel tury przechodzi w tryb kryzysowy: MG może zakończyć kampanię albo zarządzić awaryjny odwrót, który zamyka starcie, usuwa szkodliwe efekty i przywraca postacie w agonii/stabilne z 1 PW bez wskrzeszania poległych i bez zmiany postaci na przerwie.
+  - Zakończona tura pokazuje niezależny od narracji AI mechaniczny zapis obrażeń ze statusów, ciosów przeciwnika i redukcji obrony, dzięki czemu spadek HP ma zawsze widoczne źródło.
 10. **Zdolności Klasowe:**
     - Każda klasa używa księgi właściwej swojemu światu: od czarów Czarodzieja i modlitw Kleryka po hacki, dedukcję lub komediowe sztuczki.
     - Zdolności odblokowywane poziomami, walidowane po stronie backendu i powiązane z właściwą cechą postaci.
@@ -403,7 +404,7 @@ Zakres testów:
 - `tests/test_combat.py`:
   - Rozpoznawanie dominującej intencji, w tym zdań zawierających mylące przysłowia lub wzmianki o innym typie akcji, skalowanie bossów, obrażenia, efekty statusu oraz walidacja używanego ekwipunku z polskimi znakami.
 - `tests/test_encounter_difficulty.py`:
-  - Zależność HP od szansy trafienia, pancerza i wyposażenia, osobne cele odpowiedzi wroga, utrwalenie liczby ataków oraz serwerowe DC trzech poziomów wyzwania.
+  - Zależność HP od szansy trafienia, pancerza i wyposażenia, osobne cele odpowiedzi wroga, utrwalenie maksymalnej liczby ataków, dynamiczny limit aktualnej drużyny, rozbicie redukcji obrony oraz serwerowe DC trzech poziomów wyzwania.
 - `tests/test_dice.py`:
   - Dedukcja atrybutów z treści deklaracji gracza (Siła, Zręczność, Rozum, Charyzma i Percepcja), z ignorowaniem słabych ozdobników narracyjnych przy fizycznym ataku oraz rozdzieleniem obserwacji od analizy.
   - Obliczanie modyfikatorów z aktywnego ekwipunku.
@@ -422,7 +423,7 @@ Zakres testów:
 - `tests/test_market.py`:
   - Zakup i sprzedaż z aktualizacją salda, stanu oferty i plecaka oraz kara i odmowa handlu po nieudanej kradzieży w izolowanej bazie.
 - `tests/test_character_breaks.py`:
-  - Odwracalna przerwa przez endpoint MG, zachowanie poziomu/XP/HP/salda oraz usunięcie deklaracji i głosowania zastępczego z otwartej tury w izolowanej bazie.
+  - Odwracalna przerwa przez endpoint MG, zachowanie poziomu/XP/HP/salda, usunięcie deklaracji i głosowania zastępczego z otwartej tury oraz awaryjny odwrót całkowicie obezwładnionej aktywnej drużyny w izolowanej bazie.
 - `tests/test_character_targets.py`:
   - Odczyt celu ataku na postać z opisu, obrażenia improwizowanym kamieniem i leczenie własnej postaci.
 - `tests/test_multi_room_access.py`:

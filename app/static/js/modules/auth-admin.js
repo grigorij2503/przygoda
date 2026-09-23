@@ -218,6 +218,33 @@
       window.TTRPG_THEME?.clearWorldPreview();
     },
 
+    async resolvePartyCrisis() {
+      if (!this.hasPartyCrisis || this.recoverablePartyCrisisCount < 1) return;
+      this.partyCrisisError = '';
+      this.isResolvingPartyCrisis = true;
+      try {
+        const res = await fetch('/api/session/resolve-party-crisis', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room_code: this.roomCode })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401 || res.status === 403) {
+          this.requireGmUnlock();
+          return;
+        }
+        if (!res.ok) throw new Error(data.detail || 'Nie udało się rozstrzygnąć kryzysu drużyny.');
+        this.showIntroModal = false;
+        await this.fetchSession();
+        this.addToast('Drużyna wycofała się awaryjnie i odzyskała zdolność działania.', 'warning');
+        this.scrollToCurrentTurn(false);
+      } catch (error) {
+        this.partyCrisisError = error.message;
+      } finally {
+        this.isResolvingPartyCrisis = false;
+      }
+    },
+
     async loadWorldCatalog() {
       this.isLoadingWorldCatalog = true;
       this.worldCatalogError = '';

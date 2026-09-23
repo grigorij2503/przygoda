@@ -4,6 +4,7 @@ from app.combat import (
     calculate_attack_damage,
     infer_action_intent,
     make_status,
+    resolve_status_turn,
 )
 from app.models import Character, InventoryItem, PlayerAction
 from app.main import validate_action_item_claim
@@ -37,6 +38,14 @@ def make_level_four_character(name: str) -> Character:
 
 def test_defensive_declaration_is_not_treated_as_attack():
     intent = infer_action_intent("Blokuję atak bossa tarczą i osłaniam sojusznika")
+
+    assert intent == "defend"
+
+
+def test_barricading_a_passage_is_treated_as_defence():
+    intent = infer_action_intent(
+        "Zabarykadowanie wąskiego przejścia żelaznymi kratami i gruzem, by zyskać czas."
+    )
 
     assert intent == "defend"
 
@@ -90,6 +99,20 @@ def test_reapplying_status_extends_duration_and_stacks_potency():
     assert len(updated) == 1
     assert updated[0]["turns_remaining"] == 3
     assert updated[0]["potency"] == 3
+
+
+def test_status_damage_event_has_a_player_facing_label_and_icon():
+    character = make_level_four_character("Poparzony")
+    character.status_effects = [make_status("burning", 2, 1, "Smok")]
+    action = PlayerAction(character_id=1, action_text="Czekam", intent="other")
+    character.id = 1
+
+    events = resolve_status_turn([character], [action])
+
+    status_event = next(event for event in events if event["type"] == "status_damage")
+    assert status_event["damage"] == 2
+    assert status_event["effect_label"] == "Poparzony"
+    assert status_event["effect_icon"] == "🔥"
 
 
 def test_action_cannot_use_a_bow_missing_from_inventory():

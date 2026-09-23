@@ -22,6 +22,7 @@ INTENT_RULES: dict[str, tuple[tuple[str, int, str], ...]] = {
     ),
     "defend": (
         (r"\b(?:broni|blokuj|paruj|unikam|uskakuj|odskakuj|oslaniam|zaslaniam|chronie|cofam|wycof)\w*\b", 5, "bezpośrednia czynność obronna"),
+        (r"\b(?:barykad|zabarykad)\w*\b", 5, "wzniesienie barykady lub zamknięcie przejścia"),
         (r"\b(?:przyjm|zajm)\w*\s+(?:bezpieczn\w*\s+|tward\w*\s+)?pozycj\w*\s+obron\w*\b", 4, "przyjęcie pozycji obronnej"),
         (r"\b(?:tarc|blok|parad|unik|oslona|obronn)\w*\b", 3, "obronny sposób działania"),
         (r"\b(?:obrona|obrony|obronie|obrona)\b", 1, "wzmianka o obronie"),
@@ -216,6 +217,30 @@ def attack_telegraph_description(description: str, attack_count: int) -> str:
     if attack_count <= 1:
         return description
     return f"{description} Zagrożenie może uderzyć w maksymalnie {attack_count} różne postacie."
+
+
+def effective_attack_count(stored_attack_count: int | None, party_size: int) -> int:
+    """Cap a persisted encounter response to the currently participating party."""
+    if party_size <= 0:
+        return 0
+    current_party_cap = min(3, max(1, (party_size + 1) // 2))
+    return min(max(1, int(stored_attack_count or 1)), current_party_cap, party_size)
+
+
+def effective_attack_telegraph(telegraph: dict | None, party_size: int) -> dict | None:
+    """Return a display-only telegraph with the live response count."""
+    if not telegraph:
+        return None
+    result = dict(telegraph)
+    attack_count = effective_attack_count(result.get("attack_count", 1), party_size)
+    description = re.sub(
+        r"\s+Zagrożenie może uderzyć w maksymalnie \d+ różne postacie\.$",
+        "",
+        str(result.get("description") or ""),
+    )
+    result["attack_count"] = attack_count
+    result["description"] = attack_telegraph_description(description, attack_count)
+    return result
 
 
 def build_enemy_encounter(
@@ -660,12 +685,15 @@ def _tick_character_effects(character: Character, action: PlayerAction, events: 
         damage = potency * 2 if effect_type == "burning" else potency if effect_type == "poisoned" else 0
         if damage:
             applied = _apply_hp_delta(character, -damage, action)
-            events.append({
-                "type": "status_damage",
-                "target": character.name,
-                "effect": effect_type,
-                "damage": abs(applied),
-            })
+            if applied:
+                events.append({
+                    "type": "status_damage",
+                    "target": character.name,
+                    "effect": effect_type,
+                    "effect_label": effect.get("label") or effect_type,
+                    "effect_icon": effect.get("icon") or "⚠️",
+                    "damage": abs(applied),
+                })
         duration = int(effect.get("turns_remaining", 1))
         effect["turns_remaining"] = duration if duration >= 90 else duration - 1
         if effect["turns_remaining"] > 0:
@@ -686,6 +714,8 @@ def _tick_boss_effects(session: GameSession, events: list[dict]) -> None:
                 "type": "status_damage",
                 "target": session.active_boss_name,
                 "effect": effect_type,
+                "effect_label": effect.get("label") or effect_type,
+                "effect_icon": effect.get("icon") or "⚠️",
                 "damage": applied,
             })
         duration = int(effect.get("turns_remaining", 1))
@@ -768,7 +798,7 @@ def _resolve_boss_response(
         return
     action_by_character = {action.character_id: action for action in actions}
     telegraph = dict(session.active_boss_telegraph or {})
-    attack_count = min(len(alive), max(1, int(telegraph.get("attack_count", 1))))
+    attack_count = effective_attack_count(telegraph.get("attack_count", 1), len(alive))
     first_target = (session.current_turn_number - 1) % len(alive)
     targets = [alive[(first_target + offset) % len(alive)] for offset in range(attack_count)]
     damage = int(telegraph.get("base_damage", 6)) + max(0, int(session.active_boss_phase or 1) - 1) * 2
@@ -789,27 +819,34 @@ def _resolve_boss_response(
         if not target_action:
             continue
         target_damage = damage
+        guarded_reduction = 0
         guarded = next(
             (effect for effect in status_list(target.status_effects) if effect.get("type") == "guarded"),
             None,
         )
         if guarded:
+            before_guard = target_damage
             target_damage = max(0, target_damage - max(1, int(guarded.get("potency", 1))))
+            guarded_reduction = before_guard - target_damage
             target.status_effects = consume_status(status_list(target.status_effects), "guarded")
+        before_team_defense = target_damage
         target_damage = max(0, target_damage - defense_reduction)
+        team_defense_reduction = before_team_defense - target_damage
         applied = _apply_hp_delta(target, -target_damage, target_action)
         applied_effect = None
+        applied_status = None
         if applied < 0 and int(session.active_boss_phase or 1) >= 2:
             applied_effect = str(
                 telegraph.get("status_effect") or world_pack.enemy_profile.default_status_effect
             )
+            applied_status = make_status(
+                applied_effect, 3, 1,
+                session.active_boss_name or world_pack.enemy_profile.role_label,
+                world_pack,
+            )
             target.status_effects = add_status(
                 status_list(target.status_effects),
-                make_status(
-                    applied_effect, 3, 1,
-                    session.active_boss_name or world_pack.enemy_profile.role_label,
-                    world_pack,
-                ),
+                applied_status,
             )
         events.append({
             "type": "boss_attack",
@@ -817,7 +854,13 @@ def _resolve_boss_response(
             "attack": telegraph.get("name", world_pack.enemy_profile.attacks[0].name),
             "target": target.name,
             "damage": abs(applied),
+            "base_damage": damage,
+            "guarded_reduction": guarded_reduction,
+            "team_defense_reduction": team_defense_reduction,
+            "total_reduction": guarded_reduction + team_defense_reduction,
             "effect": applied_effect,
+            "effect_label": applied_status.get("label") if applied_status else None,
+            "effect_icon": applied_status.get("icon") if applied_status else None,
         })
 
 

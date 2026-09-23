@@ -413,6 +413,67 @@
       ).length;
     },
 
+    get hasPartyCrisis() {
+      if (!this.session || this.session.status !== 'in_progress' || this.session.is_turn_resolving) return false;
+      const activeCharacters = this.session.characters.filter(
+        character => character.participation_status !== 'on_break'
+      );
+      return activeCharacters.length > 0 && activeCharacters.every(character => !character.is_alive);
+    },
+
+    get recoverablePartyCrisisCount() {
+      return (this.session?.characters || []).filter(character =>
+        character.participation_status !== 'on_break' &&
+        ['downed', 'stable'].includes(character.death_state)
+      ).length;
+    },
+
+    mechanicalCombatEvents(turn) {
+      const visibleTypes = new Set([
+        'status_damage', 'boss_attack', 'defence', 'environment_failure',
+        'support', 'revived', 'stabilized', 'death_failure', 'character_died',
+        'party_retreat'
+      ]);
+      return (turn?.combat_events || []).filter(event => visibleTypes.has(event?.type));
+    },
+
+    combatEventText(event) {
+      if (!event) return '';
+      if (event.type === 'status_damage') {
+        return `${event.effect_icon || '⚠️'} ${event.effect_label || event.effect}: ${event.target} −${event.damage || 0} HP`;
+      }
+      if (event.type === 'boss_attack') {
+        const reduction = Number(event.total_reduction || 0);
+        const breakdown = reduction > 0
+          ? ` (cios ${event.base_damage}, osłona −${reduction})`
+          : '';
+        const effect = event.effect
+          ? ` • ${event.effect_icon || '⚠️'} ${event.effect_label || event.effect}`
+          : '';
+        return `👹 ${event.boss} → ${event.target}: −${event.damage || 0} HP${breakdown}${effect}`;
+      }
+      if (event.type === 'defence') return `🛡️ ${event.actor}: przygotowana osłona ${event.potency || 0}`;
+      if (event.type === 'environment_failure') return `⚠️ ${event.actor}: −${event.damage || 0} HP przy ${event.feature}`;
+      if (['support', 'revived'].includes(event.type)) return `💚 ${event.actor} → ${event.target}: +${event.healing || 0} HP`;
+      if (event.type === 'stabilized') return `🩹 ${event.actor} stabilizuje ${event.target}`;
+      if (event.type === 'death_failure') return `💀 ${event.target}: porażka śmierci ${event.failures}/3`;
+      if (event.type === 'character_died') return `☠️ ${event.target}: postać poległa`;
+      if (event.type === 'party_retreat') {
+        return `🚨 Awaryjny odwrót: ${event.characters?.join(', ') || 'drużyna'} wraca z ${event.restored_hp || 1} HP`;
+      }
+      return '';
+    },
+
+    combatEventClass(event) {
+      if (['status_damage', 'boss_attack', 'environment_failure', 'death_failure', 'character_died'].includes(event?.type)) {
+        return 'border-rose-800/60 bg-rose-950/35 text-rose-200';
+      }
+      if (['support', 'revived', 'stabilized'].includes(event?.type)) {
+        return 'border-emerald-800/60 bg-emerald-950/35 text-emerald-200';
+      }
+      return 'border-amber-800/60 bg-amber-950/30 text-amber-200';
+    },
+
     get hasOpenProxyDecision() {
       return (this.session?.characters || []).some(
         character => character.proxy_action?.decision?.status === 'open'

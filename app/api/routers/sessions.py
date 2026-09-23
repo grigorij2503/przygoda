@@ -37,6 +37,11 @@ router.add_api_route(
     methods=["POST"],
 )
 router.add_api_route(
+    "/api/session/resolve-party-crisis",
+    session_service.resolve_party_crisis,
+    methods=["POST"],
+)
+router.add_api_route(
     "/api/session/name-entity",
     session_service.name_entity,
     methods=["POST"],

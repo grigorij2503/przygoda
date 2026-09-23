@@ -1,6 +1,17 @@
         <!-- DOLNY PANEL AKCJI (ACTION BAR) -->
         <div class="mobile-action-panel action-console fantasy-card p-6 rounded-2xl border border-amber-900/50 sticky bottom-4 z-20 shadow-2xl backdrop-blur-lg"
              :class="{ 'mobile-action-panel--collapsed': mobileActionPanelCollapsed && !session?.is_turn_resolving, 'mobile-action-panel--pending': !hasSubmittedCurrentTurn }">
+          <div x-show="hasPartyCrisis" x-cloak
+               class="mb-3 rounded-xl border border-rose-600/60 bg-rose-950/80 p-4 text-sm text-rose-100 shadow-lg" role="alert">
+            <strong class="font-fantasy">🚨 CAŁA AKTYWNA DRUŻYNA JEST OBEZWŁADNIONA</strong>
+            <p class="mt-1 text-xs text-rose-100/80">
+              Zwykła tura nie może ruszyć. MG może zarządzić awaryjny odwrót albo zakończyć kampanię epilogiem.
+            </p>
+            <button type="button" @click="openGmTools()"
+                    class="mt-3 rounded-lg border border-rose-400/60 bg-rose-800 px-3 py-2 text-xs font-bold text-white hover:bg-rose-700">
+              OTWÓRZ ROZSTRZYGNIĘCIE MG
+            </button>
+          </div>
           <!-- Rozstrzygnięcie pozostaje widoczne także przy zwiniętym panelu akcji. -->
           <template x-if="readyCount >= totalAlivePlayers && totalAlivePlayers > 0 && !session?.is_turn_resolving">
             <div class="sticky top-0 z-10 mb-3 rounded-xl bg-slate-950/95 p-2 shadow-lg">
@@ -13,7 +24,7 @@
             </div>
           </template>
           <!-- Kompaktowy status zastępuje wysoki panel na telefonie lub mniejszym ekranie komputera. -->
-          <button type="button" @click="mobileActionPanelCollapsed = false"
+          <button x-show="!hasPartyCrisis" x-cloak type="button" @click="mobileActionPanelCollapsed = false"
                   class="mobile-action-summary items-center justify-between gap-3 w-full text-left"
                   :aria-expanded="(!mobileActionPanelCollapsed).toString()"
                   :aria-label="hasSubmittedCurrentTurn ? 'Rozwiń panel wysłanej akcji' : 'Rozwiń formularz akcji bohatera'">

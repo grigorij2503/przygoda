@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
@@ -153,3 +153,105 @@ async def test_break_preserves_progress_and_can_be_reversed(isolated_character_b
         assert (character.level, character.xp, character.current_hp, character.max_hp) == (
             9, 1234, 17, 35,
         )
+
+
+@pytest.mark.asyncio
+async def test_gm_can_resolve_fully_incapacitated_party_with_retreat(isolated_character_break):
+    client, factory, character_id = isolated_character_break
+    async with factory() as db:
+        character = (
+            await db.execute(select(Character).where(Character.id == character_id))
+        ).scalar_one()
+        session = (await db.execute(select(GameSession))).scalar_one()
+        character.current_hp = 0
+        character.is_alive = False
+        character.death_state = "downed"
+        character.death_failures = 1
+        character.status_effects = [{
+            "type": "burning", "label": "Poparzony", "icon": "🔥",
+            "turns_remaining": 2, "potency": 1,
+        }]
+        session.active_boss_name = "Purpurowa Bestia"
+        session.active_boss_title = "Bestia z otchłani"
+        session.active_boss_hp = 40
+        session.active_boss_max_hp = 80
+        resting_character = Character(
+            session_id=session.id,
+            player_name="Nieobecny gracz",
+            name="Lira",
+            current_hp=12,
+            max_hp=30,
+            participation_status="on_break",
+            break_started_turn=59,
+            status_effects=[{
+                "type": "burning", "label": "Poparzony", "icon": "🔥",
+                "turns_remaining": 2, "potency": 1,
+            }],
+        )
+        dead_character = Character(
+            session_id=session.id,
+            player_name="Poległy gracz",
+            name="Torin",
+            current_hp=0,
+            max_hp=30,
+            is_alive=False,
+            death_state="dead",
+            death_failures=3,
+        )
+        db.add_all([resting_character, dead_character])
+        await db.execute(delete(PlayerAction))
+        await db.commit()
+        resting_id = resting_character.id
+        dead_id = dead_character.id
+
+    response = await client.post(
+        "/api/session/resolve-party-crisis",
+        json={"room_code": "break-isolated"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["new_turn_number"] == 61
+    async with factory() as db:
+        character = (
+            await db.execute(select(Character).where(Character.id == character_id))
+        ).scalar_one()
+        session = (await db.execute(select(GameSession))).scalar_one()
+        turns = list((await db.execute(select(Turn).order_by(Turn.turn_number))).scalars())
+        resting_character = (
+            await db.execute(select(Character).where(Character.id == resting_id))
+        ).scalar_one()
+        dead_character = (
+            await db.execute(select(Character).where(Character.id == dead_id))
+        ).scalar_one()
+
+    assert (character.current_hp, character.is_alive, character.death_state) == (1, True, "alive")
+    assert character.death_failures == 0
+    assert character.status_effects == []
+    assert session.active_boss_name is None
+    assert session.current_turn_number == 61
+    assert (resting_character.current_hp, resting_character.participation_status) == (12, "on_break")
+    assert resting_character.status_effects[0]["type"] == "burning"
+    assert (dead_character.current_hp, dead_character.death_state) == (0, "dead")
+    assert turns[0].status == "completed"
+    assert turns[0].combat_events[0]["type"] == "party_retreat"
+    assert turns[1].status == "waiting_for_actions"
+
+
+@pytest.mark.asyncio
+async def test_party_retreat_is_rejected_while_an_active_character_can_act(
+    isolated_character_break,
+):
+    client, factory, _ = isolated_character_break
+
+    response = await client.post(
+        "/api/session/resolve-party-crisis",
+        json={"room_code": "break-isolated"},
+    )
+
+    assert response.status_code == 409
+    async with factory() as db:
+        session = (await db.execute(select(GameSession))).scalar_one()
+        turns = list((await db.execute(select(Turn))).scalars())
+    assert session.current_turn_number == 60
+    assert len(turns) == 1
+    assert turns[0].status == "waiting_for_actions"

@@ -10,6 +10,7 @@ from starlette.requests import Request
 
 from app.combat import (
     build_enemy_encounter,
+    effective_attack_telegraph,
     ensure_enemy_encounter,
     infer_item_damage_power,
     set_character_downed,
@@ -35,6 +36,7 @@ from app.schemas import (
     GenerateIntroRequest,
     NameEntityRequest,
     PrologueRequest,
+    ResolveTurnRequest,
     SetupScenarioRequest,
     TriggerNamingRequest,
 )
@@ -322,6 +324,11 @@ async def get_current_session(
             ],
         })
 
+    display_telegraph = effective_attack_telegraph(
+        game_session.active_boss_telegraph,
+        len(alive_character_ids),
+    )
+
     return {
         "session_id": game_session.id,
         "room_code": game_session.room_code,
@@ -383,7 +390,7 @@ async def get_current_session(
             "phase": game_session.active_boss_phase or 1,
             "effects": status_list(game_session.active_boss_effects),
             "features": game_session.active_boss_features or [],
-            "telegraph": game_session.active_boss_telegraph,
+            "telegraph": display_telegraph,
         } if game_session.active_boss_name else None,
         "active_boss": {
             "name": game_session.active_boss_name,
@@ -395,7 +402,7 @@ async def get_current_session(
             "phase": game_session.active_boss_phase or 1,
             "effects": status_list(game_session.active_boss_effects),
             "features": game_session.active_boss_features or [],
-            "telegraph": game_session.active_boss_telegraph,
+            "telegraph": display_telegraph,
         } if game_session.active_boss_name else None,
         "pending_naming": {
             "category": game_session.pending_naming_category,
@@ -476,6 +483,146 @@ async def finish_campaign(
         "type": "CAMPAIGN_COMPLETED", "epilogue": session.campaign_epilogue,
     })
     return {"success": True, "status": "completed"}
+
+
+async def resolve_party_crisis(
+    payload: ResolveTurnRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Let the GM turn a fully incapacitated active party into a costly retreat."""
+    require_room(request, payload.room_code)
+    require_gm(request)
+    session = (await db.execute(
+        select(GameSession)
+        .where(GameSession.room_code == payload.room_code)
+        .with_for_update()
+    )).scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Sesja nie została znaleziona")
+    if session.status != "in_progress":
+        raise HTTPException(status_code=409, detail="Kampania nie jest aktywna")
+    if session.is_turn_resolving:
+        raise HTTPException(status_code=409, detail="Poczekaj na rozstrzygnięcie tury")
+
+    characters = list((await db.execute(
+        select(Character).where(Character.session_id == session.id).with_for_update()
+    )).scalars())
+    active_characters = [character for character in characters if character.is_participating]
+    if any(character.is_alive for character in active_characters):
+        raise HTTPException(
+            status_code=409,
+            detail="Awaryjny odwrót jest dostępny dopiero, gdy żadna aktywna postać nie jest zdolna do działania",
+        )
+    recoverable = [
+        character for character in active_characters
+        if character.death_state in {"downed", "stable"}
+    ]
+    if not recoverable:
+        raise HTTPException(
+            status_code=409,
+            detail="Brak obezwładnionych postaci, które mogą zostać uratowane odwrotem",
+        )
+
+    turn = (await db.execute(
+        select(Turn)
+        .where(
+            Turn.session_id == session.id,
+            Turn.turn_number == session.current_turn_number,
+        )
+        .with_for_update()
+    )).scalar_one_or_none()
+    if not turn or turn.status != "waiting_for_actions":
+        raise HTTPException(status_code=409, detail="Brak otwartej tury do rozstrzygnięcia")
+    if turn.mechanics_resolved_at is not None:
+        raise HTTPException(status_code=409, detail="Mechanika tej tury została już rozliczona")
+
+    await db.execute(delete(PlayerAction).where(PlayerAction.turn_id == turn.id))
+    harmful_statuses = {"burning", "poisoned", "frozen", "stunned", "exposed"}
+    recovered_names = []
+    for character in recoverable:
+        character.current_hp = 1
+        character.is_alive = True
+        character.death_state = "alive"
+        character.death_failures = 0
+        character.status_effects = [
+            effect for effect in status_list(character.status_effects)
+            if effect.get("type") not in harmful_statuses
+        ]
+        recovered_names.append(character.name)
+
+    enemy_name = session.active_boss_name
+    session.active_boss_name = None
+    session.active_boss_title = None
+    session.active_boss_hp = None
+    session.active_boss_max_hp = None
+    session.active_boss_armor = 0
+    session.active_boss_defense_dc = 12
+    session.active_boss_phase = 1
+    session.active_boss_effects = []
+    session.active_boss_features = []
+    session.active_boss_telegraph = None
+    session.crafting_available_until_turn = 0
+    session.market_state = {}
+    session.market_revision = int(session.market_revision or 0) + 1
+
+    now = datetime.now(timezone.utc)
+    names = ", ".join(recovered_names)
+    enemy_clause = f" spod przewagi przeciwnika {enemy_name}" if enemy_name else " z bezpośredniego zagrożenia"
+    narration = (
+        f"Cała aktywna drużyna została obezwładniona. Awaryjna pomoc wyciągnęła {names}"
+        f"{enemy_clause}, lecz odwrót kosztował bohaterów zwycięstwo w tym starciu. "
+        "Ocaleni odzyskują przytomność z 1 PW, a szkodliwe efekty przestają działać."
+    )
+    next_prompt = (
+        "Po dotkliwej porażce drużyna dochodzi do siebie w bezpiecznym miejscu. "
+        "Trzeba opatrzyć rany, ocenić straty i zdecydować, czy wrócić po rewanż. Co robicie?"
+    )
+    turn.combat_events = [{
+        "type": "party_retreat",
+        "characters": recovered_names,
+        "enemy": enemy_name,
+        "restored_hp": 1,
+    }]
+    turn.gm_narration = narration
+    turn.next_turn_prompt = next_prompt
+    turn.suggested_actions = [
+        "Opatrujemy rany i zbieramy siły.",
+        "Oceniamy straty i szukamy bezpieczniejszej drogi.",
+        "Przygotowujemy plan powrotu po rewanż.",
+    ]
+    turn.status = "completed"
+    turn.mechanics_resolved_at = now
+    turn.resolved_at = now
+
+    new_turn_number = session.current_turn_number + 1
+    session.current_turn_number = new_turn_number
+    session.is_turn_resolving = False
+    db.add(Turn(
+        session_id=session.id,
+        turn_number=new_turn_number,
+        status="waiting_for_actions",
+        gm_narration="",
+        next_turn_prompt=next_prompt,
+        challenge_tier="standard",
+        suggested_actions=list(turn.suggested_actions),
+        image_prompt="",
+    ))
+    await db.commit()
+
+    await ws_manager.broadcast_to_session(session.id, {
+        "type": "TURN_COMPLETED",
+        "completed_turn_number": turn.turn_number,
+        "new_turn_number": new_turn_number,
+        "gm_narration": narration,
+        "next_turn_prompt": next_prompt,
+        "suggested_actions": turn.suggested_actions,
+    })
+    return {
+        "success": True,
+        "recovered_character_ids": [character.id for character in recoverable],
+        "new_turn_number": new_turn_number,
+    }
 
 
 async def reset_campaign(

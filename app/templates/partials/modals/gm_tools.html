@@ -8,6 +8,22 @@
         <button @click="closeGmTools()" class="text-gray-400 hover:text-white text-lg" aria-label="Zamknij narzędzia Mistrza Gry">✕</button>
       </div>
       <div class="space-y-4">
+        <div x-show="hasPartyCrisis" x-cloak class="p-4 rounded-xl bg-rose-950/55 border border-rose-600/70 space-y-3">
+          <p class="text-sm font-bold text-rose-200">🚨 Klęska aktywnej drużyny</p>
+          <p class="text-xs text-rose-100/80">
+            Awaryjny odwrót zamknie bieżące starcie, usunie szkodliwe efekty i przywróci obezwładnione aktywne postacie z 1 PW. Polegli pozostaną polegli. Alternatywnie zapisz epilog w sekcji „Zakończ kampanię”.
+          </p>
+          <p x-show="recoverablePartyCrisisCount < 1" class="text-xs text-rose-300">
+            Nie ma postaci w agonii ani stabilnych — awaryjny odwrót nie może nikogo uratować.
+          </p>
+          <p x-show="partyCrisisError" x-text="partyCrisisError" role="alert" class="text-xs text-rose-300"></p>
+          <button type="button" @click="resolvePartyCrisis()"
+                  :disabled="isResolvingPartyCrisis || recoverablePartyCrisisCount < 1"
+                  class="inventory-action disabled:opacity-40">
+            <span x-show="!isResolvingPartyCrisis">ZARZĄDŹ AWARYJNY ODWRÓT</span>
+            <span x-show="isResolvingPartyCrisis">RATOWANIE DRUŻYNY...</span>
+          </button>
+        </div>
         <div x-show="session?.status === 'in_progress'" class="p-4 rounded-xl bg-slate-950/70 border border-amber-900/50 space-y-2">
           <p class="text-sm font-bold text-amber-300">Postój i handlarz</p>
           <p class="text-xs text-gray-400">Otwiera handel i warsztat na bieżącą turę, jeśli postój nie jest już aktywny.</p>

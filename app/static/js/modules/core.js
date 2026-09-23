@@ -146,6 +146,8 @@
     isSavingGmStats: false,
     participationError: '',
     isSavingParticipation: false,
+    partyCrisisError: '',
+    isResolvingPartyCrisis: false,
 
     // Party Chat
     chatMessages: [],

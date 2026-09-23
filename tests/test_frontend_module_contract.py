@@ -77,12 +77,12 @@ def test_local_frontend_assets_are_precached_and_scripts_load_before_alpine():
     )
 
     assert all(f"'{url}'" in service_worker for url in local_assets)
-    assert "const CACHE_NAME = 'ttrpg-gemini-v55';" in service_worker
+    assert "const CACHE_NAME = 'ttrpg-gemini-v56';" in service_worker
 
     scripts = re.findall(r'<script[^>]+src="([^"]+)"', index_source)
-    app_index = scripts.index("/static/js/app.js?v=34")
+    app_index = scripts.index("/static/js/app.js?v=35")
     assert scripts.index("/static/js/theme-bootstrap.js?v=33") < scripts.index(
-        "/static/js/modules/core.js?v=39"
+        "/static/js/modules/core.js?v=40"
     )
     alpine_index = scripts.index(
         "https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"
@@ -104,3 +104,11 @@ def test_character_break_never_exposes_proxy_vote_after_wait_timer():
     timer_fallback = "this.proxyNow >= availableAt"
     assert break_guard in method
     assert method.index(break_guard) < method.index(timer_fallback)
+
+
+def test_incapacitated_character_is_not_presented_as_waiting_for_action():
+    party_panel = (ROOT / "app" / "templates" / "partials" / "table" / "party_panel.html").read_text(encoding="utf-8")
+    waiting_expression = party_panel.split('x-text="p.participation_status', 1)[1].split('">', 1)[0]
+
+    assert "!p.is_alive" in waiting_expression
+    assert waiting_expression.index("!p.is_alive") < waiting_expression.index("p.has_submitted_action")

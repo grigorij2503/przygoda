@@ -129,6 +129,7 @@
     "/api/rooms": ["POST"],
     "/api/session": ["GET"],
     "/api/session/finish-campaign": ["POST"],
+    "/api/session/resolve-party-crisis": ["POST"],
     "/api/session/name-entity": ["POST"],
     "/api/session/reset-campaign": ["POST"],
     "/api/session/resolve-turn": ["POST"],
