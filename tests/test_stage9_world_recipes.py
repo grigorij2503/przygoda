@@ -25,6 +25,38 @@ PEACEFUL_IDS = {
     "norki_zielonego_wzgorza", "szepty_zatopionej_gwiazdy",
     "zagadka_gazowej_latarni",
 }
+MASCULINE_CLASS_LABELS = {
+    "front_1944_relikty_nocy": {"laczniczka": "Łącznik"},
+    "katedry_popiolu": {
+        "strazniczka": "Strażnik",
+        "uzdrowicielka": "Uzdrowiciel",
+    },
+    "kurz_olow_brzydkie_sprawy": {
+        "szeryfka": "Szeryf",
+        "tropicielka": "Tropiciel",
+    },
+    "lochy_lup_klopoty": {"zlotaraczka": "Majster"},
+    "norki_zielonego_wzgorza": {
+        "ogrodniczka": "Ogrodnik",
+        "kronikarka": "Kronikarz",
+    },
+    "piaski_ekspedycji": {
+        "archeolozka": "Archeolog",
+        "opiekunka": "Opiekun oazy",
+    },
+    "slowianska_gromada": {"zielarka": "Zielarz", "lowczyni": "Łowca"},
+    "szepty_zatopionej_gwiazdy": {
+        "archiwistka": "Archiwista",
+        "lekarka": "Lekarz",
+    },
+    "wieczna_wojna_gwiazd": {"pilotka": "Pilot", "medyczka": "Medyk"},
+    "wiedzmy_pogranicza": {"wiedzma": "Wiedźmak", "mediatorka": "Mediator"},
+    "wyspy_kruczego_sztormu": {
+        "sterniczka": "Sternik",
+        "piesniarka": "Pieśniarz",
+    },
+    "zagadka_gazowej_latarni": {"chemiczka": "Chemik sądowy"},
+}
 
 
 def _recipe_payload(world_id: str) -> dict:
@@ -70,6 +102,17 @@ def test_stage_nine_recipe_source_set_is_complete():
     assert recipe_ids == STAGE_NINE_IDS
     assert len(WORLD_PACK_REGISTRY.list()) == 15
     assert WORLD_PACK_REGISTRY.default.key == "dark_fantasy@1"
+
+
+def test_stage_nine_class_archetypes_use_masculine_display_labels():
+    for world_id, expected_labels in MASCULINE_CLASS_LABELS.items():
+        pack = WORLD_PACK_REGISTRY.get(world_id, 1)
+        actual_labels = {
+            class_definition.id: class_definition.name
+            for class_definition in pack.classes
+        }
+        for class_id, expected_name in expected_labels.items():
+            assert actual_labels[class_id] == expected_name
 
 
 def test_recipe_rejects_unknown_mechanic_and_executable_extension():

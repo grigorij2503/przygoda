@@ -413,6 +413,12 @@ księgami, scenariusze, wyposażenie, łup, mapę, profil zagrożenia, narratora
 kierunek ilustracji i kontrolowany motyw. To warianty istniejącego `d20_v1`,
 nie odrębne systemy reguł.
 
+Przed ręcznym odbiorem etapu 9 ujednolicono prezentacyjne nazwy klas do formy
+męskiej traktowanej jako stała nazwa archetypu, np. `Łącznik`, `Pilot` i
+`Chemik sądowy`. Niezależny wybór „On”, „Ona” albo „Bez rodzaju” steruje
+wyłącznie językiem narracji. Narrator nie wyprowadza płci z imienia ani klasy
+i przy podawaniu roli używa konstrukcji „postać klasy [nazwa]”.
+
 Partia map i eksploracji:
 
 - Archipelag Korsarzy;

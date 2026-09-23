@@ -189,10 +189,10 @@
 
     narrativeFormLabel(value) {
       return {
-        masculine: 'narracja męska',
-        feminine: 'narracja żeńska',
-        neutral: 'narracja neutralna'
-      }[value] || 'narracja neutralna';
+        masculine: 'narrator: on',
+        feminine: 'narrator: ona',
+        neutral: 'narrator: bez rodzaju'
+      }[value] || 'narrator: bez rodzaju';
     },
 
     attributeDefinition(stat) {

@@ -124,7 +124,7 @@ def test_calculate_item_modifier():
         id=1,
         player_name="Anna",
         name="Lyanna",
-        character_class="Łowczyni",
+        character_class="Łowca",
         strength=1,
         agility=3,
         intellect=1,

@@ -33,10 +33,14 @@ logger = logging.getLogger(__name__)
 logging.getLogger("google_genai.models").setLevel(logging.ERROR)
 
 NARRATIVE_FORM_INSTRUCTIONS = {
-    "masculine": "forma męska",
-    "feminine": "forma żeńska",
-    "neutral": "forma neutralna: używaj imienia i unikaj zgadywania płci",
+    "masculine": "opisuj postać w formie męskiej (on; zrobił, gotowy)",
+    "feminine": "opisuj postać w formie żeńskiej (ona; zrobiła, gotowa)",
+    "neutral": "opisuj postać bez rodzaju: używaj imienia i konstrukcji neutralnych",
 }
+CLASS_ARCHETYPE_INSTRUCTION = (
+    "Nazwa klasy jest stałą nazwą archetypu w formie męskiej i nie określa płci. "
+    "Nie odmieniaj jej na formę żeńską."
+)
 
 
 def narrative_form_instruction(character: Character) -> str:
@@ -138,8 +142,11 @@ async def generate_party_prologue_ai(
         f"Świat: {world_pack.display_name}\n\n"
         f"WYMAGANIA DLA PROLOGU:\n"
         f"1. Wymień każdego {profile.prologue_character_noun} z imienia i klasy, bez zmieniania danych postaci.\n"
-        "1a. Stosuj zapisaną formę narracji każdej postaci. Klasa ani imię nie określają płci. "
-        "Dla formy neutralnej używaj imienia i konstrukcji bez rodzaju gramatycznego.\n"
+        "1a. Stosuj zapisaną formę narracji każdej postaci. Imię nie określa płci. "
+        f"{CLASS_ARCHETYPE_INSTRUCTION} "
+        "Gdy podajesz klasę, użyj konstrukcji „postać klasy [nazwa]”; w pozostałych zdaniach używaj "
+        "imienia i formy narracji. Dla formy neutralnej używaj imienia i konstrukcji bez rodzaju "
+        "gramatycznego.\n"
         f"2. Osadź zdarzenie inicjujące i drogę do pierwszego wyzwania w podanej scenerii.\n"
         f"3. Nie wprowadzaj motywów sprzecznych z instrukcjami aktywnego świata.\n"
         f"4. Zwróć dokładnie 3 {profile.prologue_action_qualifier}, klasowo neutralne suggested_actions, "
@@ -403,7 +410,9 @@ async def resolve_turn_with_gemini(
         "2. WYNIKI RZUTÓW: Bezwzględnie podporządkuj powodzenie zamiarów rzutom kości (critical_success, success, partial_success, failure, critical_failure).\n"
         "3. STAN ZDROWIA I ZAGROŻENIA: W narracji wspominaj o stanie fizycznym bohaterów – ranach, krwawieniu, zmęczeniu, utracie tchu lub determinacji.\n"
         "3a. FORMA NARRACJI POSTACI: Pole narrative_form w party_status jest wiążące. "
-        "Nie wnioskuj płci z imienia ani klasy. Dla neutral używaj imienia i unikaj form nacechowanych rodzajem.\n"
+        "Nie wnioskuj płci z imienia ani klasy. "
+        f"{CLASS_ARCHETYPE_INSTRUCTION} Gdy musisz wymienić klasę, pisz „postać klasy "
+        "[nazwa]”. Dla neutral używaj imienia i unikaj form nacechowanych rodzajem.\n"
         "4. CIĄGŁOŚĆ OPOWIEŚCI: Nie twórz suchych raportów punktowych. Każda tura to żywy fragment opowieści zgodnej z profilem aktywnego świata.\n\n"
         "Nie streszczaj ponownie zamkniętych wydarzeń z wcześniejszych tur. Pokonanego wcześniej głównego przeciwnika wspominaj tylko wtedy, gdy potwierdzają to bieżące combat_events albo deklaracja gracza bezpośrednio dotyczy jego pozostałości.\n\n"
         "5. PRAWDZIWY EKWIPUNEK: Pole inventory przy postaci jest jedynym źródłem prawdy o posiadanych przedmiotach. Nie pozwalaj użyć ani uzyskać korzyści z przedmiotu, którego tam nie ma. Broń, tarcza, zbroja, hełm, buty i aktywne akcesoria dają korzyść tylko, gdy mają equipped=true. Jeśli deklaracja mimo zabezpieczeń odwołuje się do nieposiadanego przedmiotu, opisz brak przedmiotu i improwizację zgodną z wynikiem rzutu, zamiast materializować wyposażenie.\n"

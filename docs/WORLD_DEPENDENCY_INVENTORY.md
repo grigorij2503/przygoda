@@ -137,6 +137,10 @@ pozwala wyłączyć automatyczne nadanie wroga w spokojnych i śledczych świata
 bez zmiany zasad ręcznych encounterów. Wszelkie zmiany wersji przepisu, które
 zmieniłyby opublikowany pakiet, wymagają nowej wersji świata.
 
+Nazwy klas są prezentowane jako stałe archetypy w formie męskiej. Kontrolowane
+`narrative_form` pozostaje niezależne od nazwy klasy i określa, czy narrator
+opisuje postać formą „on”, „ona”, czy konstrukcjami bez rodzaju.
+
 ## Reguły przeglądu kolejnych etapów
 
 - nowe odwołanie do konkretnego świata wymaga wskazania pola `WorldPack`;

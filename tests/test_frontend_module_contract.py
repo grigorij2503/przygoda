@@ -34,6 +34,10 @@ def test_index_partials_render_and_referenced_assets_exist():
     )
     assert "{% include" not in rendered
     assert 'data-theme="dark_fantasy"' in rendered
+    assert "Jak narrator ma opisywać postać?" in rendered
+    assert "Bez rodzaju — narrator używa imienia" in rendered
+    assert "On — forma męska" in rendered
+    assert "Ona — forma żeńska" in rendered
 
     local_assets = set(re.findall(r'(?:src|href)="(/static/[^"]+)', rendered))
     assert local_assets
@@ -73,7 +77,7 @@ def test_local_frontend_assets_are_precached_and_scripts_load_before_alpine():
     )
 
     assert all(f"'{url}'" in service_worker for url in local_assets)
-    assert "const CACHE_NAME = 'ttrpg-gemini-v54';" in service_worker
+    assert "const CACHE_NAME = 'ttrpg-gemini-v55';" in service_worker
 
     scripts = re.findall(r'<script[^>]+src="([^"]+)"', index_source)
     app_index = scripts.index("/static/js/app.js?v=34")
