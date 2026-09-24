@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import html
 import json
 import logging
@@ -314,6 +315,7 @@ async def resolve_turn_with_gemini(
             "dice_roll_d20": a["dice_roll_raw"],
             "stat_bonus": a["stat_modifier"],
             "item_bonus": a["item_modifier"],
+            "item_bonus_sources": a.get("item_modifier_sources", []),
             "status_modifier": a.get("status_modifier", 0),
             "total_score": a["dice_total"],
             "dc_difficulty": a["dc"],
@@ -322,6 +324,7 @@ async def resolve_turn_with_gemini(
             "character_damage": a.get("character_damage", 0),
             "character_target_name": a.get("character_target_name"),
             "hp_delta_from_combat_engine": a.get("hp_delta", 0),
+            "xp_awarded_by_engine": a.get("xp_awarded", 0),
         })
 
     combat_events = getattr(turn, "combat_events", None) or []
@@ -408,6 +411,9 @@ async def resolve_turn_with_gemini(
         "Jeśli gracz atakuje, opisz dynamikę starcia, rany i reakcję wroga zgodnie z aktywnym światem. "
         "Jeśli bada lub używa zdolności, opisz materialny efekt zgodny z profilem świata i definicją zdolności.\n"
         "2. WYNIKI RZUTÓW: Bezwzględnie podporządkuj powodzenie zamiarów rzutom kości (critical_success, success, partial_success, failure, critical_failure).\n"
+        "2a. CEL AKCJI A INNE ZDARZENIA: outcome_tier rozstrzyga cel zadeklarowanej akcji. "
+        "Niezależny status lub odpowiedź przeciwnika może zranić bohatera w tej samej turze, ale nie wolno przez to opisać udanej akcji jako nieudanej. "
+        "Wyraźnie oddziel osiągnięcie celu od późniejszej albo równoległej konsekwencji. status_removed oznacza definitywne usunięcie efektu, chyba że późniejsze combat_event jawnie nakłada go ponownie.\n"
         "3. STAN ZDROWIA I ZAGROŻENIA: W narracji wspominaj o stanie fizycznym bohaterów – ranach, krwawieniu, zmęczeniu, utracie tchu lub determinacji.\n"
         "3a. FORMA NARRACJI POSTACI: Pole narrative_form w party_status jest wiążące. "
         "Nie wnioskuj płci z imienia ani klasy. "
@@ -415,23 +421,22 @@ async def resolve_turn_with_gemini(
         "[nazwa]”. Dla neutral używaj imienia i unikaj form nacechowanych rodzajem.\n"
         "4. CIĄGŁOŚĆ OPOWIEŚCI: Nie twórz suchych raportów punktowych. Każda tura to żywy fragment opowieści zgodnej z profilem aktywnego świata.\n\n"
         "Nie streszczaj ponownie zamkniętych wydarzeń z wcześniejszych tur. Pokonanego wcześniej głównego przeciwnika wspominaj tylko wtedy, gdy potwierdzają to bieżące combat_events albo deklaracja gracza bezpośrednio dotyczy jego pozostałości.\n\n"
-        "5. PRAWDZIWY EKWIPUNEK: Pole inventory przy postaci jest jedynym źródłem prawdy o posiadanych przedmiotach. Nie pozwalaj użyć ani uzyskać korzyści z przedmiotu, którego tam nie ma. Broń, tarcza, zbroja, hełm, buty i aktywne akcesoria dają korzyść tylko, gdy mają equipped=true. Jeśli deklaracja mimo zabezpieczeń odwołuje się do nieposiadanego przedmiotu, opisz brak przedmiotu i improwizację zgodną z wynikiem rzutu, zamiast materializować wyposażenie.\n"
-        "6. ŁUP I CRAFTING: Ekwipunek i saldo rozlicza wyłącznie backend. Zdarzenia item_found, item_crafted i loot_search_empty w combat_events są ostateczne — opisz je dokładnie, w tym coins_awarded, gdy występuje. W item_found pole actor oznacza właściciela przedmiotu; found_by tylko znalazcę. Gdy brak item_found, nie opisuj zdobycia żadnego przedmiotu ani środków, nawet jeśli rzut przeszukania jest udany. W każdym player_consequences ustaw new_items=[]; przedmioty utracone z innych przyczyn nadal wpisuj do removed_item_names.\n\n"
+        "5. PRAWDZIWY EKWIPUNEK: Pole inventory przy postaci jest jedynym źródłem prawdy o posiadanych przedmiotach, a item_bonus_sources jest ostateczną listą przedmiotów pomagających w tym konkretnym rzucie. Nie przypisuj premii pozostałemu wyposażeniu. Nie pozwalaj użyć ani uzyskać korzyści z przedmiotu, którego tam nie ma. Broń, tarcza, zbroja, hełm, buty i aktywne akcesoria dają korzyść tylko, gdy mają equipped=true. Jeśli deklaracja mimo zabezpieczeń odwołuje się do nieposiadanego przedmiotu, opisz brak przedmiotu i improwizację zgodną z wynikiem rzutu, zamiast materializować wyposażenie.\n"
+        "6. ŁUP I CRAFTING: Ekwipunek i saldo rozlicza wyłącznie backend. Zdarzenia item_found, item_crafted i loot_search_empty w combat_events są ostateczne — opisz je dokładnie, w tym coins_awarded, gdy występuje. W item_found pole actor oznacza właściciela przedmiotu; found_by tylko znalazcę. Gdy brak odpowiedniego zdarzenia mechanicznego, nie opisuj zdobycia, zużycia ani utraty żadnego przedmiotu lub środków. W każdym player_consequences ustaw new_items=[] i removed_item_names=[].\n\n"
         "6a. ATAK NA POSTAĆ: Zdarzenie character_attack oraz pola character_damage i character_target_name są ostatecznym wynikiem ataku na członka drużyny. Podaj wskazany cel i dokładne obrażenia. Nie kieruj tego ataku na głównego przeciwnika ani nie dopisuj dodatkowych obrażeń.\n"
         "7. ZDOLNOŚCI KLASOWE: Pole ability przy akcji jest jedynym źródłem prawdy o użytej zdolności. Nie rozszerzaj efektu poza jej opis. Puste ability oznacza zwykłą akcję. Pole available_abilities zawiera wyłącznie odblokowane zdolności postaci.\n\n"
         "8. ODKRYTE ATAKI I NPC: Pole named_attack przy akcji wskazuje wybraną, poznaną technikę. Jej +1 obrażenie jest już w boss_damage; opisz użycie po nazwie, bez dodatkowej premii. Nazwany NPC zachowuje zapisane usposobienie i cel z opisu przy kolejnych spotkaniach. Jego powiedzonko może wracać okazjonalnie, nigdy mechanicznie w każdej turze. Nie twórz nowej wersji istniejącego NPC.\n\n"
         "ZASADY WYJŚCIA JSON:\n"
         "1. gm_story_narration: Głęboka, barwna i kinowa narracja Mistrza Gry w języku polskim podsumowująca akcje graczy i zmieniającą się sytuację (min. 3-5 soczystych zdań).\n"
-        "2. player_consequences: Dla KAŻDEGO gracza: individual_summary, hp_delta, xp_gained (50-120 XP), new_items=[] oraz removed_item_names. Podczas aktywnego encounteru nie dodawaj własnych zmian HP; dla wsparcia hp_delta_from_combat_engine opisuje leczenie celu wskazanego w combat_events.\n"
+        "2. player_consequences: Dla KAŻDEGO gracza: individual_summary opisujące osobno wynik jego zamiaru i niezależne zdarzenia tury; hp_delta musi być dokładnie równe hp_delta_from_combat_engine; xp_gained musi być dokładnie równe xp_awarded_by_engine; new_items=[] i removed_item_names=[]. Przy wsparciu dodatnie hp_delta opisuje leczenie celu wskazanego w combat_events, nie automatycznie wykonawcy. Nigdy nie wymyślaj obrażeń, leczenia, utraty przedmiotu ani XP poza wartościami silnika.\n"
         "3. next_turn_prompt: Nowa sytuacja fabularna i konkretne, bezpośrednie wyzwanie rzucone drużynie na otwarcie kolejnej tury (zawsze kończące się pytaniem 'Co robicie?').\n"
         "3a. next_challenge_tier: Wybierz standard dla zwykłego wyzwania, hard dla poważnej przeszkody albo climactic dla wyjątkowej próby o dużą stawkę. Poziom musi wynikać z opisu next_turn_prompt; nie oznaczaj każdej tury jako hard lub climactic. Serwer wyznaczy DC.\n"
         "4. suggested_actions: Dokładnie 3 zróżnicowane i konkretne ścieżki działania na otwarcie kolejnej tury. Każda ma być dostępna dla każdej klasy, nie może zakładać przedmiotu ani zdolności klasowej.\n"
         "5. scene_image_prompt: Sugestywny prompt po angielsku dla modelu generującego obraz (Gemini 2.5 Flash Image)...\n"
         f"6. naming_opportunity (opcjonalne): Tylko gdy nowe odkrycie lub NPC rzeczywiście pojawia się w gm_story_narration. Użyj wyłącznie jednej z kategorii: {', '.join(category.id for category in world_pack.lore_categories)}. Nie powtarzaj active_lore_entities. Atak proponuj bardzo rzadko i tylko po wyjątkowo udanym ataku gracza; w origin_character_id podaj ID tego gracza, a serwer skontroluje wynik i odstęp. NPC proponuj przy pierwszym ważnym spotkaniu w konkretnej lokacji, z opisem roli lub celu. W scene_evidence skopiuj dosłowny fragment gm_story_narration, który pokazuje tę postać albo odkrycie.\n"
-        "7. map_update: Uzupełnij kronikę mapy. destination_node_id MUSI być jednym z ID w campaign_map.allowed_destinations. "
-        "Pozostaw current_node_id, jeżeli narracja nie przeniosła całej drużyny do innego pomieszczenia. "
-        "Gdy udana deklaracja ruchu ma suggested_destination_node_id, przenieś tam drużynę w narracji i ustaw ten ID w map_update; "
-        "nie opisuj nowego pomieszczenia przy pozostawieniu current_node_id. "
+        "7. map_update: Uzupełnij kronikę mapy, lecz nie decyduj o mechanicznym ruchu. "
+        "Gdy campaign_map.suggested_destination_node_id ma wartość, przenieś tam drużynę w narracji i skopiuj dokładnie ten ID do destination_node_id. "
+        "Gdy jest puste, ustaw destination_node_id na current_node_id i nie opisuj wejścia do nowej lokacji. "
         "location_summary ma krótko opisywać wyłącznie to, co naprawdę pojawiło się w narracji tej tury, "
         "a notable_elements zawiera maksymalnie 5 konkretnych elementów sceny. Nie twórz nowych węzłów ani przejść.\n"
         f"{boss_info}"
@@ -508,22 +513,23 @@ def _generate_rich_offline_resolution(
     story_beats = []
 
     outcome_copy = {
-        "critical_success": (0, 120, "osiąga pełny cel i zdobywa wyraźną przewagę"),
-        "success": (0, 80, "skutecznie realizuje swój zamiar"),
-        "partial_success": (-3, 60, "osiąga cel tylko częściowo i płaci za to 3 HP"),
-        "failure": (-5, 50, "nie osiąga celu i traci 5 HP wskutek konsekwencji"),
-        "critical_failure": (-8, 40, "ponosi dotkliwą porażkę i traci 8 HP"),
+        "critical_success": "osiąga pełny cel i zdobywa wyraźną przewagę",
+        "success": "skutecznie realizuje swój zamiar",
+        "partial_success": "osiąga swój cel tylko częściowo",
+        "failure": "nie osiąga zadeklarowanego celu",
+        "critical_failure": "ponosi dotkliwą porażkę",
     }
     for action in actions_with_rolls:
         character_id = action["character_id"]
         name = action["character_name"]
         tier = action["outcome_tier"]
         declared_action = (action.get("action_text") or "podejmuje działanie").strip()
-        hp_delta, xp, result_copy = outcome_copy.get(tier, outcome_copy["failure"])
+        result_copy = outcome_copy.get(tier, outcome_copy["failure"])
+        hp_delta = int(action.get("hp_delta", 0))
+        xp = int(action.get("xp_awarded", 0))
         desc = f"{name} deklaruje: „{declared_action}” — {result_copy}."
 
         if turn.combat_events:
-            hp_delta = int(action.get("hp_delta", 0))
             enemy_damage = int(action.get("boss_damage", 0))
             if enemy_damage > 0:
                 desc += (
@@ -568,9 +574,34 @@ def _generate_rich_offline_resolution(
                 event_sentences.append(
                     f"Efekt {event.get('effect')} zadaje {event.get('target')} {event.get('damage')} obrażeń."
                 )
+            elif event_type == "status_removed":
+                event_sentences.append(
+                    f"{event.get('actor')} skutecznie usuwa efekt {event.get('effect_label') or event.get('effect')}."
+                )
+            elif event_type == "status_reduced":
+                event_sentences.append(
+                    f"{event.get('actor')} częściowo osłabia efekt {event.get('effect_label') or event.get('effect')}."
+                )
+            elif event_type == "status_relief_failed":
+                event_sentences.append(
+                    f"{event.get('actor')} nie zdołał usunąć efektu {event.get('effect_label') or event.get('effect')}."
+                )
             elif event_type in {"support", "revived"}:
                 event_sentences.append(
                     f"{event.get('actor')} pomaga {event.get('target')}, przywracając {event.get('healing')} HP."
+                )
+            elif event_type == "support_guard":
+                event_sentences.append(
+                    f"{event.get('actor')} skutecznie osłania {event.get('target')}, zapewniając ochronę {event.get('potency')}."
+                )
+            elif event_type == "support_failed":
+                event_sentences.append(
+                    f"Wsparcie podjęte przez {event.get('actor')} nie przynosi mechanicznego efektu."
+                )
+            elif event_type == "ability_cleanse":
+                removed = ", ".join(event.get("removed_types") or []) or "żaden aktywny efekt"
+                event_sentences.append(
+                    f"{event.get('actor')} oczyszcza {event.get('target')}; usunięte efekty: {removed}."
                 )
             elif event_type == "stabilized":
                 event_sentences.append(
@@ -579,6 +610,14 @@ def _generate_rich_offline_resolution(
             elif event_type == "resurrection":
                 event_sentences.append(
                     f"{event.get('actor')} wskrzesza {event.get('target')} z {event.get('healing')} HP."
+                )
+            elif event_type == "resurrection_failed":
+                event_sentences.append(
+                    f"Próba wskrzeszenia podjęta przez {event.get('actor')} nie przynosi skutku."
+                )
+            elif event_type == "ability_failed":
+                event_sentences.append(
+                    f"Zdolność „{event.get('ability')}” użyta przez {event.get('actor')} nie przynosi mechanicznego efektu."
                 )
             elif event_type == "death_failure":
                 event_sentences.append(
@@ -712,8 +751,6 @@ async def generate_scene_image_ai(
     w Google AI Studio (Pay-As-You-Go).
     """
     client = get_genai_client()
-    filename = f"turn_{turn_id}_{int(time.time())}.png"
-    filepath = UPLOADS_DIR / filename
 
     if not client:
         logger.info("Brak GEMINI_API_KEY – tworzę grafikę wektorową SVG.")
@@ -726,34 +763,51 @@ async def generate_scene_image_ai(
         model_name = "gemini-2.5-flash-image"
 
     try:
-        # W Nano Banana wywołanie odbywa się przez generate_content
-        # bez przekazywania zbędnych bloków konfiguracji, które powodują błędy Pydantica
-        response = client.models.generate_content(
+        response = await client.aio.models.generate_content(
             model=model_name,
             contents=prompt,
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE"],
+                image_config=types.ImageConfig(aspect_ratio="16:9"),
+            ),
         )
 
-        # Odczytujemy obraz zwrócony w częściach odpowiedzi (parts)
-        if response.parts:
-            for part in response.parts:
-                # 1. Próba zapisania, jeśli SDK udostępnia wyciąganie obrazu
-                if hasattr(part, "as_image") and callable(part.as_image):
-                    img = part.as_image()
-                    if img:
-                        img.save(filepath)
-                        return f"/uploads/{filename}"
+        parts = list(response.parts or [])
+        if not parts:
+            for candidate in response.candidates or []:
+                content = getattr(candidate, "content", None)
+                parts.extend(getattr(content, "parts", None) or [])
 
-                # 2. Odczyt bajtów z inline_data
-                if hasattr(part, "inline_data") and part.inline_data and part.inline_data.data:
-                    with open(filepath, "wb") as f:
-                        f.write(part.inline_data.data)
-                    return f"/uploads/{filename}"
+        for part in parts:
+            inline_data = getattr(part, "inline_data", None)
+            encoded_or_raw = getattr(inline_data, "data", None)
+            if not encoded_or_raw:
+                continue
+            image_bytes = (
+                base64.b64decode(encoded_or_raw)
+                if isinstance(encoded_or_raw, str)
+                else bytes(encoded_or_raw)
+            )
+            mime_type = (getattr(inline_data, "mime_type", "") or "").lower()
+            extension = {
+                "image/jpeg": "jpg",
+                "image/webp": "webp",
+            }.get(mime_type, "png")
+            filename = f"turn_{turn_id}_{int(time.time())}.{extension}"
+            (UPLOADS_DIR / filename).write_bytes(image_bytes)
+            return f"/uploads/{filename}"
 
-        raise ValueError("API odpowiedziało, ale w response.parts nie ma obiektu obrazu")
-
-    except Exception as e:
-        logger.error(f"Nie udało się wygenerować obrazu przez Nano Banana: {e}")
-        return _generate_fallback_svg(prompt, turn_id, world_pack)
+        finish_reasons = [
+            str(getattr(candidate, "finish_reason", "unknown"))
+            for candidate in (response.candidates or [])
+        ]
+        raise ValueError(
+            "API nie zwróciło danych obrazu"
+            + (f" (finish_reason: {', '.join(finish_reasons)})" if finish_reasons else "")
+        )
+    except Exception:
+        logger.exception("Nie udało się wygenerować obrazu przez Nano Banana")
+        raise
 
 
 def _generate_fallback_svg(

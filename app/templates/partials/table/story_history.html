@@ -150,7 +150,8 @@
 
               <div x-show="t.status === 'completed' && mechanicalCombatEvents(t).length > 0" x-cloak
                    class="mb-5 rounded-xl border border-slate-700/70 bg-slate-950/65 p-4">
-                <h4 class="mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">Mechaniczny zapis tury</h4>
+                <h4 class="mb-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">Mechaniczny zapis tury</h4>
+                <p class="mb-2 text-[10px] text-gray-500">Te zdarzenia są niezależne od wyniku celu akcji: udana akcja może ograniczyć zagrożenie, a przeciwnik nadal może odpowiedzieć.</p>
                 <div class="flex flex-wrap gap-2">
                   <template x-for="(event, eventIndex) in mechanicalCombatEvents(t)" :key="eventIndex">
                     <span class="rounded-md border px-2 py-1 font-mono text-[10px]"
@@ -207,7 +208,7 @@
                                 x-text="'⚔ Zadano ' + act.damage_dealt + ' obrażeń'"></span>
                           <span x-show="act.hp_delta < 0"
                                 class="px-2 py-1 rounded-md border border-rose-700/60 bg-rose-950/50 text-rose-300"
-                                x-text="'❤️ Otrzymano ' + Math.abs(act.hp_delta) + ' obrażeń'"></span>
+                                x-text="'❤️ Bilans HP całej tury: −' + Math.abs(act.hp_delta)"></span>
                           <span x-show="act.hp_delta > 0 && act.intent !== 'support'"
                                 class="px-2 py-1 rounded-md border border-emerald-700/60 bg-emerald-950/50 text-emerald-300"
                                 x-text="'💚 Odzyskano ' + act.hp_delta + ' HP'"></span>
@@ -251,7 +252,7 @@
                                   'bg-amber-900 text-amber-300': act.outcome_tier === 'partial_success',
                                   'bg-rose-900 text-rose-300': act.outcome_tier === 'failure' || act.outcome_tier === 'critical_failure'
                                 }"
-                                x-text="act.outcome_tier === 'critical_success' ? 'KRYTYK!' : act.outcome_tier === 'success' ? 'SUKCES' : act.outcome_tier === 'partial_success' ? 'CZĘŚCIOWY' : 'PORAŻKA'">
+                                x-text="'CEL AKCJI: ' + (act.outcome_tier === 'critical_success' ? 'KRYTYK!' : act.outcome_tier === 'success' ? 'SUKCES' : act.outcome_tier === 'partial_success' ? 'CZĘŚCIOWY' : 'PORAŻKA')">
                           </span>
                         </div>
                       </template>

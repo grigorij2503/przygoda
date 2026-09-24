@@ -8,6 +8,7 @@ from app.main import app, resolve_turn_background
 from app.database import get_db
 from app.models import GameSession, Character, PlayerAction, Turn
 from app.services.room_access import ROOM_SESSION_COOKIE, create_room_session_token
+from app.services.turn_service import xp_for_outcome
 
 @pytest_asyncio.fixture(autouse=True)
 async def setup_resolution_app(isolated_dark_fantasy_db):
@@ -71,3 +72,11 @@ async def test_full_turn_resolution_and_level_up():
         data = updated_sess.json()
         assert data["current_turn_number"] >= 2
         assert any(t["status"] == "completed" for t in data["turns"])
+
+
+def test_xp_is_derived_from_the_persisted_outcome_tier():
+    assert xp_for_outcome("critical_success") == 120
+    assert xp_for_outcome("success") == 80
+    assert xp_for_outcome("partial_success") == 60
+    assert xp_for_outcome("failure") == 50
+    assert xp_for_outcome("critical_failure") == 40

@@ -115,6 +115,50 @@ def test_status_damage_event_has_a_player_facing_label_and_icon():
     assert status_event["effect_icon"] == "🔥"
 
 
+def test_extinguishing_fire_is_a_defensive_action():
+    assert infer_action_intent(
+        "Zaczynam się tarzać po ziemi, żeby ugasić płomienie na pancerzu"
+    ) == "defend"
+
+
+def test_successful_extinguishing_removes_burning_before_it_deals_damage():
+    character = make_level_four_character("Minsc i Boo")
+    character.id = 1
+    character.status_effects = [make_status("burning", 3, 2, "Rozdarcie areny")]
+    action = PlayerAction(
+        character_id=1,
+        action_text="Tarzam się po ziemi, żeby ugasić płomienie",
+        intent="defend",
+        outcome_tier="success",
+    )
+
+    events = resolve_status_turn([character], [action])
+
+    assert character.status_effects == []
+    assert action.hp_delta in (None, 0)
+    assert any(event["type"] == "status_removed" for event in events)
+    assert not any(event["type"] == "status_damage" for event in events)
+
+
+def test_failed_extinguishing_keeps_burning_and_applies_its_damage():
+    character = make_level_four_character("Minsc i Boo")
+    character.id = 1
+    character.status_effects = [make_status("burning", 3, 1, "Rozdarcie areny")]
+    action = PlayerAction(
+        character_id=1,
+        action_text="Próbuję ugasić płomienie",
+        intent="defend",
+        outcome_tier="failure",
+    )
+
+    events = resolve_status_turn([character], [action])
+
+    assert character.status_effects[0]["type"] == "burning"
+    assert action.hp_delta == -2
+    assert any(event["type"] == "status_relief_failed" for event in events)
+    assert any(event["type"] == "status_damage" for event in events)
+
+
 def test_action_cannot_use_a_bow_missing_from_inventory():
     inventory = [
         InventoryItem(

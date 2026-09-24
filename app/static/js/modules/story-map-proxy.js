@@ -432,15 +432,40 @@
       const visibleTypes = new Set([
         'status_damage', 'boss_attack', 'defence', 'environment_failure',
         'support', 'revived', 'stabilized', 'death_failure', 'character_died',
-        'party_retreat'
+        'party_retreat', 'status_removed', 'status_reduced',
+        'status_relief_failed', 'roll_context', 'support_guard', 'support_failed',
+        'ability_cleanse', 'ability_failed', 'resurrection', 'resurrection_failed'
       ]);
-      return (turn?.combat_events || []).filter(event => visibleTypes.has(event?.type));
+      return (turn?.combat_events || []).filter(event => {
+        if (!visibleTypes.has(event?.type)) return false;
+        if (event.type !== 'roll_context') return true;
+        return Number(event.item_bonus || 0) !== 0 || Number(event.status_modifier || 0) !== 0;
+      });
     },
 
     combatEventText(event) {
       if (!event) return '';
       if (event.type === 'status_damage') {
         return `${event.effect_icon || '⚠️'} ${event.effect_label || event.effect}: ${event.target} −${event.damage || 0} HP`;
+      }
+      if (event.type === 'status_removed') {
+        return `${event.effect_icon || '✓'} ${event.actor}: usunięto ${event.effect_label || event.effect}`;
+      }
+      if (event.type === 'status_reduced') {
+        return `${event.effect_icon || '↘'} ${event.actor}: osłabiono ${event.effect_label || event.effect}`;
+      }
+      if (event.type === 'status_relief_failed') {
+        return `${event.effect_icon || '⚠️'} ${event.actor}: nie usunięto ${event.effect_label || event.effect}`;
+      }
+      if (event.type === 'roll_context') {
+        const items = (event.item_sources || [])
+          .map(source => `${source.name} ${Number(source.modifier || 0) >= 0 ? '+' : ''}${source.modifier || 0}`)
+          .join(', ');
+        const itemText = items ? `ekwipunek: ${items}` : '';
+        const statusText = Number(event.status_modifier || 0)
+          ? `efekty: ${event.status_modifier > 0 ? '+' : ''}${event.status_modifier}`
+          : '';
+        return `🎲 ${event.actor} • ${[itemText, statusText].filter(Boolean).join(' • ')}`;
       }
       if (event.type === 'boss_attack') {
         const reduction = Number(event.total_reduction || 0);
@@ -455,6 +480,14 @@
       if (event.type === 'defence') return `🛡️ ${event.actor}: przygotowana osłona ${event.potency || 0}`;
       if (event.type === 'environment_failure') return `⚠️ ${event.actor}: −${event.damage || 0} HP przy ${event.feature}`;
       if (['support', 'revived'].includes(event.type)) return `💚 ${event.actor} → ${event.target}: +${event.healing || 0} HP`;
+      if (event.type === 'support_guard') return `🛡️ ${event.actor} → ${event.target}: wsparcie ${event.potency || 0}`;
+      if (event.type === 'support_failed') return `⚠️ ${event.actor}: wsparcie nie przyniosło efektu`;
+      if (event.type === 'ability_cleanse') {
+        return `💧 ${event.actor} → ${event.target}: usunięto ${(event.removed_types || []).join(', ') || 'brak aktywnego efektu'}`;
+      }
+      if (event.type === 'ability_failed') return `⚠️ ${event.actor}: ${event.ability || 'zdolność'} nie przyniosła efektu`;
+      if (event.type === 'resurrection') return `🕊️ ${event.actor} → ${event.target}: wskrzeszenie +${event.healing || 0} HP`;
+      if (event.type === 'resurrection_failed') return `⚠️ ${event.actor}: wskrzeszenie ${event.target || ''} nie powiodło się`;
       if (event.type === 'stabilized') return `🩹 ${event.actor} stabilizuje ${event.target}`;
       if (event.type === 'death_failure') return `💀 ${event.target}: porażka śmierci ${event.failures}/3`;
       if (event.type === 'character_died') return `☠️ ${event.target}: postać poległa`;
@@ -468,7 +501,10 @@
       if (['status_damage', 'boss_attack', 'environment_failure', 'death_failure', 'character_died'].includes(event?.type)) {
         return 'border-rose-800/60 bg-rose-950/35 text-rose-200';
       }
-      if (['support', 'revived', 'stabilized'].includes(event?.type)) {
+      if (['support_failed', 'status_relief_failed', 'ability_failed', 'resurrection_failed'].includes(event?.type)) {
+        return 'border-amber-800/60 bg-amber-950/30 text-amber-200';
+      }
+      if (['support', 'revived', 'stabilized', 'status_removed', 'status_reduced', 'support_guard', 'ability_cleanse', 'resurrection'].includes(event?.type)) {
         return 'border-emerald-800/60 bg-emerald-950/35 text-emerald-200';
       }
       return 'border-amber-800/60 bg-amber-950/30 text-amber-200';

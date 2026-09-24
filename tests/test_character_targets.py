@@ -58,3 +58,22 @@ def test_healing_can_target_caster():
 
     assert caster.current_hp > 10
     assert any(event["type"] == "support" and event["target"] == "Czarodziej" for event in events)
+
+
+def test_non_healing_support_grants_protection_instead_of_restoring_hp():
+    actor = make_character(1, "Bard")
+    target = make_character(2, "Piotr", hp=10)
+    action = PlayerAction(
+        character_id=1,
+        action_text="Odwracam uwagę przeciwnika, żeby osłonić Piotra",
+        intent="support",
+        target_ref="2",
+        outcome_tier="success",
+    )
+
+    events = resolve_status_turn([actor, target], [action])
+
+    assert target.current_hp == 10
+    assert any(effect["type"] == "guarded" for effect in target.status_effects)
+    assert any(event["type"] == "support_guard" for event in events)
+    assert not any(event["type"] == "support" for event in events)

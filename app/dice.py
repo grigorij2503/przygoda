@@ -30,7 +30,7 @@ ATTRIBUTE_RULES: dict[str, tuple[tuple[str, int], ...]] = {
         (r"\b(?:skocz\w*|wspin\w*|wslizg\w*|czolg\w*|akrobat\w*|balans\w*|uciek\w*)\b", 2),
         (r"\b(?:wytrych\w*|pulapk\w*|krad\w*|kieszon\w*|zwod\w*)\b", 2),
         (r"\b(?:sztylet\w*|noz\w*|rapier\w*|dystans\w*|celuj\w*)\b", 2),
-        (r"\b(?:rzuc\w*|szybk\w*|cich\w*|zwinn\w*)\b", 1),
+        (r"\b(?:rzuc\w*|tarz\w*|szybk\w*|cich\w*|zwinn\w*)\b", 1),
     ),
     "intellect": (
         (r"\b(?:rozum\w*|intelekt\w*|logik\w*)\b", 4),
@@ -173,17 +173,90 @@ def deduce_tested_attribute(
     return str(deduce_tested_attribute_details(action_text, character, intent)["tested_stat"])
 
 
-def calculate_item_modifier(character: Character, tested_stat: str) -> int:
+def calculate_item_modifier_details(
+    character: Character,
+    tested_stat: str,
+    action_text: str | None = None,
+    intent: str | None = None,
+) -> tuple[int, list[dict[str, str | int]]]:
     """
-    Zlicza bonusy z aktualnie wyekwipowanych przedmiotów gracza pasujące do testowanego atrybutu.
+    Zlicza pasujące bonusy i zwraca ich źródła. Broń i tarcza pomagają tylko
+    w działaniach, w których faktycznie mogą zostać użyte; klątwy pozostają
+    aktywne przez cały czas noszenia przedmiotu.
     """
+    equipped = get_effectively_equipped_items(character.inventory)
+    normalized_action = _normalize_action_text(action_text or "")
+    legacy_mode = action_text is None
+    shield_action = bool(re.search(
+        r"\b(?:broni|blokuj|paruj|oslani|zaslani|tarc)\w*\b",
+        normalized_action,
+    ))
+    candidates = []
+    mentioned_item_ids: set[int] = set()
+    for item in equipped:
+        if item.target_stat not in {tested_stat, "all"}:
+            continue
+        item_tokens = [
+            token for token in _normalize_action_text(item.name or "").split()
+            if len(token) >= 3
+        ]
+        mentioned = any(
+            re.search(r"\b" + re.escape(token) + r"\w*\b", normalized_action)
+            for token in item_tokens
+        )
+        if mentioned:
+            mentioned_item_ids.add(id(item))
+        relevant = (
+            legacy_mode
+            or item.item_type not in {"weapon", "shield"}
+            or mentioned
+            or (item.item_type == "weapon" and intent == "attack")
+            or (item.item_type == "weapon" and intent == "defend" and bool(
+                re.search(r"\b(?:paruj|blokuj|odbij)\w*\b", normalized_action)
+            ))
+            or (item.item_type == "shield" and intent == "defend" and shield_action)
+        )
+        if relevant:
+            candidates.append(item)
+
+    # Dwa trzymane oręża nie powinny automatycznie podwajać premii do jednego
+    # rzutu. Gdy akcja nie wymienia obu, liczy się tylko najlepsza broń.
+    weapons = [item for item in candidates if item.item_type == "weapon"]
+    if len(weapons) > 1 and not legacy_mode:
+        mentioned_weapons = [
+            item for item in weapons if id(item) in mentioned_item_ids
+        ]
+        strongest = max(
+            mentioned_weapons or weapons,
+            key=lambda item: (
+                int(item.stat_bonus or 0),
+                int(getattr(item, "damage_power", 0) or 0),
+            ),
+        )
+        candidates = [
+            item for item in candidates
+            if item.item_type != "weapon" or item is strongest
+        ]
+
     modifier = 0
-    for item in get_effectively_equipped_items(character.inventory):
-        if item.target_stat == tested_stat or item.target_stat == "all":
-            modifier += item.stat_bonus
+    sources: list[dict[str, str | int]] = []
+    for item in candidates:
+        bonus = int(item.stat_bonus or 0)
+        if bonus:
+            modifier += bonus
+            sources.append({"name": item.name, "modifier": bonus, "kind": "bonus"})
+    for item in equipped:
         if item.curse_stat == tested_stat:
-            modifier += int(item.curse_penalty or 0)
-    return modifier
+            penalty = int(item.curse_penalty or 0)
+            if penalty:
+                modifier += penalty
+                sources.append({"name": item.name, "modifier": penalty, "kind": "curse"})
+    return modifier, sources
+
+
+def calculate_item_modifier(character: Character, tested_stat: str) -> int:
+    """Zachowuje publiczny adapter używany przez ekwipunek i starsze testy."""
+    return calculate_item_modifier_details(character, tested_stat)[0]
 
 
 def resolve_dice_roll(
@@ -211,7 +284,12 @@ def resolve_dice_roll(
     stat_val = int(getattr(character, tested_stat, 0) or 0)
 
     # Bonus z ekwipunku
-    item_mod = calculate_item_modifier(character, tested_stat)
+    item_mod = calculate_item_modifier_details(
+        character,
+        tested_stat,
+        action_text=action_text,
+        intent=intent,
+    )[0]
 
     # Rzut kością k20 (1-20)
     dice_roll_raw = secrets.randbelow(20) + 1

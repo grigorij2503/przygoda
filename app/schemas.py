@@ -341,10 +341,10 @@ class NewItemSchema(BaseModel):
 class PlayerConsequenceSchema(BaseModel):
     character_id: int = Field(description="ID postaci, której dotyczy konsekwencja")
     individual_summary: str = Field(description="Bezpośredni, zwięzły opis tego, co stało się z tą postacią na skutek jej rzutu i akcji")
-    hp_delta: int = Field(description="Wartość zmiany HP: np. -5 przy ranach, 0 przy braku zmian, +10 przy uleczeniu")
-    xp_gained: int = Field(description="Liczba przyznanych punktów XP (np. 50-100 za turę)")
-    new_items: List[NewItemSchema] = Field(default_factory=list, description="Nowo zdobyte przedmioty")
-    removed_item_names: List[str] = Field(default_factory=list, description="Nazwy zużytych lub utraconych przedmiotów")
+    hp_delta: int = Field(description="Dokładna zmiana HP przekazana przez silnik; przy wsparciu może dotyczyć celu akcji, narrator nie ustala tej wartości")
+    xp_gained: int = Field(description="Dokładna nagroda XP przekazana przez silnik")
+    new_items: List[NewItemSchema] = Field(default_factory=list, description="Zawsze puste; przedmioty przyznaje silnik")
+    removed_item_names: List[str] = Field(default_factory=list, description="Zawsze puste; utratę przedmiotów rozlicza silnik")
 
 class NamingOpportunitySchema(BaseModel):
     category: Literal["boss", "location", "npc", "weapon", "attack"] = Field(

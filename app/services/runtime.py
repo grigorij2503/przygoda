@@ -532,17 +532,18 @@ def apply_map_narrative_update(
     turn_number: int,
     fallback_destination_node_id: str | None = None,
 ) -> None:
-    """Waliduje ruch narratora i zapisuje opis odwiedzonego miejsca w JSON mapy."""
+    """Zapisuje kronikę, ale przemieszczenie bierze wyłącznie z mechaniki ruchu."""
     if not map_update and not fallback_destination_node_id:
         return
 
     layout = json.loads(json.dumps(campaign_map.layout or {}))
     current_node_id = campaign_map.current_node_id or layout.get("start_node_id")
     allowed_ids = {current_node_id, *adjacent_node_ids(layout, current_node_id)}
-    requested_node_id = str(map_update.destination_node_id or "").strip() if map_update else ""
-    destination_node_id = requested_node_id if requested_node_id in allowed_ids else current_node_id
-    if destination_node_id == current_node_id and fallback_destination_node_id in allowed_ids:
-        destination_node_id = fallback_destination_node_id
+    destination_node_id = (
+        fallback_destination_node_id
+        if fallback_destination_node_id in allowed_ids
+        else current_node_id
+    )
     known_node_ids = {str(node.get("id")) for node in layout.get("nodes", [])}
     if destination_node_id not in known_node_ids:
         return

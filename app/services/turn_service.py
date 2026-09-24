@@ -14,11 +14,14 @@ from app.combat import (
     infer_action_intent_details,
     resolve_boss_turn,
     resolve_status_turn,
-    set_character_downed,
     status_roll_penalty,
 )
 from app.database import get_db
-from app.dice import deduce_tested_attribute_details, resolve_dice_roll
+from app.dice import (
+    calculate_item_modifier_details,
+    deduce_tested_attribute_details,
+    resolve_dice_roll,
+)
 from app.gemini_service import resolve_turn_with_gemini
 from app.loot import (
     reconcile_loot_narration,
@@ -52,6 +55,20 @@ from app.services.room_access import require_room
 from app.targeting import infer_character_attack_target
 from app.websocket_manager import ws_manager
 from app.worlds.models import WorldPack
+
+
+OUTCOME_XP = {
+    "critical_success": 120,
+    "success": 80,
+    "partial_success": 60,
+    "failure": 50,
+    "critical_failure": 40,
+}
+
+
+def xp_for_outcome(outcome_tier: str | None) -> int:
+    """XP jest wynikiem zapisanej mechaniki, a nie swobodnej decyzji narratora."""
+    return OUTCOME_XP.get(outcome_tier or "failure", OUTCOME_XP["failure"])
 
 
 async def retry_turn(
@@ -562,6 +579,7 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             # 1. Mechanika tury jest zapisywana dokładnie raz. Retry ponawia wyłącznie narrację.
             actions_with_rolls = []
             if turn.mechanics_resolved_at is None:
+                roll_context_events = []
                 living_characters = [
                     character for character in participating_characters if character.is_alive
                 ]
@@ -613,6 +631,21 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                     action.dice_total = total
                     action.dc = dc
                     action.outcome_tier = outcome_tier
+                    _, item_sources = calculate_item_modifier_details(
+                        char,
+                        tested_stat,
+                        action_text=action.action_text,
+                        intent=action.intent,
+                    )
+                    roll_context_events.append({
+                        "type": "roll_context",
+                        "character_id": char.id,
+                        "actor": char.name,
+                        "tested_stat": tested_stat,
+                        "item_bonus": item_mod,
+                        "item_sources": item_sources,
+                        "status_modifier": roll_penalty,
+                    })
 
                 if session.active_boss_name and session.active_boss_hp and session.active_boss_hp > 0:
                     turn.combat_events = resolve_boss_turn(
@@ -635,6 +668,7 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                     world_pack=world_pack,
                 )
                 turn.combat_events = [
+                    *roll_context_events,
                     *(turn.combat_events or []),
                     *inventory_resolution.events,
                 ]
@@ -666,6 +700,15 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                 turn.mechanics_resolved_at = datetime.now(timezone.utc)
                 await db.commit()
 
+            roll_context_by_character_id = {
+                int(event["character_id"]): event
+                for event in (turn.combat_events or [])
+                if (
+                    isinstance(event, dict)
+                    and event.get("type") == "roll_context"
+                    and str(event.get("character_id") or "").isdigit()
+                )
+            }
             for action in turn.actions:
                 char = char_map.get(action.character_id)
                 if not char or not char.is_participating:
@@ -675,6 +718,16 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                     if action.intent == "attack" and str(action.target_ref or "").isdigit()
                     else None
                 )
+                roll_context = roll_context_by_character_id.get(char.id)
+                if roll_context is not None:
+                    item_sources = list(roll_context.get("item_sources") or [])
+                else:
+                    _, item_sources = calculate_item_modifier_details(
+                        char,
+                        action.tested_stat or "strength",
+                        action_text=action.action_text,
+                        intent=action.intent,
+                    )
                 actions_with_rolls.append({
                     "character_id": char.id,
                     "character_name": char.name,
@@ -699,6 +752,7 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                     "dice_roll_raw": action.dice_roll_raw,
                     "stat_modifier": action.stat_modifier,
                     "item_modifier": action.item_modifier,
+                    "item_modifier_sources": item_sources,
                     "status_modifier": action.status_modifier or 0,
                     "dice_total": action.dice_total,
                     "dc": action.dc,
@@ -707,6 +761,7 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                     "character_damage": int(action.damage_dealt or 0) if party_target else 0,
                     "character_target_name": party_target.name if party_target else None,
                     "hp_delta": action.hp_delta or 0,
+                    "xp_awarded": xp_for_outcome(action.outcome_tier),
                 })
 
             map_context = build_map_narrator_context(campaign_map)
@@ -731,6 +786,22 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                 if isinstance(event, dict) and event.get("type") == "merchant_arrived":
                     gemini_result.gm_story_narration += "\n\n" + event["greeting"]
             for consequence in gemini_result.player_consequences:
+                mechanical_action = next(
+                    (
+                        action for action in turn.actions
+                        if action.character_id == consequence.character_id
+                    ),
+                    None,
+                )
+                if mechanical_action:
+                    # Model opisuje wynik, lecz nie może zmienić mechanicznego
+                    # bilansu HP, XP ani ekwipunku ustalonego przez serwer.
+                    consequence.hp_delta = int(mechanical_action.hp_delta or 0)
+                    consequence.xp_gained = xp_for_outcome(
+                        mechanical_action.outcome_tier
+                    )
+                    consequence.new_items = []
+                    consequence.removed_item_names = []
                 consequence.individual_summary = (
                     strip_loot_claims(
                         consequence.individual_summary,
@@ -771,47 +842,31 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                 session.active_boss_features = []
                 session.active_boss_telegraph = None
 
-            # 3. Zastosowanie konsekwencji dla postaci
+            # 3. Zastosowanie konsekwencji dla postaci. Narrator opisuje, ale
+            # mechanika jest jedynym źródłem zmian HP, XP i ekwipunku.
             level_ups = []
-            boss_combat_event_types = {
-                "player_attack", "character_attack", "boss_attack", "boss_defeated", "phase_change",
-                "environment_success", "environment_failure", "defence", "support",
-                "support_failed", "stabilized", "revived", "resurrection",
-                "resurrection_failed", "death_failure", "character_died",
+            consequence_by_character = {
+                consequence.character_id: consequence
+                for consequence in gemini_result.player_consequences
             }
-            is_mechanical_combat = any(
-                event.get("type") in boss_combat_event_types
-                for event in (turn.combat_events or [])
-                if isinstance(event, dict)
-            )
-            for conseq in gemini_result.player_consequences:
-                char = char_map.get(conseq.character_id)
+            for act in turn.actions:
+                char = char_map.get(act.character_id)
                 if not char or not char.is_participating:
                     continue
+                conseq = consequence_by_character.get(char.id)
+                summary = (
+                    conseq.individual_summary
+                    if conseq else
+                    "Mechaniczny wynik akcji został zapisany; narrator nie zwrócił osobnego podsumowania."
+                )
+                awarded_xp = xp_for_outcome(act.outcome_tier)
 
                 # Przypisanie indywidualnego podsumowania do rekordu akcji
-                for act in turn.actions:
-                    if act.character_id == char.id:
-                        act.gm_individual_summary = conseq.individual_summary
-                        act.xp_gained = conseq.xp_gained
-
-                # Podczas walki z bossem HP rozlicza silnik. Poza walką pozostają
-                # konsekwencje środowiskowe zwracane przez narratora.
-                if not is_mechanical_combat:
-                    previous_hp = char.current_hp
-                    narrative_delta = conseq.hp_delta
-                    if getattr(char, "death_state", "alive") != "alive" and narrative_delta > 0:
-                        narrative_delta = 0
-                    char.current_hp = max(0, min(char.max_hp, char.current_hp + narrative_delta))
-                    applied_hp_delta = char.current_hp - previous_hp
-                    for act in turn.actions:
-                        if act.character_id == char.id:
-                            act.hp_delta = int(act.hp_delta or 0) + applied_hp_delta
-                    if char.current_hp == 0:
-                        set_character_downed(char)
+                act.gm_individual_summary = summary
+                act.xp_gained = awarded_xp
 
                 # XP i Awans (Level Up)
-                char.xp += conseq.xp_gained
+                char.xp += awarded_xp
                 levels_gained = 0
                 # Obsłuż również kilka awansów naraz przy dużej nagrodzie XP.
                 while (
@@ -835,28 +890,6 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                         "levels_gained": levels_gained,
                         "unspent_stat_points": char.unspent_stat_points,
                     })
-
-                # Narrator może nadal rozliczyć fabularną utratę przedmiotu, ale nie
-                # tworzy łupu ani rezultatów craftingu. Te zmiany zapisuje mechanika.
-                items_to_consume = {}
-                for removal_name in conseq.removed_item_names:
-                    normalized_removal_name = normalize_game_text(removal_name)
-                    if not normalized_removal_name:
-                        continue
-                    for item in char.inventory:
-                        normalized_item_name = normalize_game_text(item.name)
-                        if (
-                            normalized_removal_name in normalized_item_name
-                            or normalized_item_name in normalized_removal_name
-                        ):
-                            items_to_consume[item.id] = item
-                            break
-
-                for consumed_item in items_to_consume.values():
-                    if consumed_item.quantity > 1:
-                        consumed_item.quantity -= 1
-                    else:
-                        await db.delete(consumed_item)
 
             # Zapisz turę
             turn.gm_narration = gemini_result.gm_story_narration

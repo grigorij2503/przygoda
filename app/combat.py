@@ -5,7 +5,7 @@ import unicodedata
 from typing import Iterable
 
 from app.inventory import get_effectively_equipped_items
-from app.dice import calculate_item_modifier
+from app.dice import calculate_item_modifier_details
 from app.magic import get_ability
 from app.models import Character, GameSession, InventoryItem, PlayerAction
 from app.worlds.models import WorldPack
@@ -21,6 +21,8 @@ INTENT_RULES: dict[str, tuple[tuple[str, int, str], ...]] = {
         (r"\b(?:atak|natarci|ofensyw)\w*\b", 1, "wzmianka o ataku"),
     ),
     "defend": (
+        (r"\b(?:ugas|gasz|zgasz|stlum|zdusz)\w*\b", 5, "usunięcie płomieni lub szkodliwego efektu"),
+        (r"\btarz\w*\b.{0,60}\b(?:ogien|plomien|poz[a-z]*r)\w*\b", 5, "gaszenie płomieni ruchem obronnym"),
         (r"\b(?:broni|blokuj|paruj|unikam|uskakuj|odskakuj|oslaniam|zaslaniam|chronie|cofam|wycof)\w*\b", 5, "bezpośrednia czynność obronna"),
         (r"\b(?:barykad|zabarykad)\w*\b", 5, "wzniesienie barykady lub zamknięcie przejścia"),
         (r"\b(?:przyjm|zajm)\w*\s+(?:bezpieczn\w*\s+|tward\w*\s+)?pozycj\w*\s+obron\w*\b", 4, "przyjęcie pozycji obronnej"),
@@ -165,6 +167,69 @@ def consume_status(effects: list[dict], effect_type: str) -> list[dict]:
     return [effect for effect in status_list(effects) if effect.get("type") != effect_type]
 
 
+STATUS_RELIEF_PATTERNS: dict[str, tuple[str, ...]] = {
+    "burning": (
+        r"\b(?:ugas|gasz|zgasz|stlum|zdusz)\w*\b",
+        r"\btarz\w*\b.{0,60}\b(?:ogien|plomien|pozar)\w*\b",
+    ),
+    "frozen": (
+        r"\b(?:rozbij|skrusz|zrzuc|uwolni)\w*\b.{0,60}\b(?:lod|szron)\w*\b",
+    ),
+}
+
+
+def infer_status_relief_type(action_text: str) -> str | None:
+    """Rozpoznaje jawnie zadeklarowaną próbę usunięcia własnego efektu."""
+    normalized = normalize_text(action_text)
+    for effect_type, patterns in STATUS_RELIEF_PATTERNS.items():
+        if any(re.search(pattern, normalized) for pattern in patterns):
+            return effect_type
+    return None
+
+
+def _resolve_status_relief_action(
+    character: Character,
+    action: PlayerAction,
+    events: list[dict],
+) -> bool:
+    effect_type = infer_status_relief_type(action.action_text)
+    if not effect_type:
+        return False
+    effects = status_list(character.status_effects)
+    effect = next((item for item in effects if item.get("type") == effect_type), None)
+    if not effect:
+        return True
+
+    outcome = action.outcome_tier or "failure"
+    event_base = {
+        "actor": character.name,
+        "target": character.name,
+        "effect": effect_type,
+        "effect_label": effect.get("label") or effect_type,
+        "effect_icon": effect.get("icon") or "⚠️",
+        "outcome_tier": outcome,
+    }
+    if outcome in {"success", "critical_success"}:
+        character.status_effects = consume_status(effects, effect_type)
+        events.append({"type": "status_removed", **event_base})
+        return True
+    if outcome == "partial_success":
+        previous_duration = max(1, int(effect.get("turns_remaining", 1)))
+        previous_potency = max(1, int(effect.get("potency", 1)))
+        effect["turns_remaining"] = max(1, previous_duration - 1)
+        effect["potency"] = max(1, previous_potency - 1)
+        character.status_effects = effects
+        events.append({
+            "type": "status_reduced",
+            **event_base,
+            "turns_reduced": previous_duration - int(effect["turns_remaining"]),
+            "potency_reduced": previous_potency - int(effect["potency"]),
+        })
+        return True
+    events.append({"type": "status_relief_failed", **event_base})
+    return True
+
+
 def infer_item_damage_power(item: InventoryItem) -> int:
     configured = int(getattr(item, "damage_power", 0) or 0)
     if configured > 0:
@@ -191,7 +256,12 @@ def estimate_character_damage(character: Character, defense_dc: int, armor: int)
     estimates = []
     for tested_stat in ("strength", "agility", "intellect", "charisma", "perception"):
         stat_value = int(getattr(character, tested_stat, 0) or 0)
-        item_bonus = calculate_item_modifier(character, tested_stat)
+        item_bonus = calculate_item_modifier_details(
+            character,
+            tested_stat,
+            action_text="atakuję przeciwnika",
+            intent="attack",
+        )[0]
         item = offensive_item(character, tested_stat)
         weapon_power = infer_item_damage_power(item) if item else 2
         base_damage = weapon_power + stat_value + character.level // 2
@@ -553,6 +623,61 @@ def _resolve_support_action(
         events.append({"type": "support_failed", "actor": actor.name, "target": target.name})
         return
 
+    mechanic_key = ability.get("mechanic_key") if ability else None
+    params = ability.get("mechanic_params", {}) if ability else {}
+    healing_intent = mechanic_key == "heal" or bool(re.search(
+        r"\b(?:lecz|uzdraw|opatru|stabiliz|bandaz|reanim|pierwsz\w*\s+pomoc)\w*\b",
+        normalize_text(action.action_text),
+    ))
+
+    if mechanic_key == "cleanse":
+        removable = {
+            marker.strip() for marker in str(
+                params.get("status_types", "burning,poisoned,frozen")
+            ).split(",") if marker.strip()
+        }
+        before = status_list(target.status_effects)
+        removed = sorted({
+            str(effect.get("type")) for effect in before
+            if effect.get("type") in removable
+        })
+        target.status_effects = [
+            effect for effect in before if effect.get("type") not in removable
+        ]
+        events.append({
+            "type": "ability_cleanse", "actor": actor.name,
+            "target": target.name, "removed_types": removed,
+        })
+        return
+
+    if not healing_intent:
+        if target_state in {"downed", "stable"}:
+            events.append({
+                "type": "support_failed",
+                "actor": actor.name,
+                "target": target.name,
+                "reason": "incapacitated_requires_healing",
+            })
+            return
+        default_potency = {
+            "partial_success": 1,
+            "success": 2,
+            "critical_success": 3,
+        }[outcome]
+        potency = int(params.get("potency", default_potency))
+        duration = int(params.get("duration", 2))
+        target.status_effects = add_status(
+            status_list(target.status_effects),
+            make_status("guarded", duration, potency, actor.name, world_pack),
+        )
+        events.append({
+            "type": "support_guard",
+            "actor": actor.name,
+            "target": target.name,
+            "potency": potency,
+        })
+        return
+
     if target_state in {"downed", "stable"} and outcome == "partial_success":
         target.death_state = "stable"
         target.death_failures = 0
@@ -561,8 +686,6 @@ def _resolve_support_action(
         return
 
     multiplier = 1 if outcome == "partial_success" else 2 if outcome == "success" else 3
-    mechanic_key = ability.get("mechanic_key") if ability else None
-    params = ability.get("mechanic_params", {}) if ability else {}
     if mechanic_key == "heal" and params:
         tested_stat = str(ability.get("tested_stat") or "intellect")
         stat_value = int(getattr(actor, tested_stat, 0) or 0)
@@ -583,32 +706,6 @@ def _resolve_support_action(
     target.death_state = "alive"
     target.death_failures = 0
     action.hp_delta = int(action.hp_delta or 0) + applied
-    if outcome == "critical_success":
-        target.status_effects = [
-            effect for effect in status_list(target.status_effects)
-            if effect.get("type") not in {"burning", "poisoned", "frozen"}
-        ]
-    if mechanic_key == "cleanse":
-        removable = {
-            marker.strip() for marker in str(
-                params.get("status_types", "burning,poisoned,frozen")
-            ).split(",") if marker.strip()
-        }
-        target.status_effects = [
-            effect for effect in status_list(target.status_effects)
-            if effect.get("type") not in removable
-        ]
-        events.append({
-            "type": "ability_cleanse", "actor": actor.name,
-            "target": target.name, "removed_types": sorted(removable),
-        })
-    if mechanic_key == "support":
-        duration = int(params.get("duration", 2))
-        potency = int(params.get("potency", 2))
-        target.status_effects = add_status(
-            status_list(target.status_effects),
-            make_status("guarded", duration, potency, actor.name, world_pack),
-        )
     events.append({
         "type": "revived" if target_state in {"downed", "stable"} else "support",
         "actor": actor.name,
@@ -969,6 +1066,9 @@ def resolve_boss_turn(
     for character in characters:
         action = action_by_character.get(character.id)
         if action:
+            # Samoobrona przed aktywnym efektem zachodzi przed jego tyknięciem.
+            # Udane ugaszenie nie może najpierw zranić postaci "za sukces".
+            _resolve_status_relief_action(character, action, events)
             _tick_character_effects(character, action, events)
 
     intent_priority = {"interact": 0, "defend": 1, "support": 1, "attack": 2, "other": 3}
@@ -1092,6 +1192,7 @@ def resolve_status_turn(
     for character in characters:
         action = action_by_character.get(character.id)
         if action and character.is_alive and character.is_participating:
+            _resolve_status_relief_action(character, action, events)
             _tick_character_effects(character, action, events)
     for action in actions:
         actor = next((item for item in characters if item.id == action.character_id), None)

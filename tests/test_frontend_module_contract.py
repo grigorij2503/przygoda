@@ -77,7 +77,7 @@ def test_local_frontend_assets_are_precached_and_scripts_load_before_alpine():
     )
 
     assert all(f"'{url}'" in service_worker for url in local_assets)
-    assert "const CACHE_NAME = 'ttrpg-gemini-v56';" in service_worker
+    assert "const CACHE_NAME = 'ttrpg-gemini-v57';" in service_worker
 
     scripts = re.findall(r'<script[^>]+src="([^"]+)"', index_source)
     app_index = scripts.index("/static/js/app.js?v=35")

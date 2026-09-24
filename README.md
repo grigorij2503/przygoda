@@ -9,7 +9,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 1. **AI Mistrz Gry (Gemini 3.8 Flash):**
    - Wymuszone formatowanie **Strict Structured Output JSON** (Pydantic).
    - Gemini interpretuje wyniki rzutów wykonanych przez backend i tworzy filmową narrację.
-   - Narracja uwzględnia mechaniczne konsekwencje tury, rozwój postaci, walkę i stan świata zapisany przez backend.
+   - Narracja uwzględnia mechaniczne konsekwencje tury, rozwój postaci, walkę i stan świata zapisany przez backend. Model nie ustala ani nie zmienia HP, XP, ekwipunku, statusów ani mechanicznego ruchu na mapie; otrzymuje gotowy dziennik zdarzeń i opisuje jego rezultat.
    - Sugerowanie plastycznych promptów dla sceny w języku angielskim dla Imagen 3.
 2. **Serwerowy Silnik Rzutów d20:**
    - Kryptograficznie bezpieczny generator liczb losowych (`secrets` w Pythonie); wynik jest losowy, a nie deterministyczny.
@@ -19,8 +19,9 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
    - Formularz na bieżąco pokazuje nieblokującą interpretację (`zamiar • cecha`), poziom niskiej pewności i krótkie uzasadnienie; gracz może opcjonalnie skorygować oba pola przed zatwierdzeniem bez rezygnowania ze swobodnego opisu.
    - Atak na członka drużyny wskazuje cel w opisie akcji, bez listy celów ataku. Podgląd pokazuje rozpoznaną postać; przy niejednoznacznym „koledze” w większej drużynie trzeba dopisać imię.
    - Podgląd interpretacji działa przez osobny endpoint, a formularz czytelnie obsługuje zarówno błędy JSON, jak i tekstowe odpowiedzi serwera przy zatwierdzaniu akcji.
-   - Dynamiczne kalkulowanie modyfikatorów cech oraz założonego ekwipunku ($\text{Wynik} = d20 + \text{Cecha} + \text{Ekwipunek}$).
+   - Dynamiczne kalkulowanie modyfikatorów cech oraz założonego, istotnego dla deklaracji ekwipunku ($\text{Wynik} = d20 + \text{Cecha} + \text{Ekwipunek}$). Broń i tarcza nie dodają premii do niezwiązanej czynności, jeden rzut korzysta najwyżej z jednej broni, a jawnie wymieniony oręż ma pierwszeństwo; klątwy pozostają aktywne podczas noszenia.
    - Klasyfikacja: *Krytyczny Sukces* (nat 20), *Sukces* ($\ge$ DC), *Częściowy Sukces* (DC-2 do DC-1), *Porażka*, *Krytyczna Porażka* (nat 1); domyślny próg to DC 12, lecz mechanika może go zmienić.
+   - XP jest deterministycznie przypisane do zapisanego poziomu wyniku (`120/80/60/50/40`), więc ponowienie narracji nie zmienia nagrody.
    - Wyzwania poza walką mają zapisany poziom: zwykłe DC 12, trudne DC `min(25, 15 + średni poziom drużyny // 2)`, kulminacyjne DC `min(30, 18 + średni poziom drużyny // 2)`. Gemini wybiera poziom dla opisanego wyzwania, a serwer wylicza próg. W trybie offline trudniejsza próba przypada co trzecią turę, a kulminacyjna co piątą.
 3. **Turn Gating (Blokada Tury):**
    - Tura rozstrzyga się dopiero, gdy **wszyscy żywi i aktywni gracze** w pokoju zatwierdzą swoje akcje.
@@ -51,16 +52,18 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
    - Subskrypcje są przypisane do wybranej postaci i działają po zamknięciu PWA.
 8. **Mapa Kampanii:**
    - Proceduralna mapa powiązana z sesją, odkrywanie lokacji i przechodzenie wyłącznie pomiędzy sąsiednimi węzłami.
-   - Udana deklaracja przejścia wskazuje sąsiednią lokację również wtedy, gdy odpowiedź narratora nie zawiera poprawnego ruchu mapy; jawnie nazwana sąsiednia lokacja ma pierwszeństwo. Opis poprzedniego pokoju pozostaje przypisany do jego węzła.
+   - Udana deklaracja przejścia wskazuje sąsiednią lokację również wtedy, gdy odpowiedź narratora nie zawiera poprawnego ruchu mapy; jawnie nazwana sąsiednia lokacja ma pierwszeństwo. Narrator uzupełnia kronikę, ale nie może sam przenieść drużyny po nieudanym rzucie. Opis poprzedniego pokoju pozostaje przypisany do jego węzła.
    - Historia odkrytych miejsc jest przechowywana w bazie i synchronizowana między graczami.
    - Widok automatycznie kadruje odkryty obszar, obsługuje powiększanie, pomniejszanie, przeciąganie oraz szybki powrót do pozycji drużyny. Przebyte połączenia i drzwi są odróżnione od niezbadanych przejść.
 9. **Starcia i Efekty Statusu:**
    - HP nowego głównego zagrożenia odpowiada około 3–4 turam oczekiwanych obrażeń żywej drużyny, z uwzględnieniem trafień k20, wyposażenia i pancerza. Parametry starcia są ustalane przy jego rozpoczęciu; pancerz, DC obrony, fazy, cechy specjalne i zapowiadane akcje nadal działają. Spokojniejsze kampanie mogą prowadzić tury bez starcia.
   - Wróg odpowiada raz przy 1–2 żywych graczach, dwa razy przy 3–4 i trzy razy przy co najmniej 5; wybiera różne cele. Liczba zapisana przy utworzeniu starcia jest maksimum, a każda odpowiedź i jej zapowiedź są ograniczane do aktualnej liczby uczestniczących żywych postaci. Samotny bohater otrzymuje słabszy pojedynczy cios. Trwające wcześniej starcia bez zapisanego licznika zachowują najwyżej jedną odpowiedź na turę.
    - Osobne rozstrzyganie ataku, obrony, wsparcia wskazanego sojusznika i efektów czasowych postaci oraz przeciwnika.
+   - Jawna próba ugaszenia płomieni lub uwolnienia się z lodu jest obroną. Sukces usuwa status przed jego obrażeniami w tej turze, częściowy sukces go osłabia, a porażka pozostawia efekt aktywny. Późniejszy cios przeciwnika może nałożyć efekt ponownie, co jest pokazane jako osobne zdarzenie.
    - Trafienie w członka drużyny odejmuje HP przez silnik, także poza starciem z głównym przeciwnikiem; rzut kamieniem ma niższe obrażenia improwizowane. Leczenie i oczyszczenie mogą wskazywać samego rzucającego, wskrzeszenie pozostaje skierowane do innej poległej postaci.
+   - Zwykłe wsparcie, takie jak odwrócenie uwagi, daje ochronę zamiast nieuzasadnionego leczenia. HP przywraca tylko deklaracja leczenia lub zdolność lecznicza, a oczyszczenie usuwa wyłącznie wskazane statusy.
   - Jawne stany `agonia → stabilny / śmierć`: postać w agonii otrzymuje jedną porażkę śmierci na turę, trzecia oznacza zgon; wsparcie może stabilizować lub podnieść bohatera. Gdy cała aktywna drużyna jest obezwładniona, panel tury przechodzi w tryb kryzysowy: MG może zakończyć kampanię albo zarządzić awaryjny odwrót, który zamyka starcie, usuwa szkodliwe efekty i przywraca postacie w agonii/stabilne z 1 PW bez wskrzeszania poległych i bez zmiany postaci na przerwie.
-  - Zakończona tura pokazuje niezależny od narracji AI mechaniczny zapis obrażeń ze statusów, ciosów przeciwnika i redukcji obrony, dzięki czemu spadek HP ma zawsze widoczne źródło.
+  - Zakończona tura rozdziela „cel akcji” od niezależnych konsekwencji i pokazuje mechaniczny zapis premii ekwipunku, zdjętych/osłabionych statusów, udanego lub nieskutecznego wsparcia i zdolności, obrażeń ze statusów, ciosów przeciwnika i redukcji obrony. Łączna zmiana zdrowia jest oznaczona jako bilans całej tury, więc sukces działania nie wygląda jak źródło późniejszego kontrataku.
 10. **Zdolności Klasowe:**
     - Każda klasa używa księgi właściwej swojemu światu: od czarów Czarodzieja i modlitw Kleryka po hacki, dedukcję lub komediowe sztuczki.
     - Zdolności odblokowywane poziomami, walidowane po stronie backendu i powiązane z właściwą cechą postaci.
@@ -160,10 +163,10 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │       └── partials/          # Brama, lobby, stół, panele funkcjonalne i osobne modale Jinja
 ├── tests/
 │   ├── conftest.py            # Wspólna izolowana kampania Dark Fantasy dla testów integracyjnych
-│   ├── test_combat.py         # Testy walki, wyposażenia i efektów statusu
+│   ├── test_combat.py         # Testy walki, gaszenia/osłabiania efektów i zapisu statusów
 │   ├── test_encounter_difficulty.py # HP i odpowiedzi wroga oraz poziomy DC przeszkód
 │   ├── test_current_world_contract.py # Kontrakt regresyjny bieżącego świata, tras, klas, ksiąg, mapy i UI
-│   ├── test_dice.py           # Testy rzutów kośćmi i modyfikatorów
+│   ├── test_dice.py           # Testy rzutów i istotnych dla deklaracji modyfikatorów ekwipunku
 │   ├── test_frontend_module_contract.py # Partiale, zasoby, kaskada CSS, kolejność skryptów i cache PWA
 │   ├── test_inventory_transfer.py # Sloty hełmu/butów oraz przekaz stosu w izolowanej bazie
 │   ├── test_full_resolution.py # Test pełnego cyklu tury i awansu
@@ -172,7 +175,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │   ├── test_market.py         # Handel i konsekwencje kradzieży w izolowanej bazie
 │   ├── test_multi_room_access.py # Niezależne hasła, izolacja pokoi i zachowanie starej kampanii
 │   ├── test_character_breaks.py # Przerwa postaci, zachowanie postępu i powrót do gry
-│   ├── test_character_targets.py # Atak na postać odczytany z opisu i samoleczenie
+│   ├── test_character_targets.py # Atak na postać, samoleczenie i ochronne wsparcie bez leczenia
 │   ├── test_turn_flow.py      # Testy API, autoryzacji i akcji
 │   ├── test_stage6_world_content.py # Próbny pakiet: klasy, księga, mapa, przeciwnik i walidacja mechanik
 │   ├── test_stage7_theme_selection.py # Kontrolowane motywy i wybór świata tylko przy restarcie
@@ -402,15 +405,15 @@ Zakres testów:
   - Sprawdza kluczowe markery UI już po złożeniu wszystkich partiali Jinja.
   - Lokalizuje finał mapy przez stabilne `final_node_id`, niezależnie od kolejności dopisanych odnóg.
 - `tests/test_combat.py`:
-  - Rozpoznawanie dominującej intencji, w tym zdań zawierających mylące przysłowia lub wzmianki o innym typie akcji, skalowanie bossów, obrażenia, efekty statusu oraz walidacja używanego ekwipunku z polskimi znakami.
+  - Rozpoznawanie dominującej intencji, w tym gaszenia płomieni oraz zdań zawierających mylące przysłowia, skalowanie bossów, obrażenia, usuwanie efektów przed ich tyknięciem i walidacja używanego ekwipunku z polskimi znakami.
 - `tests/test_encounter_difficulty.py`:
   - Zależność HP od szansy trafienia, pancerza i wyposażenia, osobne cele odpowiedzi wroga, utrwalenie maksymalnej liczby ataków, dynamiczny limit aktualnej drużyny, rozbicie redukcji obrony oraz serwerowe DC trzech poziomów wyzwania.
 - `tests/test_dice.py`:
   - Dedukcja atrybutów z treści deklaracji gracza (Siła, Zręczność, Rozum, Charyzma i Percepcja), z ignorowaniem słabych ozdobników narracyjnych przy fizycznym ataku oraz rozdzieleniem obserwacji od analizy.
-  - Obliczanie modyfikatorów z aktywnego ekwipunku.
+  - Obliczanie modyfikatorów z aktywnego ekwipunku istotnego dla deklaracji, bez sumowania dwóch broni do jednego rzutu i z pierwszeństwem jawnie użytego oręża.
   - Wyznaczanie progów sukcesu i kontrolowany testowo rzut k20.
 - `tests/test_full_resolution.py`:
-  - Pełny cykl rozstrzygnięcia tury, zapis narracji, aktualizacja HP/XP i awans w izolowanej kampanii Dark Fantasy.
+  - Pełny cykl rozstrzygnięcia tury, zapis narracji, mechaniczna aktualizacja HP, deterministyczne XP według poziomu wyniku i awans w izolowanej kampanii Dark Fantasy.
 - `tests/test_frontend_module_contract.py`:
   - Renderowanie wszystkich partiali Jinja i istnienie wskazanych zasobów lokalnych.
   - Kolejność modułów CSS i skryptów Alpine oraz kompletność wersjonowanego cache PWA.
@@ -425,7 +428,7 @@ Zakres testów:
 - `tests/test_character_breaks.py`:
   - Odwracalna przerwa przez endpoint MG, zachowanie poziomu/XP/HP/salda, usunięcie deklaracji i głosowania zastępczego z otwartej tury oraz awaryjny odwrót całkowicie obezwładnionej aktywnej drużyny w izolowanej bazie.
 - `tests/test_character_targets.py`:
-  - Odczyt celu ataku na postać z opisu, obrażenia improwizowanym kamieniem i leczenie własnej postaci.
+  - Odczyt celu ataku na postać z opisu, obrażenia improwizowanym kamieniem, leczenie własnej postaci oraz ochronne wsparcie bez sztucznego odnawiania HP.
 - `tests/test_multi_room_access.py`:
   - Niezależne hasła i stan równoległych pokoi, przypięcie świata/scenariusza przy tworzeniu oraz zachowanie historycznej kampanii i neutralnej formy narracji.
 - `tests/test_turn_flow.py`:
