@@ -275,6 +275,23 @@
           await this.fetchSession();
           break;
 
+        case 'CHARACTER_HEALTH_UPDATED':
+          if (this.selectedCharacterId === msg.character_id && !this.isSavingGmHealth) {
+            this.addToast(`MG ustawił Twoje PW na ${msg.current_hp}/${msg.max_hp}.`, 'info');
+          }
+          await this.fetchSession();
+          if (!this.isSavingGmHealth && Number(this.gmStatCharacterId) === msg.character_id) {
+            this.loadGmCharacterStats();
+          }
+          break;
+
+        case 'CONSUMABLE_GRANTED':
+          if (this.selectedCharacterId === msg.character_id && !this.isGrantingConsumable) {
+            this.addToast(`MG podarował Ci ${msg.quantity} × ${msg.item_name}.`, 'success');
+          }
+          await this.fetchSession('grant');
+          break;
+
         case 'WEARABLE_GRANTED':
           if (this.selectedCharacterId === msg.character_id && !this.isGrantingWearable) {
             this.addToast(`MG dodał do Twojego plecaka: ${msg.item_name}.`, 'success');

@@ -19,6 +19,8 @@ from app.models import (
 )
 from app.schemas import (
     AdminAdjustCoinsRequest,
+    AdminGrantConsumableRequest,
+    AdminSetCharacterHealthRequest,
     AdminGrantWearableRequest,
     AdminSetParticipationRequest,
     AdminUpdateCharacterStatsRequest,
@@ -35,6 +37,7 @@ from app.services.runtime import (
     logger,
     require_gm,
 )
+from app.services.world_service import get_session_world_pack
 from app.websocket_manager import ws_manager
 from app.services.room_access import require_room
 
@@ -196,6 +199,143 @@ async def adjust_character_coins(
         "character_id": character.id,
         "character_name": character.name,
         "coins": character.coins,
+    }
+
+
+async def set_character_health(
+    character_id: int,
+    payload: AdminSetCharacterHealthRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    require_room(request, payload.room_code)
+    require_gm(request)
+    row = (await db.execute(
+        select(Character, GameSession)
+        .join(GameSession)
+        .where(
+            Character.id == character_id,
+            GameSession.room_code == payload.room_code,
+        )
+        .with_for_update()
+    )).one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Postać nie istnieje w tym pokoju")
+    character, session = row
+    if session.is_turn_resolving:
+        raise HTTPException(status_code=409, detail="Poczekaj na rozstrzygnięcie tury")
+    if payload.current_hp > character.max_hp:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Punkty życia nie mogą przekroczyć maksimum ({character.max_hp})",
+        )
+
+    previous_hp = int(character.current_hp or 0)
+    character.current_hp = payload.current_hp
+    if payload.current_hp > 0:
+        character.is_alive = True
+        character.death_state = "alive"
+        character.death_failures = 0
+    elif character.death_state != "dead":
+        character.is_alive = False
+        character.death_state = "downed"
+        character.death_failures = 0
+
+    await db.commit()
+    logger.warning(
+        "MG zmienił PW postaci %s (ID %s): %s -> %s",
+        character.name,
+        character.id,
+        previous_hp,
+        character.current_hp,
+    )
+    await ws_manager.broadcast_to_session(session.id, {
+        "type": "CHARACTER_HEALTH_UPDATED",
+        "character_id": character.id,
+        "character_name": character.name,
+        "current_hp": character.current_hp,
+        "max_hp": character.max_hp,
+        "is_alive": character.is_alive,
+        "death_state": character.death_state,
+        "death_failures": character.death_failures,
+    })
+    return {
+        "success": True,
+        "character_id": character.id,
+        "character_name": character.name,
+        "current_hp": character.current_hp,
+        "max_hp": character.max_hp,
+        "death_state": character.death_state,
+    }
+
+
+async def grant_character_consumable(
+    character_id: int,
+    payload: AdminGrantConsumableRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    require_room(request, payload.room_code)
+    require_gm(request)
+    row = (await db.execute(
+        select(Character, GameSession)
+        .join(GameSession)
+        .where(
+            Character.id == character_id,
+            GameSession.room_code == payload.room_code,
+        )
+        .with_for_update()
+    )).one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Postać nie istnieje w tym pokoju")
+    character, session = row
+    if session.is_turn_resolving:
+        raise HTTPException(status_code=409, detail="Poczekaj na rozstrzygnięcie tury")
+
+    world_pack = get_session_world_pack(session)
+    definition = world_pack.consumable_loot
+    healing = min(
+        definition.healing_cap,
+        definition.base_healing + int(character.level or 1) * definition.healing_per_level,
+    )
+    existing = (await db.execute(
+        select(InventoryItem).where(
+            InventoryItem.character_id == character.id,
+            InventoryItem.item_type == "consumable",
+            InventoryItem.name == definition.name,
+            InventoryItem.stat_bonus == healing,
+        ).limit(1).with_for_update()
+    )).scalar_one_or_none()
+    if existing:
+        existing.quantity = int(existing.quantity or 1) + payload.quantity
+    else:
+        db.add(InventoryItem(
+            character_id=character.id,
+            name=definition.name,
+            description=definition.description_template.format(healing=healing),
+            item_type="consumable",
+            target_stat="none",
+            stat_bonus=healing,
+            damage_power=0,
+            hands_required=1,
+            is_equipped=False,
+            quantity=payload.quantity,
+        ))
+    await db.commit()
+    await ws_manager.broadcast_to_session(session.id, {
+        "type": "CONSUMABLE_GRANTED",
+        "character_id": character.id,
+        "character_name": character.name,
+        "item_name": definition.name,
+        "quantity": payload.quantity,
+        "healing": healing,
+    })
+    return {
+        "success": True,
+        "character_name": character.name,
+        "item_name": definition.name,
+        "quantity": payload.quantity,
+        "healing": healing,
     }
 
 

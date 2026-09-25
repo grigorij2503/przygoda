@@ -10,6 +10,7 @@ from starlette.requests import Request
 
 from app.combat import (
     build_enemy_encounter,
+    clear_active_enemy,
     effective_attack_telegraph,
     ensure_enemy_encounter,
     infer_item_damage_power,
@@ -490,7 +491,7 @@ async def resolve_party_crisis(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    """Let the GM turn a fully incapacitated active party into a costly retreat."""
+    """Let the GM end an active encounter or rescue a fully incapacitated party."""
     require_room(request, payload.room_code)
     require_gm(request)
     session = (await db.execute(
@@ -509,16 +510,17 @@ async def resolve_party_crisis(
         select(Character).where(Character.session_id == session.id).with_for_update()
     )).scalars())
     active_characters = [character for character in characters if character.is_participating]
-    if any(character.is_alive for character in active_characters):
+    has_active_enemy = bool(session.active_boss_name and (session.active_boss_hp or 0) > 0)
+    if any(character.is_alive for character in active_characters) and not has_active_enemy:
         raise HTTPException(
             status_code=409,
-            detail="Awaryjny odwrót jest dostępny dopiero, gdy żadna aktywna postać nie jest zdolna do działania",
+            detail="Odwrót MG wymaga aktywnego starcia albo całkowicie obezwładnionej drużyny",
         )
     recoverable = [
         character for character in active_characters
         if character.death_state in {"downed", "stable"}
     ]
-    if not recoverable:
+    if not recoverable and not has_active_enemy:
         raise HTTPException(
             status_code=409,
             detail="Brak obezwładnionych postaci, które mogą zostać uratowane odwrotem",
@@ -552,37 +554,38 @@ async def resolve_party_crisis(
         recovered_names.append(character.name)
 
     enemy_name = session.active_boss_name
-    session.active_boss_name = None
-    session.active_boss_title = None
-    session.active_boss_hp = None
-    session.active_boss_max_hp = None
-    session.active_boss_armor = 0
-    session.active_boss_defense_dc = 12
-    session.active_boss_phase = 1
-    session.active_boss_effects = []
-    session.active_boss_features = []
-    session.active_boss_telegraph = None
+    clear_active_enemy(session)
     session.crafting_available_until_turn = 0
     session.market_state = {}
     session.market_revision = int(session.market_revision or 0) + 1
 
     now = datetime.now(timezone.utc)
-    names = ", ".join(recovered_names)
+    retreating_names = [
+        character.name for character in active_characters if character.is_alive
+    ]
+    names = ", ".join(retreating_names or recovered_names)
     enemy_clause = f" spod przewagi przeciwnika {enemy_name}" if enemy_name else " z bezpośredniego zagrożenia"
-    narration = (
-        f"Cała aktywna drużyna została obezwładniona. Awaryjna pomoc wyciągnęła {names}"
-        f"{enemy_clause}, lecz odwrót kosztował bohaterów zwycięstwo w tym starciu. "
-        "Ocaleni odzyskują przytomność z 1 PW, a szkodliwe efekty przestają działać."
-    )
+    if recovered_names:
+        narration = (
+            f"MG zarządza awaryjny odwrót i wyciąga {names}{enemy_clause}. "
+            "Starcie kończy się bez zwycięstwa i łupu. Obezwładnieni ocaleni odzyskują "
+            "przytomność z 1 PW, a ich szkodliwe efekty przestają działać."
+        )
+    else:
+        narration = (
+            f"MG zarządza odwrót. {names} zrywają kontakt{enemy_clause}. "
+            "Starcie kończy się bez zwycięstwa i łupu, a zachowane obrażenia i efekty wymagają opatrzenia."
+        )
     next_prompt = (
         "Po dotkliwej porażce drużyna dochodzi do siebie w bezpiecznym miejscu. "
         "Trzeba opatrzyć rany, ocenić straty i zdecydować, czy wrócić po rewanż. Co robicie?"
     )
     turn.combat_events = [{
         "type": "party_retreat",
-        "characters": recovered_names,
+        "characters": retreating_names or recovered_names,
         "enemy": enemy_name,
-        "restored_hp": 1,
+        "restored_hp": 1 if recovered_names else 0,
+        "mode": "gm",
     }]
     turn.gm_narration = narration
     turn.next_turn_prompt = next_prompt

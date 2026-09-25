@@ -219,7 +219,8 @@
     },
 
     async resolvePartyCrisis() {
-      if (!this.hasPartyCrisis || this.recoverablePartyCrisisCount < 1) return;
+      if (!(this.hasPartyCrisis || (this.activeEnemy?.hp > 0))) return;
+      if (!confirm('Zakończyć bieżące starcie odwrotem? Przeciwnik nie zostanie pokonany, a drużyna nie otrzyma łupu.')) return;
       this.partyCrisisError = '';
       this.isResolvingPartyCrisis = true;
       try {
@@ -236,7 +237,12 @@
         if (!res.ok) throw new Error(data.detail || 'Nie udało się rozstrzygnąć kryzysu drużyny.');
         this.showIntroModal = false;
         await this.fetchSession();
-        this.addToast('Drużyna wycofała się awaryjnie i odzyskała zdolność działania.', 'warning');
+        this.addToast(
+          data.recovered_character_ids?.length
+            ? 'Drużyna wycofała się awaryjnie, a obezwładnieni wrócili z 1 PW.'
+            : 'Drużyna wycofała się ze starcia. Zachowano jej obecny stan PW.',
+          'warning'
+        );
         this.scrollToCurrentTurn(false);
       } catch (error) {
         this.partyCrisisError = error.message;
@@ -350,8 +356,10 @@
     loadGmCharacterStats() {
       const character = this.gmStatCharacter;
       this.gmStatError = '';
+      this.gmHealthError = '';
       if (!character) {
         this.gmOriginalStats = null;
+        this.gmHealthValue = 0;
         return;
       }
       const stats = {
@@ -363,6 +371,62 @@
       };
       this.gmStatForm = { ...stats };
       this.gmOriginalStats = { ...stats };
+      this.gmHealthValue = Number(character.current_hp || 0);
+    },
+
+    async saveGmHealth() {
+      const character = this.gmStatCharacter;
+      const currentHp = Number(this.gmHealthValue);
+      this.gmHealthError = '';
+      if (!character || !Number.isInteger(currentHp) || currentHp < 0 || currentHp > Number(character.max_hp || 0)) {
+        this.gmHealthError = `PW musi być liczbą całkowitą od 0 do ${character?.max_hp || 0}.`;
+        return;
+      }
+      this.isSavingGmHealth = true;
+      try {
+        const res = await fetch(`/api/admin/characters/${character.id}/health`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room_code: this.roomCode, current_hp: currentHp })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 403) { this.requireGmUnlock(); return; }
+        if (!res.ok) throw new Error(data.detail || 'Nie udało się zmienić punktów życia.');
+        await this.fetchSession();
+        this.loadGmCharacterStats();
+        this.addToast(`${data.character_name}: ${data.current_hp}/${data.max_hp} PW.`, 'success');
+      } catch (err) {
+        this.gmHealthError = err.message;
+      } finally {
+        this.isSavingGmHealth = false;
+      }
+    },
+
+    async grantGmConsumable() {
+      const character = this.gmStatCharacter;
+      const quantity = Number(this.gmConsumableQuantity);
+      this.gmConsumableError = '';
+      if (!character || !Number.isInteger(quantity) || quantity < 1 || quantity > 20) {
+        this.gmConsumableError = 'Wybierz postać i liczbę od 1 do 20.';
+        return;
+      }
+      this.isGrantingConsumable = true;
+      try {
+        const res = await fetch(`/api/admin/characters/${character.id}/consumables`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room_code: this.roomCode, quantity })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 403) { this.requireGmUnlock(); return; }
+        if (!res.ok) throw new Error(data.detail || 'Nie udało się podarować środka leczniczego.');
+        await this.fetchSession('grant');
+        this.addToast(`Dodano ${data.quantity} × ${data.item_name} (+${data.healing} PW).`, 'success');
+      } catch (err) {
+        this.gmConsumableError = err.message;
+      } finally {
+        this.isGrantingConsumable = false;
+      }
     },
 
     async saveGmCharacterStats() {

@@ -3,10 +3,12 @@ from app.combat import (
     build_boss_encounter,
     calculate_attack_damage,
     infer_action_intent,
+    is_retreat_action,
     make_status,
+    resolve_boss_turn,
     resolve_status_turn,
 )
-from app.models import Character, InventoryItem, PlayerAction
+from app.models import Character, GameSession, InventoryItem, PlayerAction
 from app.main import validate_action_item_claim
 
 
@@ -40,6 +42,49 @@ def test_defensive_declaration_is_not_treated_as_attack():
     intent = infer_action_intent("Blokuję atak bossa tarczą i osłaniam sojusznika")
 
     assert intent == "defend"
+
+
+def test_escape_declaration_is_a_defensive_retreat():
+    text = "Uciekamy i zrywamy kontakt z bossem"
+
+    assert infer_action_intent(text) == "defend"
+    assert is_retreat_action(text) is True
+    assert is_retreat_action("Nie uciekamy, walczymy dalej") is False
+
+
+def test_coordinated_retreat_ends_encounter_without_enemy_response():
+    characters = [make_level_four_character("Arven"), make_level_four_character("Lira")]
+    for index, character in enumerate(characters, start=1):
+        character.id = index
+    session = GameSession(
+        active_boss_name="Purpurowa Bestia",
+        active_boss_title="Bestia z otchłani",
+        active_boss_hp=40,
+        active_boss_max_hp=80,
+        active_boss_armor=2,
+        active_boss_defense_dc=13,
+        active_boss_phase=2,
+        active_boss_effects=[],
+        active_boss_features=[],
+        active_boss_telegraph={"base_damage": 10, "attack_count": 1},
+    )
+    actions = [
+        PlayerAction(
+            character_id=character.id,
+            action_text="Wycofuję się i zrywam kontakt.",
+            intent="defend",
+            outcome_tier="failure",
+        )
+        for character in characters
+    ]
+
+    events = resolve_boss_turn(session, characters, actions)
+
+    assert session.active_boss_name is None
+    assert session.active_boss_hp is None
+    assert any(event["type"] == "party_retreat" for event in events)
+    assert not any(event["type"] == "boss_attack" for event in events)
+    assert [character.current_hp for character in characters] == [40, 40]
 
 
 def test_barricading_a_passage_is_treated_as_defence():
@@ -113,6 +158,37 @@ def test_status_damage_event_has_a_player_facing_label_and_icon():
     assert status_event["damage"] == 2
     assert status_event["effect_label"] == "Poparzony"
     assert status_event["effect_icon"] == "🔥"
+
+
+def test_boss_status_damage_keeps_the_character_source_for_ui_attribution():
+    character = make_level_four_character("Arven")
+    character.id = 1
+    action = PlayerAction(
+        character_id=character.id,
+        action_text="Czekam na ruch przeciwnika",
+        intent="other",
+        outcome_tier="success",
+    )
+    session = GameSession(
+        current_turn_number=1,
+        active_boss_name="Żarłoczny cień",
+        active_boss_hp=20,
+        active_boss_max_hp=20,
+        active_boss_armor=0,
+        active_boss_defense_dc=12,
+        active_boss_phase=1,
+        active_boss_effects=[make_status("burning", 2, 1, character.name)],
+        active_boss_features=[],
+        active_boss_telegraph={"base_damage": 1, "attack_count": 1},
+    )
+
+    events = resolve_boss_turn(session, [character], [action])
+
+    status_event = next(
+        event for event in events
+        if event["type"] == "status_damage" and event["target"] == "Żarłoczny cień"
+    )
+    assert status_event["source"] == character.name
 
 
 def test_extinguishing_fire_is_a_defensive_action():

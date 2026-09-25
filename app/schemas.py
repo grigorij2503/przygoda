@@ -146,6 +146,14 @@ class AdminAdjustCoinsRequest(BaseModel):
     room_code: str = Field(min_length=1, max_length=50)
     amount: int = Field(ge=-1000000, le=1000000)
 
+class AdminSetCharacterHealthRequest(BaseModel):
+    room_code: str = Field(min_length=1, max_length=50)
+    current_hp: int = Field(ge=0, le=1000000)
+
+class AdminGrantConsumableRequest(BaseModel):
+    room_code: str = Field(min_length=1, max_length=50)
+    quantity: int = Field(default=1, ge=1, le=20)
+
 class AdminSetParticipationRequest(BaseModel):
     room_code: str = Field(min_length=1, max_length=50)
     participation_status: Literal["active", "on_break"]

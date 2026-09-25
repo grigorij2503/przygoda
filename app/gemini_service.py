@@ -408,6 +408,7 @@ async def resolve_turn_with_gemini(
         "ZASADY FABULARNE MISTRZA GRY:\n"
         "1. KONSEKWENCJE DECYZJI: Ściśle rozwijaj to, co zadeklarował gracz. "
         "Jeśli gracz deklaruje ucieczkę lub odwrót, opisz wynik zerwania kontaktu i zmianę pozycji. "
+        "Zdarzenie party_retreat jest wiążące: starcie zostało zakończone bez pokonania przeciwnika, łupu ani jego kontrataku. "
         "Jeśli gracz atakuje, opisz dynamikę starcia, rany i reakcję wroga zgodnie z aktywnym światem. "
         "Jeśli bada lub używa zdolności, opisz materialny efekt zgodny z profilem świata i definicją zdolności.\n"
         "2. WYNIKI RZUTÓW: Bezwzględnie podporządkuj powodzenie zamiarów rzutom kości (critical_success, success, partial_success, failure, critical_failure).\n"
@@ -570,6 +571,11 @@ def _generate_rich_offline_resolution(
                 )
             elif event_type == "boss_defeated":
                 event_sentences.append(f"{event.get('boss')} zostaje pokonany.")
+            elif event_type == "party_retreat":
+                names = ", ".join(event.get("characters") or []) or "Drużyna"
+                event_sentences.append(
+                    f"{names} zrywają kontakt z przeciwnikiem {event.get('enemy') or 'i wycofują się'}; starcie kończy się bez zwycięstwa i łupu."
+                )
             elif event_type == "status_damage":
                 event_sentences.append(
                     f"Efekt {event.get('effect')} zadaje {event.get('target')} {event.get('damage')} obrażeń."

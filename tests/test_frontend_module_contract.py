@@ -12,6 +12,7 @@ STATIC_ROOT = ROOT / "app" / "static"
 STYLE_PATH = STATIC_ROOT / "css" / "style.css"
 SERVICE_WORKER_PATH = STATIC_ROOT / "sw.js"
 STORY_MAP_PROXY_PATH = STATIC_ROOT / "js" / "modules" / "story-map-proxy.js"
+STORY_HISTORY_PATH = ROOT / "app" / "templates" / "partials" / "table" / "story_history.html"
 
 
 def local_static_path(url: str) -> Path:
@@ -52,7 +53,7 @@ def test_stylesheet_imports_exist_and_keep_declared_order():
     assert local_imports == [
         "./modules/tokens.css?v=21",
         "./modules/base.css?v=21",
-        "./modules/components.css?v=21",
+        "./modules/components.css?v=22",
         "./modules/inventory.css?v=24",
         "./modules/market.css?v=2",
         "./modules/map.css?v=22",
@@ -77,12 +78,12 @@ def test_local_frontend_assets_are_precached_and_scripts_load_before_alpine():
     )
 
     assert all(f"'{url}'" in service_worker for url in local_assets)
-    assert "const CACHE_NAME = 'ttrpg-gemini-v57';" in service_worker
+    assert "const CACHE_NAME = 'ttrpg-gemini-v59';" in service_worker
 
     scripts = re.findall(r'<script[^>]+src="([^"]+)"', index_source)
     app_index = scripts.index("/static/js/app.js?v=35")
     assert scripts.index("/static/js/theme-bootstrap.js?v=33") < scripts.index(
-        "/static/js/modules/core.js?v=40"
+        "/static/js/modules/core.js?v=41"
     )
     alpine_index = scripts.index(
         "https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"
@@ -112,3 +113,16 @@ def test_incapacitated_character_is_not_presented_as_waiting_for_action():
 
     assert "!p.is_alive" in waiting_expression
     assert waiting_expression.index("!p.is_alive") < waiting_expression.index("p.has_submitted_action")
+
+
+def test_mechanical_turn_events_are_grouped_inside_character_action_cards():
+    template = STORY_HISTORY_PATH.read_text(encoding="utf-8")
+    story_module = STORY_MAP_PROXY_PATH.read_text(encoding="utf-8")
+
+    assert "Mechaniczny zapis tury" not in template
+    assert 'class="dice-badge action-result-card' in template
+    assert "actionMechanicalEvents(t, act)" in template
+    assert "Suma obrażeń:" in template
+    assert "actionDamageTaken(turn, action)" in story_module
+    assert "actionHealingReceived(turn, action)" in story_module
+    assert "unassignedMechanicalEvents(turn)" in story_module

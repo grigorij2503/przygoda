@@ -434,7 +434,8 @@
         'support', 'revived', 'stabilized', 'death_failure', 'character_died',
         'party_retreat', 'status_removed', 'status_reduced',
         'status_relief_failed', 'roll_context', 'support_guard', 'support_failed',
-        'ability_cleanse', 'ability_failed', 'resurrection', 'resurrection_failed'
+        'ability_cleanse', 'ability_failed', 'resurrection', 'resurrection_failed',
+        'character_attack'
       ]);
       return (turn?.combat_events || []).filter(event => {
         if (!visibleTypes.has(event?.type)) return false;
@@ -443,19 +444,97 @@
       });
     },
 
-    combatEventText(event) {
+    combatEventCharacterRole(event, action) {
+      if (!event || !action?.character_name) return null;
+      const characterName = action.character_name;
+      const isActor = event.actor === characterName || event.source === characterName;
+      const isTarget = event.target === characterName;
+      const isPartyMember = Array.isArray(event.characters) && event.characters.includes(characterName);
+      if (isActor && isTarget) return 'self';
+      if (isTarget) return 'received';
+      if (isActor) return 'caused';
+      if (isPartyMember) return 'party';
+      return null;
+    },
+
+    actionMechanicalEvents(turn, action) {
+      return this.mechanicalCombatEvents(turn).filter(
+        event => this.combatEventCharacterRole(event, action)
+      );
+    },
+
+    unassignedMechanicalEvents(turn) {
+      const actions = turn?.actions || [];
+      return this.mechanicalCombatEvents(turn).filter(event =>
+        !actions.some(action => this.combatEventCharacterRole(event, action))
+      );
+    },
+
+    actionDamageTaken(turn, action) {
+      const damagingTypes = new Set([
+        'status_damage', 'boss_attack', 'environment_failure', 'character_attack'
+      ]);
+      return this.actionMechanicalEvents(turn, action).reduce((total, event) => {
+        const role = this.combatEventCharacterRole(event, action);
+        const isPersonalDamage = role === 'received'
+          || (event.type === 'environment_failure' && ['self', 'caused'].includes(role));
+        return total + (damagingTypes.has(event.type) && isPersonalDamage
+          ? Math.max(0, Number(event.damage || 0))
+          : 0);
+      }, 0);
+    },
+
+    actionHealingReceived(turn, action) {
+      const healingTypes = new Set(['support', 'revived', 'resurrection']);
+      return this.actionMechanicalEvents(turn, action).reduce((total, event) => {
+        const role = this.combatEventCharacterRole(event, action);
+        return total + (healingTypes.has(event.type) && ['received', 'self'].includes(role)
+          ? Math.max(0, Number(event.healing || 0))
+          : 0);
+      }, 0);
+    },
+
+    actionHealingDelivered(turn, action) {
+      const healingTypes = new Set(['support', 'revived', 'resurrection']);
+      return this.actionMechanicalEvents(turn, action).reduce((total, event) => {
+        const role = this.combatEventCharacterRole(event, action);
+        return total + (healingTypes.has(event.type) && ['caused', 'self'].includes(role)
+          ? Math.max(0, Number(event.healing || 0))
+          : 0);
+      }, 0);
+    },
+
+    combatEventIcon(event) {
+      if (!event) return '•';
+      if (['status_damage', 'status_removed', 'status_reduced', 'status_relief_failed'].includes(event.type)) {
+        return event.effect_icon || '⚠️';
+      }
+      if (event.type === 'boss_attack') return '👹';
+      if (['defence', 'support_guard'].includes(event.type)) return '🛡️';
+      if (['support', 'revived'].includes(event.type)) return '💚';
+      if (event.type === 'ability_cleanse') return '💧';
+      if (event.type === 'resurrection') return '🕊️';
+      if (['death_failure', 'character_died'].includes(event.type)) return '💀';
+      if (event.type === 'roll_context') return '🎲';
+      if (event.type === 'party_retreat') return '🚨';
+      if (event.type === 'character_attack') return '⚔️';
+      return '⚠️';
+    },
+
+    combatEventText(event, perspectiveName = null) {
       if (!event) return '';
       if (event.type === 'status_damage') {
-        return `${event.effect_icon || '⚠️'} ${event.effect_label || event.effect}: ${event.target} −${event.damage || 0} HP`;
+        const target = event.target === perspectiveName ? '' : `${event.target}: `;
+        return `${target}${event.effect_label || event.effect} • ${event.damage || 0} obrażeń`;
       }
       if (event.type === 'status_removed') {
-        return `${event.effect_icon || '✓'} ${event.actor}: usunięto ${event.effect_label || event.effect}`;
+        return `Usunięto efekt: ${event.effect_label || event.effect}`;
       }
       if (event.type === 'status_reduced') {
-        return `${event.effect_icon || '↘'} ${event.actor}: osłabiono ${event.effect_label || event.effect}`;
+        return `Osłabiono efekt: ${event.effect_label || event.effect}`;
       }
       if (event.type === 'status_relief_failed') {
-        return `${event.effect_icon || '⚠️'} ${event.actor}: nie usunięto ${event.effect_label || event.effect}`;
+        return `Nie udało się usunąć efektu: ${event.effect_label || event.effect}`;
       }
       if (event.type === 'roll_context') {
         const items = (event.item_sources || [])
@@ -465,7 +544,7 @@
         const statusText = Number(event.status_modifier || 0)
           ? `efekty: ${event.status_modifier > 0 ? '+' : ''}${event.status_modifier}`
           : '';
-        return `🎲 ${event.actor} • ${[itemText, statusText].filter(Boolean).join(' • ')}`;
+        return `Modyfikatory rzutu • ${[itemText, statusText].filter(Boolean).join(' • ')}`;
       }
       if (event.type === 'boss_attack') {
         const reduction = Number(event.total_reduction || 0);
@@ -475,39 +554,58 @@
         const effect = event.effect
           ? ` • ${event.effect_icon || '⚠️'} ${event.effect_label || event.effect}`
           : '';
-        return `👹 ${event.boss} → ${event.target}: −${event.damage || 0} HP${breakdown}${effect}`;
+        return `${event.boss}: ${event.damage || 0} obrażeń${breakdown}${effect}`;
       }
-      if (event.type === 'defence') return `🛡️ ${event.actor}: przygotowana osłona ${event.potency || 0}`;
-      if (event.type === 'environment_failure') return `⚠️ ${event.actor}: −${event.damage || 0} HP przy ${event.feature}`;
-      if (['support', 'revived'].includes(event.type)) return `💚 ${event.actor} → ${event.target}: +${event.healing || 0} HP`;
-      if (event.type === 'support_guard') return `🛡️ ${event.actor} → ${event.target}: wsparcie ${event.potency || 0}`;
-      if (event.type === 'support_failed') return `⚠️ ${event.actor}: wsparcie nie przyniosło efektu`;
+      if (event.type === 'defence') return `Przygotowano osłonę ${event.potency || 0}`;
+      if (event.type === 'environment_failure') return `${event.feature}: ${event.damage || 0} obrażeń`;
+      if (['support', 'revived'].includes(event.type)) {
+        if (event.target === perspectiveName && event.actor !== perspectiveName) {
+          return `${event.actor} przywraca ${event.healing || 0} HP`;
+        }
+        return `Przywrócono ${event.target}: +${event.healing || 0} HP`;
+      }
+      if (event.type === 'support_guard') {
+        if (event.target === perspectiveName && event.actor !== perspectiveName) {
+          return `${event.actor} zapewnia osłonę ${event.potency || 0}`;
+        }
+        return `Zapewniono ${event.target} osłonę ${event.potency || 0}`;
+      }
+      if (event.type === 'support_failed') return `Wsparcie${event.target ? ` dla ${event.target}` : ''} nie przyniosło efektu`;
       if (event.type === 'ability_cleanse') {
-        return `💧 ${event.actor} → ${event.target}: usunięto ${(event.removed_types || []).join(', ') || 'brak aktywnego efektu'}`;
+        return `Oczyszczono ${event.target}: ${(event.removed_types || []).join(', ') || 'brak aktywnego efektu'}`;
       }
-      if (event.type === 'ability_failed') return `⚠️ ${event.actor}: ${event.ability || 'zdolność'} nie przyniosła efektu`;
-      if (event.type === 'resurrection') return `🕊️ ${event.actor} → ${event.target}: wskrzeszenie +${event.healing || 0} HP`;
-      if (event.type === 'resurrection_failed') return `⚠️ ${event.actor}: wskrzeszenie ${event.target || ''} nie powiodło się`;
-      if (event.type === 'stabilized') return `🩹 ${event.actor} stabilizuje ${event.target}`;
-      if (event.type === 'death_failure') return `💀 ${event.target}: porażka śmierci ${event.failures}/3`;
-      if (event.type === 'character_died') return `☠️ ${event.target}: postać poległa`;
+      if (event.type === 'ability_failed') return `${event.ability || 'Zdolność'} nie przyniosła efektu`;
+      if (event.type === 'resurrection') return `Wskrzeszono ${event.target}: +${event.healing || 0} HP`;
+      if (event.type === 'resurrection_failed') return `Wskrzeszenie ${event.target || ''} nie powiodło się`;
+      if (event.type === 'stabilized') return `${event.actor} stabilizuje ${event.target}`;
+      if (event.type === 'death_failure') return `Porażka śmierci ${event.failures}/3`;
+      if (event.type === 'character_died') return `Postać poległa`;
+      if (event.type === 'character_attack') {
+        if (event.target === perspectiveName) {
+          return `${event.actor}: ${event.damage || 0} obrażeń`;
+        }
+        return `${event.target}: ${event.damage || 0} obrażeń`;
+      }
       if (event.type === 'party_retreat') {
-        return `🚨 Awaryjny odwrót: ${event.characters?.join(', ') || 'drużyna'} wraca z ${event.restored_hp || 1} HP`;
+        const recovered = Number(event.restored_hp || 0) > 0
+          ? ` • obezwładnieni wracają z ${event.restored_hp} PW`
+          : '';
+        return `Odwrót: ${event.characters?.join(', ') || 'drużyna'} kończy starcie bez zwycięstwa${recovered}`;
       }
       return '';
     },
 
     combatEventClass(event) {
-      if (['status_damage', 'boss_attack', 'environment_failure', 'death_failure', 'character_died'].includes(event?.type)) {
-        return 'border-rose-800/60 bg-rose-950/35 text-rose-200';
+      if (['status_damage', 'boss_attack', 'environment_failure', 'death_failure', 'character_died', 'character_attack'].includes(event?.type)) {
+        return 'action-consequence--danger';
       }
       if (['support_failed', 'status_relief_failed', 'ability_failed', 'resurrection_failed'].includes(event?.type)) {
-        return 'border-amber-800/60 bg-amber-950/30 text-amber-200';
+        return 'action-consequence--warning';
       }
       if (['support', 'revived', 'stabilized', 'status_removed', 'status_reduced', 'support_guard', 'ability_cleanse', 'resurrection'].includes(event?.type)) {
-        return 'border-emerald-800/60 bg-emerald-950/35 text-emerald-200';
+        return 'action-consequence--positive';
       }
-      return 'border-amber-800/60 bg-amber-950/30 text-amber-200';
+      return 'action-consequence--neutral';
     },
 
     get hasOpenProxyDecision() {

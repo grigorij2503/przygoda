@@ -23,7 +23,8 @@ INTENT_RULES: dict[str, tuple[tuple[str, int, str], ...]] = {
     "defend": (
         (r"\b(?:ugas|gasz|zgasz|stlum|zdusz)\w*\b", 5, "usunięcie płomieni lub szkodliwego efektu"),
         (r"\btarz\w*\b.{0,60}\b(?:ogien|plomien|poz[a-z]*r)\w*\b", 5, "gaszenie płomieni ruchem obronnym"),
-        (r"\b(?:broni|blokuj|paruj|unikam|uskakuj|odskakuj|oslaniam|zaslaniam|chronie|cofam|wycof)\w*\b", 5, "bezpośrednia czynność obronna"),
+        (r"\b(?:broni|blokuj|paruj|unikam|uskakuj|odskakuj|oslaniam|zaslaniam|chronie|cofam|wycof|uciek)\w*\b", 5, "bezpośrednia czynność obronna"),
+        (r"\b(?:uciec|uciecz\w*|odwrot\w*)\b", 5, "próba odwrotu"),
         (r"\b(?:barykad|zabarykad)\w*\b", 5, "wzniesienie barykady lub zamknięcie przejścia"),
         (r"\b(?:przyjm|zajm)\w*\s+(?:bezpieczn\w*\s+|tward\w*\s+)?pozycj\w*\s+obron\w*\b", 4, "przyjęcie pozycji obronnej"),
         (r"\b(?:tarc|blok|parad|unik|oslona|obronn)\w*\b", 3, "obronny sposób działania"),
@@ -41,6 +42,13 @@ INTENT_RULES: dict[str, tuple[tuple[str, int, str], ...]] = {
     ),
 }
 
+RETREAT_PATTERN = re.compile(
+    r"\b(?:uciek\w*|uciec|uciecz\w*|wycof\w*|odwrot\w*|cofam(?:y)?\s+sie|zryw\w*\s+kontakt\w*)\b"
+)
+RETREAT_NEGATION_PATTERN = re.compile(
+    r"\b(?:nie|bez)\s+(?:uciek\w*|uciecz\w*|wycof\w*|odwrot\w*)\b"
+)
+
 STATUS_CATALOG = {
     status.id: status.model_dump(mode="python")
     for status in get_default_world_pack().status_presentations
@@ -51,6 +59,25 @@ def normalize_text(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", (value or "").casefold())
     normalized = "".join(char for char in normalized if not unicodedata.combining(char))
     return " ".join(re.sub(r"[^a-z0-9]+", " ", normalized).split())
+
+
+def is_retreat_action(action_text: str) -> bool:
+    """Recognize an explicit decision to leave an encounter, not a passing mention."""
+    normalized = normalize_text(action_text)
+    return bool(RETREAT_PATTERN.search(normalized)) and not RETREAT_NEGATION_PATTERN.search(normalized)
+
+
+def clear_active_enemy(session: GameSession) -> None:
+    session.active_boss_name = None
+    session.active_boss_title = None
+    session.active_boss_hp = None
+    session.active_boss_max_hp = None
+    session.active_boss_armor = 0
+    session.active_boss_defense_dc = 12
+    session.active_boss_phase = 1
+    session.active_boss_effects = []
+    session.active_boss_features = []
+    session.active_boss_telegraph = None
 
 
 def infer_action_intent_details(
@@ -810,6 +837,7 @@ def _tick_boss_effects(session: GameSession, events: list[dict]) -> None:
             events.append({
                 "type": "status_damage",
                 "target": session.active_boss_name,
+                "source": effect.get("source"),
                 "effect": effect_type,
                 "effect_label": effect.get("label") or effect_type,
                 "effect_icon": effect.get("icon") or "⚠️",
@@ -1062,6 +1090,17 @@ def resolve_boss_turn(
         if getattr(character, "death_state", "alive") == "downed"
     }
     action_by_character = {action.character_id: action for action in actions}
+    living_at_turn_start = [
+        character for character in characters
+        if character.is_alive and character.is_participating
+    ]
+    retreating_character_ids = {
+        action.character_id for action in actions
+        if is_retreat_action(action.action_text)
+    }
+    coordinated_retreat = bool(living_at_turn_start) and all(
+        character.id in retreating_character_ids for character in living_at_turn_start
+    )
     _tick_boss_effects(session, events)
     for character in characters:
         action = action_by_character.get(character.id)
@@ -1167,7 +1206,18 @@ def resolve_boss_turn(
                 character, action, characters, events, ability, world_pack
             )
 
-    _resolve_boss_response(session, characters, actions, events, world_pack)
+    if coordinated_retreat:
+        enemy_name = session.active_boss_name
+        events.append({
+            "type": "party_retreat",
+            "characters": [character.name for character in living_at_turn_start],
+            "enemy": enemy_name,
+            "restored_hp": 0,
+            "mode": "declared",
+        })
+        clear_active_enemy(session)
+    else:
+        _resolve_boss_response(session, characters, actions, events, world_pack)
     _advance_death_states(characters, downed_at_turn_start, events)
     _update_boss_phase(session, events, world_pack)
     if session.active_boss_hp == 0:

@@ -12,7 +12,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.main import app
-from app.models import Character, GameSession, PlayerAction, ProxyActionDecision, Turn
+from app.models import Character, GameSession, InventoryItem, PlayerAction, ProxyActionDecision, Turn
 from app.services.runtime import GM_SESSION_COOKIE, create_gm_session_token
 from app.services.room_access import ROOM_SESSION_COOKIE, create_room_session_token
 
@@ -255,3 +255,72 @@ async def test_party_retreat_is_rejected_while_an_active_character_can_act(
     assert session.current_turn_number == 60
     assert len(turns) == 1
     assert turns[0].status == "waiting_for_actions"
+
+
+@pytest.mark.asyncio
+async def test_gm_can_end_active_encounter_before_party_is_incapacitated(
+    isolated_character_break,
+):
+    client, factory, character_id = isolated_character_break
+    async with factory() as db:
+        session = (await db.execute(select(GameSession))).scalar_one()
+        session.active_boss_name = "Purpurowa Bestia"
+        session.active_boss_title = "Bestia z otchłani"
+        session.active_boss_hp = 40
+        session.active_boss_max_hp = 80
+        await db.commit()
+
+    response = await client.post(
+        "/api/session/resolve-party-crisis",
+        json={"room_code": "break-isolated"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["recovered_character_ids"] == []
+    async with factory() as db:
+        session = (await db.execute(select(GameSession))).scalar_one()
+        character = (
+            await db.execute(select(Character).where(Character.id == character_id))
+        ).scalar_one()
+        completed_turn = (
+            await db.execute(select(Turn).where(Turn.turn_number == 60))
+        ).scalar_one()
+    assert session.active_boss_name is None
+    assert character.current_hp == 17
+    assert completed_turn.combat_events[0]["type"] == "party_retreat"
+    assert completed_turn.combat_events[0]["restored_hp"] == 0
+
+
+@pytest.mark.asyncio
+async def test_gm_can_adjust_health_and_grant_world_consumables(isolated_character_break):
+    client, factory, character_id = isolated_character_break
+
+    health_response = await client.put(
+        f"/api/admin/characters/{character_id}/health",
+        json={"room_code": "break-isolated", "current_hp": 30},
+    )
+    consumable_response = await client.post(
+        f"/api/admin/characters/{character_id}/consumables",
+        json={"room_code": "break-isolated", "quantity": 2},
+    )
+
+    assert health_response.status_code == 200
+    assert health_response.json()["current_hp"] == 30
+    assert consumable_response.status_code == 200
+    assert consumable_response.json()["quantity"] == 2
+    async with factory() as db:
+        character = (
+            await db.execute(select(Character).where(Character.id == character_id))
+        ).scalar_one()
+        consumable = (
+            await db.execute(
+                select(InventoryItem).where(
+                    InventoryItem.character_id == character_id,
+                    InventoryItem.item_type == "consumable",
+                )
+            )
+        ).scalar_one()
+    assert character.current_hp == 30
+    assert character.death_state == "alive"
+    assert consumable.quantity == 2
+    assert consumable.stat_bonus > 0

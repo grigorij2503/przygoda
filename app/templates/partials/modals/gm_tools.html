@@ -8,19 +8,19 @@
         <button @click="closeGmTools()" class="text-gray-400 hover:text-white text-lg" aria-label="Zamknij narzędzia Mistrza Gry">✕</button>
       </div>
       <div class="space-y-4">
-        <div x-show="hasPartyCrisis" x-cloak class="p-4 rounded-xl bg-rose-950/55 border border-rose-600/70 space-y-3">
-          <p class="text-sm font-bold text-rose-200">🚨 Klęska aktywnej drużyny</p>
+        <div x-show="hasPartyCrisis || (activeEnemy?.hp > 0)" x-cloak class="p-4 rounded-xl bg-rose-950/55 border border-rose-600/70 space-y-3">
+          <p class="text-sm font-bold text-rose-200">🚨 Odwrót drużyny</p>
           <p class="text-xs text-rose-100/80">
-            Awaryjny odwrót zamknie bieżące starcie, usunie szkodliwe efekty i przywróci obezwładnione aktywne postacie z 1 PW. Polegli pozostaną polegli. Alternatywnie zapisz epilog w sekcji „Zakończ kampanię”.
+            MG może przerwać aktywne starcie bez zwycięstwa i łupu. Obecne PW żywych postaci zostaną zachowane; obezwładnione aktywne postacie wrócą z 1 PW bez szkodliwych efektów. Polegli pozostaną polegli.
           </p>
-          <p x-show="recoverablePartyCrisisCount < 1" class="text-xs text-rose-300">
+          <p x-show="hasPartyCrisis && recoverablePartyCrisisCount < 1 && !(activeEnemy?.hp > 0)" class="text-xs text-rose-300">
             Nie ma postaci w agonii ani stabilnych — awaryjny odwrót nie może nikogo uratować.
           </p>
           <p x-show="partyCrisisError" x-text="partyCrisisError" role="alert" class="text-xs text-rose-300"></p>
           <button type="button" @click="resolvePartyCrisis()"
-                  :disabled="isResolvingPartyCrisis || recoverablePartyCrisisCount < 1"
+                  :disabled="isResolvingPartyCrisis || (!(activeEnemy?.hp > 0) && recoverablePartyCrisisCount < 1)"
                   class="inventory-action disabled:opacity-40">
-            <span x-show="!isResolvingPartyCrisis">ZARZĄDŹ AWARYJNY ODWRÓT</span>
+            <span x-show="!isResolvingPartyCrisis">ZAKOŃCZ STARCIE ODWROTEM</span>
             <span x-show="isResolvingPartyCrisis">RATOWANIE DRUŻYNY...</span>
           </button>
         </div>
@@ -83,6 +83,29 @@
           <button type="button" class="inventory-action" :disabled="isSavingParticipation || session?.is_turn_resolving"
                   @click="setGmCharacterParticipation(gmStatCharacter?.participation_status === 'on_break' ? 'active' : 'on_break')"
                   x-text="gmStatCharacter?.participation_status === 'on_break' ? 'Przywróć do gry' : 'Wyślij na przerwę'"></button>
+        </div>
+
+        <div x-show="gmStatCharacter" class="p-4 rounded-xl bg-slate-950/70 border border-amber-900/50 space-y-3">
+          <p class="text-sm font-bold text-amber-300">❤️ Punkty życia</p>
+          <p class="text-xs text-gray-400">Awaryjna korekta stanu postaci. Wartość dodatnia przywraca postać do życia; 0 oznacza obezwładnienie (nie wskrzesza poległych bez nadania PW).</p>
+          <form @submit.prevent="saveGmHealth()" class="space-y-2">
+            <label for="gm-health-value" class="block text-xs text-gray-300" x-text="`Bieżące PW (maks. ${gmStatCharacter?.max_hp || 0})`"></label>
+            <div class="flex gap-2">
+              <input id="gm-health-value" type="number" min="0" :max="gmStatCharacter?.max_hp || 0" step="1" x-model.number="gmHealthValue"
+                     class="min-w-0 flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+              <button type="submit" :disabled="isSavingGmHealth || session?.is_turn_resolving" class="inventory-action">Ustaw PW</button>
+            </div>
+            <p x-show="gmHealthError" x-text="gmHealthError" role="alert" class="text-xs text-rose-300"></p>
+          </form>
+          <form @submit.prevent="grantGmConsumable()" class="space-y-2 pt-3 border-t border-slate-800">
+            <p class="text-xs text-gray-300">Podaruj środek leczniczy właściwy dla tego świata</p>
+            <div class="flex gap-2">
+              <input type="number" min="1" max="20" step="1" x-model.number="gmConsumableQuantity" aria-label="Liczba środków leczniczych"
+                     class="w-24 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+              <button type="submit" :disabled="isGrantingConsumable || session?.is_turn_resolving" class="inventory-action">Podaruj</button>
+            </div>
+            <p x-show="gmConsumableError" x-text="gmConsumableError" role="alert" class="text-xs text-rose-300"></p>
+          </form>
         </div>
 
         <div x-show="gmStatCharacter" class="p-4 rounded-xl bg-slate-950/70 border border-amber-900/50 space-y-3">

@@ -30,6 +30,16 @@ router.add_api_route(
     methods=["POST"],
 )
 router.add_api_route(
+    "/api/admin/characters/{character_id}/health",
+    admin_service.set_character_health,
+    methods=["PUT"],
+)
+router.add_api_route(
+    "/api/admin/characters/{character_id}/consumables",
+    admin_service.grant_character_consumable,
+    methods=["POST"],
+)
+router.add_api_route(
     "/api/admin/characters/{character_id}/participation",
     admin_service.set_character_participation,
     methods=["PUT"],
