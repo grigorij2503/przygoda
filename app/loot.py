@@ -167,7 +167,13 @@ def validate_special_action(
     if crafting:
         if boss_alive:
             return "Nie możesz scalać ani ulepszać przedmiotów podczas aktywnej walki."
-        if int(session.crafting_available_until_turn or 0) != current_turn_number:
+        from app.services.market_service import workshop_is_open
+
+        if not workshop_is_open(
+            session,
+            location_node_id=(campaign_map.current_node_id if campaign_map else None),
+            current_turn_number=current_turn_number,
+        ):
             return world_pack.crafting_profile.workshop_unavailable_message
         sources = (
             [item for item in inventory if item.id in craft_item_ids]
@@ -204,6 +210,7 @@ def resolve_inventory_mechanics(
         isinstance(event, dict) and event.get("type") == "boss_defeated"
         for event in (turn.combat_events or [])
     )
+    from app.services.market_service import workshop_is_open
 
     for action in turn.actions:
         if not has_crafting_intent(action.action_text, world_pack):
@@ -211,7 +218,11 @@ def resolve_inventory_mechanics(
         if (
             boss_defeated
             or (session.active_boss_name and (session.active_boss_hp or 0) > 0)
-            or int(session.crafting_available_until_turn or 0) != turn.turn_number
+            or not workshop_is_open(
+                session,
+                location_node_id=(campaign_map.current_node_id if campaign_map else None),
+                current_turn_number=turn.turn_number,
+            )
         ):
             continue
         character = next((item for item in characters if item.id == action.character_id), None)
@@ -246,11 +257,15 @@ def resolve_inventory_mechanics(
         })
 
     if boss_defeated:
-        session.crafting_available_until_turn = turn.turn_number + 1
         from app.services.market_service import open_market_visit
 
+        visit_turn = turn.turn_number + 1
         merchant = open_market_visit(
-            session, characters, world_pack, turn.turn_number + 1
+            session,
+            characters,
+            world_pack,
+            visit_turn,
+            location_node_id=(campaign_map.current_node_id if campaign_map else None),
         )
         if merchant:
             resolution.events.append({

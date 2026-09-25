@@ -50,6 +50,7 @@ from app.services.runtime import (
     suggest_map_destination,
     validate_action_item_claim,
 )
+from app.services.market_service import close_market_visit
 from app.services.world_service import get_session_world_pack
 from app.services.room_access import require_room
 from app.targeting import infer_character_attack_target
@@ -897,12 +898,26 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             turn.suggested_actions = gemini_result.suggested_actions
             turn.image_prompt = gemini_result.scene_image_prompt
             turn.status = "completed"
+            previous_node_id = campaign_map.current_node_id
+            market_state = dict(session.market_state or {})
+            market_closes_on_departure = bool(
+                market_state
+                and not market_state.get("closed")
+                and market_state.get("location_node_id") == previous_node_id
+                and int(session.current_turn_number or 0)
+                <= int(market_state.get("expires_turn") or 0)
+            )
             apply_map_narrative_update(
                 campaign_map,
                 gemini_result.map_update,
                 turn.turn_number,
                 fallback_destination_node_id=suggested_map_destination,
             )
+            if (
+                market_closes_on_departure
+                and campaign_map.current_node_id != previous_node_id
+            ):
+                close_market_visit(session)
 
             opportunity = gemini_result.naming_opportunity
             living = [

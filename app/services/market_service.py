@@ -19,12 +19,26 @@ from app.websocket_manager import ws_manager
 from app.worlds.models import WorldPack
 
 
-MERCHANT_PERSONAS = (
-    ("Mira", "wędrowna kupczyni"), ("Iwo", "karczmarz"),
-    ("Nela", "handlarka"), ("Rin", "gospodarz postoju"),
-    ("Oskar", "wędrowny kupiec"), ("Ada", "karczmarka"),
-    ("Borys", "handlarz"), ("Sana", "gospodyni postoju"),
+MARKET_VISIT_TURNS = 3
+MASCULINE_MERCHANT_PERSONAS = (
+    ("Iwo", "karczmarz"),
+    ("Rin", "gospodarz postoju"),
+    ("Oskar", "wędrowny kupiec"),
+    ("Borys", "handlarz"),
 )
+FEMININE_MERCHANT_PERSONAS = (
+    ("Mira", "wędrowna kupczyni"),
+    ("Nela", "handlarka"),
+    ("Ada", "karczmarka"),
+    ("Sana", "gospodyni postoju"),
+)
+# Portrety są app-owned i mają jednoznaczną prezentację postaci. Persona musi
+# pochodzić z pasującej puli, aby opis nie przeczył ilustracji.
+FEMININE_MERCHANT_PORTRAIT_THEMES = {
+    "neo_katowice",
+    "norki_zielonego_wzgorza",
+    "wiedzmy_pogranicza",
+}
 THEFT_STEMS = ("krad", "ukra", "skra", "wykrad", "zwin", "podkrad", "krasc")
 THEFT_PHRASES = ("po cichu", "bez placenia", "do kieszeni", "niezauwazenie")
 
@@ -49,6 +63,74 @@ def item_sell_value(item: InventoryItem) -> int:
     return max(1, item_buy_value(item) * 3 // 10)
 
 
+def market_visit_expires_turn(visit_turn: int) -> int:
+    return visit_turn + MARKET_VISIT_TURNS - 1
+
+
+def market_visit_is_open(
+    session: GameSession,
+    state: dict | None = None,
+    *,
+    location_node_id: str | None = None,
+    current_turn_number: int | None = None,
+) -> bool:
+    state = state if state is not None else dict(session.market_state or {})
+    if (session.status or "in_progress") != "in_progress" or state.get("closed"):
+        return False
+    visit_turn = int(state.get("visit_turn") or 0)
+    expires_turn = int(state.get("expires_turn") or visit_turn)
+    current_turn = int(
+        current_turn_number
+        if current_turn_number is not None
+        else session.current_turn_number or 0
+    )
+    if not visit_turn or not (visit_turn <= current_turn <= expires_turn):
+        return False
+    anchored_node_id = state.get("location_node_id")
+    if anchored_node_id is None:
+        return True
+    loaded_campaign_map = session.__dict__.get("campaign_map")
+    if location_node_id is None and loaded_campaign_map is not None:
+        location_node_id = loaded_campaign_map.current_node_id
+    return location_node_id == anchored_node_id
+
+
+def workshop_is_open(
+    session: GameSession,
+    *,
+    location_node_id: str | None = None,
+    current_turn_number: int | None = None,
+) -> bool:
+    current_turn = int(
+        current_turn_number
+        if current_turn_number is not None
+        else session.current_turn_number or 0
+    )
+    if (
+        (session.status or "in_progress") != "in_progress"
+        or not current_turn
+        or current_turn > int(session.crafting_available_until_turn or 0)
+    ):
+        return False
+    state = dict(session.market_state or {})
+    return not state or market_visit_is_open(
+        session,
+        state,
+        location_node_id=location_node_id,
+        current_turn_number=current_turn,
+    )
+
+
+def close_market_visit(session: GameSession) -> None:
+    state = dict(session.market_state or {})
+    if not state or state.get("closed"):
+        return
+    state["closed"] = True
+    session.market_state = state
+    session.market_revision = int(session.market_revision or 0) + 1
+    session.crafting_available_until_turn = 0
+
+
 def open_market_visit(
     session: GameSession,
     characters: list[Character],
@@ -56,11 +138,20 @@ def open_market_visit(
     visit_turn: int,
     *,
     guaranteed: bool = False,
+    location_node_id: str | None = None,
 ) -> dict | None:
     """Create one persisted offer set; never regenerate it on a session read."""
-    state = build_market_visit(session.market_state or {}, characters, pack, visit_turn, guaranteed=guaranteed)
+    state = build_market_visit(
+        session.market_state or {},
+        characters,
+        pack,
+        visit_turn,
+        guaranteed=guaranteed,
+        location_node_id=location_node_id,
+    )
     session.market_state = state
     session.market_revision = int(session.market_revision or 0) + 1
+    session.crafting_available_until_turn = market_visit_expires_turn(visit_turn)
     return state["merchant"]
 
 
@@ -71,11 +162,15 @@ def build_market_visit(
     visit_turn: int,
     *,
     guaranteed: bool = False,
+    location_node_id: str | None = None,
 ) -> dict:
     merchant_appears = guaranteed or secrets.randbelow(100) < 60
     pending_ban = list(dict.fromkeys([*old_state.get("pending_ban", []), *old_state.get("caught", [])]))
     state: dict = {
         "visit_turn": visit_turn,
+        "expires_turn": market_visit_expires_turn(visit_turn),
+        "location_node_id": location_node_id,
+        "closed": False,
         "merchant": None,
         "offers": [],
         "banned": pending_ban if merchant_appears else [],
@@ -86,7 +181,12 @@ def build_market_visit(
         "theft_attempted": [],
     }
     if merchant_appears:
-        name, role = secrets.choice(MERCHANT_PERSONAS)
+        personas = (
+            FEMININE_MERCHANT_PERSONAS
+            if pack.theme_id in FEMININE_MERCHANT_PORTRAIT_THEMES
+            else MASCULINE_MERCHANT_PERSONAS
+        )
+        name, role = secrets.choice(personas)
         state["merchant"] = {
             "name": name,
             "role": role,
@@ -149,15 +249,20 @@ def build_market_visit(
 
 def serialize_market(session: GameSession) -> dict | None:
     state = session.market_state or {}
-    if session.status != "in_progress" or state.get("visit_turn") != session.current_turn_number:
+    if not market_visit_is_open(session, state):
         return None
+    expires_turn = int(state.get("expires_turn") or state.get("visit_turn") or 0)
     return {
         "merchant": state.get("merchant"),
         "offers": state.get("offers", []),
         "banned": state.get("banned", []),
         "negotiated": state.get("negotiated", []),
         "discounts": state.get("discounts", {}),
-        "workshop_available": int(session.crafting_available_until_turn or 0) == session.current_turn_number,
+        "workshop_available": workshop_is_open(session),
+        "expires_turn": expires_turn,
+        "turns_remaining": max(0, expires_turn - int(session.current_turn_number or 0) + 1),
+        "location_node_id": state.get("location_node_id"),
+        "closes_on_departure": state.get("location_node_id") is not None,
     }
 
 
@@ -165,9 +270,13 @@ async def _load_visit(db: AsyncSession, character_id: int) -> tuple[GameSession,
     character = (await db.execute(select(Character).where(Character.id == character_id))).scalar_one_or_none()
     if not character:
         raise HTTPException(status_code=404, detail="Postać nie istnieje")
-    session = (await db.execute(select(GameSession).where(GameSession.id == character.session_id))).scalar_one()
+    session = (await db.execute(
+        select(GameSession)
+        .options(selectinload(GameSession.campaign_map))
+        .where(GameSession.id == character.session_id)
+    )).scalar_one()
     state = dict(session.market_state or {})
-    if (session.status != "in_progress" or session.is_turn_resolving or state.get("visit_turn") != session.current_turn_number):
+    if session.is_turn_resolving or not market_visit_is_open(session, state):
         raise HTTPException(status_code=409, detail="Postój nie jest teraz dostępny")
     if session.active_boss_name and (session.active_boss_hp or 0) > 0:
         raise HTTPException(status_code=409, detail="Nie można handlować podczas walki")
@@ -194,7 +303,7 @@ async def _commit_state(db: AsyncSession, session: GameSession, state: dict) -> 
         .where(
             GameSession.id == session.id,
             GameSession.market_revision == revision,
-            GameSession.current_turn_number == state["visit_turn"],
+            GameSession.current_turn_number == session.current_turn_number,
             GameSession.is_turn_resolving.is_(False),
             GameSession.status == "in_progress",
         )
@@ -359,15 +468,18 @@ async def open_post_manually(
         raise HTTPException(status_code=404, detail="Sesja nie istnieje")
     if session.status != "in_progress" or session.is_turn_resolving or (session.active_boss_hp or 0) > 0:
         raise HTTPException(status_code=409, detail="Postój można otworzyć tylko między starciami w trwającej kampanii")
-    if ((session.market_state or {}).get("visit_turn") == session.current_turn_number
-            and (session.market_state or {}).get("merchant")):
-        raise HTTPException(status_code=409, detail="Postój jest już otwarty w tej turze")
+    if (market_visit_is_open(session) and (session.market_state or {}).get("merchant")):
+        raise HTTPException(status_code=409, detail="Postój jest już otwarty")
     characters = (await db.execute(
         select(Character).options(selectinload(Character.inventory)).where(Character.session_id == session.id)
     )).scalars().all()
     state = build_market_visit(
         session.market_state or {}, list(characters), get_session_world_pack(session),
-        session.current_turn_number, guaranteed=True,
+        session.current_turn_number,
+        guaranteed=True,
+        location_node_id=(
+            session.campaign_map.current_node_id if session.campaign_map else None
+        ),
     )
     revision = int(session.market_revision or 0)
     changed = await db.execute(
@@ -380,7 +492,9 @@ async def open_post_manually(
         ).values(
             market_state=state,
             market_revision=revision + 1,
-            crafting_available_until_turn=session.current_turn_number,
+            crafting_available_until_turn=market_visit_expires_turn(
+                session.current_turn_number
+            ),
         )
     )
     if changed.rowcount != 1:

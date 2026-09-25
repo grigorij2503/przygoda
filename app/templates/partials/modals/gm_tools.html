@@ -26,7 +26,7 @@
         </div>
         <div x-show="session?.status === 'in_progress'" class="p-4 rounded-xl bg-slate-950/70 border border-amber-900/50 space-y-2">
           <p class="text-sm font-bold text-amber-300">Postój i handlarz</p>
-          <p class="text-xs text-gray-400">Otwiera handel i warsztat na bieżącą turę, jeśli postój nie jest już aktywny.</p>
+          <p class="text-xs text-gray-400">Otwiera handel i warsztat w tej lokacji na maksymalnie trzy tury.</p>
           <button type="button" class="inventory-action" @click="openMarketAsGm()" :disabled="marketBusy || session?.is_turn_resolving || (activeEnemy?.hp > 0) || !!session?.market?.merchant">Otwórz postój</button>
         </div>
         <form @submit.prevent="saveGmCharacterStats()" class="p-4 rounded-xl bg-slate-950/70 border border-amber-900/50">

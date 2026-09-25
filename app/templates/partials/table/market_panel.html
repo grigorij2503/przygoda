@@ -11,6 +11,11 @@
     </div>
   </div>
 
+  <p class="market-panel__note">
+    Postój pozostanie do opuszczenia tej lokacji, najwyżej do końca tury
+    <strong x-text="session?.market?.expires_turn"></strong>.
+  </p>
+
   <div x-show="marketMerchant" class="market-merchant">
     <div class="market-merchant__portrait" aria-hidden="true">
       <img x-show="marketMerchantPortraitUrl && marketPortraitFailedUrl !== marketMerchantPortraitUrl"
@@ -24,7 +29,7 @@
       <p x-text="marketMerchant?.greeting"></p>
     </div>
   </div>
-  <p x-show="!marketMerchant" class="market-panel__note">Nie pojawił się handlarz. Warsztat jest jednak dostępny w tej turze.</p>
+  <p x-show="!marketMerchant" class="market-panel__note">Nie pojawił się handlarz. Warsztat jest jednak dostępny podczas tego postoju.</p>
   <p x-show="marketBanned && marketMerchant" class="market-panel__error" role="status">Ten handlarz odmawia obsługi wybranej postaci.</p>
   <p x-show="currentCharacter?.participation_status === 'on_break'" class="market-panel__note" role="status">Postać na przerwie może oglądać postój, ale nie handluje ani nie korzysta z warsztatu.</p>
 

@@ -28,7 +28,7 @@ def make_map() -> CampaignMap:
     )
 
 
-def test_boss_drops_one_shared_item_and_opens_next_turn_crafting():
+def test_boss_drops_one_shared_item_and_opens_three_turn_post():
     previous_winner = make_character(1, "Aldren")
     next_winner = make_character(2, "Bera", "Czarodziej")
     session = GameSession(
@@ -56,7 +56,10 @@ def test_boss_drops_one_shared_item_and_opens_next_turn_crafting():
     assert result.new_items[0].stat_bonus <= 2 or result.new_items[0].item_type == "consumable"
     assert next_winner.coins == 6
     assert result.events[-1]["coins_awarded"] == 6
-    assert session.crafting_available_until_turn == 5
+    assert session.crafting_available_until_turn == 7
+    assert session.market_state["visit_turn"] == 5
+    assert session.market_state["expires_turn"] == 7
+    assert session.market_state["location_node_id"] == "room-01"
 
 
 def test_location_can_produce_only_one_shared_loot_award(monkeypatch):

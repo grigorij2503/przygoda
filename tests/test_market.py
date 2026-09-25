@@ -15,7 +15,7 @@ from app.main import app
 from app.models import Character, GameSession, InventoryItem
 from app.services import market_service
 from app.services.room_access import ROOM_SESSION_COOKIE, create_room_session_token
-from app.worlds.registry import get_default_world_pack
+from app.worlds.registry import WORLD_PACK_REGISTRY, get_default_world_pack
 
 
 @pytest_asyncio.fixture
@@ -64,6 +64,61 @@ async def isolated_market():
     finally:
         app.dependency_overrides.pop(get_db, None)
         await engine.dispose()
+
+
+def test_market_visit_stays_open_for_three_turns_in_its_location():
+    session = GameSession(
+        room_code="market-window",
+        status="in_progress",
+        current_turn_number=4,
+        crafting_available_until_turn=0,
+    )
+    market_service.open_market_visit(
+        session,
+        [],
+        get_default_world_pack(),
+        4,
+        guaranteed=True,
+        location_node_id="room-01",
+    )
+
+    for turn_number in (4, 5, 6):
+        session.current_turn_number = turn_number
+        assert market_service.market_visit_is_open(
+            session, location_node_id="room-01"
+        )
+        assert market_service.workshop_is_open(
+            session, location_node_id="room-01"
+        )
+
+    session.current_turn_number = 7
+    assert not market_service.market_visit_is_open(
+        session, location_node_id="room-01"
+    )
+    session.current_turn_number = 5
+    assert not market_service.market_visit_is_open(
+        session, location_node_id="room-02"
+    )
+
+
+def test_merchant_persona_matches_the_theme_portrait():
+    dark_state = market_service.build_market_visit(
+        {}, [], get_default_world_pack(), 1, guaranteed=True
+    )
+    neon_state = market_service.build_market_visit(
+        {},
+        [],
+        WORLD_PACK_REGISTRY.get("neokatowice_3077", 1),
+        1,
+        guaranteed=True,
+    )
+
+    assert dark_state["merchant"]["role"] in {
+        role for _, role in market_service.MASCULINE_MERCHANT_PERSONAS
+    }
+    assert neon_state["merchant"]["role"] in {
+        role for _, role in market_service.FEMININE_MERCHANT_PERSONAS
+    }
 
 
 @pytest.mark.asyncio

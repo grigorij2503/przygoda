@@ -622,8 +622,10 @@ postaci, zmianę usposobienia NPC w Kronice i odmowę w następnym spotkaniu.
 Sprawdzić również stojący portret właściwy dla motywu świata, czytelność karty
 na telefonie i ikonę zastępczą przy brakującym pliku; własną grafikę można
 podmienić w `app/static/img/merchants/<theme_id>.png` bez zmiany pakietu świata.
-Następna tura oraz oba rodzaje restartu zamykają stary postój. Nie wykonywać
-tych czynności na aktywnej bazie kampanii.
+Sprawdzić, czy imię i rodzaj gramatyczny persony zgadzają się z portretem.
+Postój powinien pozostać dostępny maksymalnie przez trzy tury, lecz zamknąć się
+wcześniej po udanym przejściu do innej lokacji. Oba rodzaje restartu również
+zamykają stary postój. Nie wykonywać tych czynności na aktywnej bazie kampanii.
 
 ### Odbiór odkryć Kroniki
 

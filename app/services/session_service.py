@@ -59,7 +59,11 @@ from app.services.world_service import (
     resolve_requested_world_pack,
     serialize_world_runtime,
 )
-from app.services.market_service import item_sell_value, serialize_market
+from app.services.market_service import (
+    item_sell_value,
+    serialize_market,
+    workshop_is_open,
+)
 from app.services.room_access import require_room
 from app.websocket_manager import ws_manager
 from app.worlds.registry import WORLD_PACK_REGISTRY, WorldPackNotFoundError
@@ -366,10 +370,7 @@ async def get_current_session(
             "vote_hours": settings.PROXY_ACTION_VOTE_HOURS,
         },
         "inventory_rules": {
-            "crafting_available": (
-                int(game_session.crafting_available_until_turn or 0)
-                == game_session.current_turn_number
-            ),
+            "crafting_available": workshop_is_open(game_session),
             "crafting_available_until_turn": int(
                 game_session.crafting_available_until_turn or 0
             ),
