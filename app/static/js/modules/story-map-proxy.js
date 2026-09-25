@@ -537,10 +537,10 @@
         return `Nie udało się usunąć efektu: ${event.effect_label || event.effect}`;
       }
       if (event.type === 'roll_context') {
-        const items = (event.item_sources || [])
-          .map(source => `${source.name} ${Number(source.modifier || 0) >= 0 ? '+' : ''}${source.modifier || 0}`)
-          .join(', ');
-        const itemText = items ? `ekwipunek: ${items}` : '';
+        const itemBonus = Number(event.item_bonus || 0);
+        const itemText = itemBonus
+          ? `ekwipunek: ${itemBonus > 0 ? '+' : ''}${itemBonus}`
+          : '';
         const statusText = Number(event.status_modifier || 0)
           ? `efekty: ${event.status_modifier > 0 ? '+' : ''}${event.status_modifier}`
           : '';

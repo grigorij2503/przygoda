@@ -53,7 +53,7 @@ def test_stylesheet_imports_exist_and_keep_declared_order():
     assert local_imports == [
         "./modules/tokens.css?v=21",
         "./modules/base.css?v=21",
-        "./modules/components.css?v=22",
+        "./modules/components.css?v=23",
         "./modules/inventory.css?v=24",
         "./modules/market.css?v=2",
         "./modules/map.css?v=22",
@@ -78,7 +78,7 @@ def test_local_frontend_assets_are_precached_and_scripts_load_before_alpine():
     )
 
     assert all(f"'{url}'" in service_worker for url in local_assets)
-    assert "const CACHE_NAME = 'ttrpg-gemini-v59';" in service_worker
+    assert "const CACHE_NAME = 'ttrpg-gemini-v60';" in service_worker
 
     scripts = re.findall(r'<script[^>]+src="([^"]+)"', index_source)
     app_index = scripts.index("/static/js/app.js?v=35")
@@ -126,3 +126,27 @@ def test_mechanical_turn_events_are_grouped_inside_character_action_cards():
     assert "actionDamageTaken(turn, action)" in story_module
     assert "actionHealingReceived(turn, action)" in story_module
     assert "unassignedMechanicalEvents(turn)" in story_module
+
+
+def test_action_result_card_keeps_player_declaration_readable_and_uses_compact_labels():
+    template = STORY_HISTORY_PATH.read_text(encoding="utf-8")
+    components = (STATIC_ROOT / "css" / "modules" / "components.css").read_text(encoding="utf-8")
+
+    assert "action-result-card__declaration" in template
+    assert "action-result-card__roll" in template
+    assert "CEL AKCJI:" not in template
+    assert "? 'SUKCES' : 'PORAŻKA'" in template
+    assert ".action-result-card__declaration" in components
+    assert "flex: 1 0 100%;" in components
+    assert ".action-result-card__roll" in components
+    assert "min-width: min(100%, 27rem);" in components
+
+
+def test_roll_context_shows_equipment_total_instead_of_item_list():
+    story_module = STORY_MAP_PROXY_PATH.read_text(encoding="utf-8")
+    roll_context = story_module.split("if (event.type === 'roll_context') {", 1)[1].split(
+        "if (event.type === 'boss_attack')", 1
+    )[0]
+
+    assert "event.item_bonus" in roll_context
+    assert "source.name" not in roll_context

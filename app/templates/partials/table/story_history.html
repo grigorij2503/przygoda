@@ -171,8 +171,8 @@
                            'dice-crit-success': act.outcome_tier === 'critical_success',
                            'dice-crit-fail': act.outcome_tier === 'critical_failure'
                          }">
-                      <div class="flex-1">
-                        <div class="flex items-center gap-2 mb-1">
+                      <div class="action-result-card__details">
+                        <div class="action-result-card__heading flex items-center gap-2 mb-1">
                           <b class="text-amber-300 text-sm font-fantasy" x-text="act.character_name"></b>
                           <span x-show="act.submission_source === 'party_vote'" x-cloak
                                 class="px-1.5 py-0.5 rounded bg-indigo-950/80 border border-indigo-500/40 text-indigo-300 text-[9px] not-italic">
@@ -183,7 +183,7 @@
                             <span x-text="(act.ability || act.magic_ability)?.icon"></span>
                             <span x-text="(act.ability || act.magic_ability)?.name"></span>
                           </span>
-                          <span class="text-gray-400 italic">„<span x-text="act.action_text"></span>”</span>
+                          <span class="action-result-card__declaration text-gray-400 italic">„<span x-text="act.action_text"></span>”</span>
                           <span x-show="act.named_attack_id" x-cloak class="text-amber-300 text-[10px]"
                                 x-text="'✦ ' + (session?.lore_entities?.find(entry => entry.id === act.named_attack_id)?.custom_name || 'Odkryta technika')"></span>
                         </div>
@@ -218,7 +218,7 @@
 
                       <!-- Widget Rzutu Kością - TYLKO PO ROZSTRZYGNIĘCIU TURY -->
                       <template x-if="t.status === 'completed' && act.outcome_tier && act.dice_roll_raw !== null">
-                        <div class="flex items-center gap-2 shrink-0 bg-slate-950/80 px-3 py-2 rounded-lg border border-slate-700/60 font-mono">
+                        <div class="action-result-card__roll flex items-center gap-2 bg-slate-950/80 px-3 py-2 rounded-lg border border-slate-700/60 font-mono">
                           <span class="text-lg">🎲</span>
                           <div class="flex flex-wrap items-center gap-x-1 gap-y-0.5">
                             <span class="text-amber-400 font-bold" x-text="'d20(' + act.dice_roll_raw + ')'"></span>
@@ -247,14 +247,14 @@
                                   'bg-amber-900 text-amber-300': act.outcome_tier === 'partial_success',
                                   'bg-rose-900 text-rose-300': act.outcome_tier === 'failure' || act.outcome_tier === 'critical_failure'
                                 }"
-                                x-text="'CEL AKCJI: ' + (act.outcome_tier === 'critical_success' ? 'KRYTYK!' : act.outcome_tier === 'success' ? 'SUKCES' : act.outcome_tier === 'partial_success' ? 'CZĘŚCIOWY' : 'PORAŻKA')">
+                                x-text="['critical_success', 'success', 'partial_success'].includes(act.outcome_tier) ? 'SUKCES' : 'PORAŻKA'">
                           </span>
                         </div>
                       </template>
 
                       <!-- Gdy tura w toku - oczekiwanie na rzut MG -->
                       <template x-if="t.status !== 'completed' || !act.outcome_tier || act.dice_roll_raw === null">
-                        <div class="flex items-center gap-2 shrink-0 bg-slate-950/80 px-3 py-2 rounded-lg border border-amber-900/40 text-[11px] text-amber-300/80 font-fantasy">
+                        <div class="action-result-card__roll flex items-center gap-2 bg-slate-950/80 px-3 py-2 rounded-lg border border-amber-900/40 text-[11px] text-amber-300/80 font-fantasy">
                           <span class="text-amber-400 animate-pulse">⏳</span>
                           <span>Akcja zadeklarowana • Czeka na rzut MG</span>
                         </div>

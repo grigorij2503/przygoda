@@ -66,13 +66,34 @@
 
 /* Mechanical consequences belong to the affected hero instead of a detached turn log. */
 .action-result-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
 }
 
+.action-result-card__details {
+  flex: 1 1 20rem;
+  min-width: min(100%, 20rem);
+}
+
+.action-result-card__heading {
+  flex-wrap: wrap;
+}
+
+.action-result-card__declaration {
+  flex: 1 0 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+.action-result-card__roll {
+  flex: 1 1 27rem;
+  min-width: min(100%, 27rem);
+}
+
 .action-consequences {
-  grid-column: 1 / -1;
+  flex: 1 0 100%;
   overflow: hidden;
   border: 1px solid rgb(71 85 105 / 0.58);
   border-radius: 0.65rem;
@@ -140,9 +161,3 @@
 .action-consequence--warning { color: #fde68a; background: rgb(69 26 3 / 0.28); }
 .action-consequence--positive { color: #a7f3d0; background: rgb(2 44 34 / 0.28); }
 .action-consequence--neutral { color: #cbd5e1; }
-
-@media (min-width: 768px) {
-  .action-result-card {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-}
