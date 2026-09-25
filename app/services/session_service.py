@@ -99,6 +99,14 @@ async def get_current_session(
         ):
             set_character_downed(character)
             session_changed = True
+        elif (
+            getattr(character, "death_state", "alive") in {"downed", "stable", "dead"}
+            and status_list(character.status_effects)
+        ):
+            # Porządkuje także zapisane wcześniej postacie, którym efekt pozostał
+            # po agonii lub śmierci sprzed wprowadzenia tej reguły.
+            character.status_effects = []
+            session_changed = True
     if game_session.campaign_map is None:
         game_session.campaign_map = await replace_campaign_map(db, game_session)
         session_changed = True

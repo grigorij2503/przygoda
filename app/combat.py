@@ -556,9 +556,10 @@ def _apply_hp_delta(character: Character, delta: int, action: PlayerAction) -> i
 
 
 def set_character_downed(character: Character) -> None:
-    """Przenosi postać do stanu agonii bez nadpisywania ostatecznej śmierci."""
+    """Przenosi postać do agonii i usuwa efekty, które nie trwają po utracie przytomności."""
     character.current_hp = 0
     character.is_alive = False
+    character.status_effects = []
     if getattr(character, "death_state", "alive") not in {"downed", "stable", "dead"}:
         character.death_state = "downed"
         character.death_failures = 0
@@ -637,6 +638,7 @@ def _resolve_support_action(
         target.is_alive = True
         target.death_state = "alive"
         target.death_failures = 0
+        target.status_effects = []
         action.hp_delta = int(action.hp_delta or 0) + restored - previous_hp
         events.append({
             "type": "resurrection",
@@ -792,6 +794,7 @@ def _advance_death_states(
         character.death_failures = min(3, int(character.death_failures or 0) + 1)
         if character.death_failures >= 3:
             character.death_state = "dead"
+            character.status_effects = []
             events.append({"type": "character_died", "target": character.name})
         else:
             events.append({
@@ -818,6 +821,9 @@ def _tick_character_effects(character: Character, action: PlayerAction, events: 
                     "effect_icon": effect.get("icon") or "⚠️",
                     "damage": abs(applied),
                 })
+            if character.current_hp == 0:
+                remaining = []
+                break
         duration = int(effect.get("turns_remaining", 1))
         effect["turns_remaining"] = duration if duration >= 90 else duration - 1
         if effect["turns_remaining"] > 0:

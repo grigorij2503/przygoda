@@ -6,6 +6,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 
+from app.combat import set_character_downed
 from app.config import settings
 from app.database import get_db
 from app.models import (
@@ -237,9 +238,7 @@ async def set_character_health(
         character.death_state = "alive"
         character.death_failures = 0
     elif character.death_state != "dead":
-        character.is_alive = False
-        character.death_state = "downed"
-        character.death_failures = 0
+        set_character_downed(character)
 
     await db.commit()
     logger.warning(

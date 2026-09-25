@@ -7,6 +7,7 @@ from app.combat import (
     make_status,
     resolve_boss_turn,
     resolve_status_turn,
+    set_character_downed,
 )
 from app.models import Character, GameSession, InventoryItem, PlayerAction
 from app.main import validate_action_item_claim
@@ -158,6 +159,52 @@ def test_status_damage_event_has_a_player_facing_label_and_icon():
     assert status_event["damage"] == 2
     assert status_event["effect_label"] == "Poparzony"
     assert status_event["effect_icon"] == "🔥"
+
+
+def test_entering_agony_clears_all_status_effects():
+    character = make_level_four_character("Poparzony")
+    character.status_effects = [
+        make_status("burning", 2, 1, "Smok"),
+        make_status("guarded", 2, 2, "Kapłan"),
+    ]
+
+    set_character_downed(character)
+
+    assert character.death_state == "downed"
+    assert character.status_effects == []
+
+
+def test_lethal_status_damage_does_not_restore_effect_after_entering_agony():
+    character = make_level_four_character("Poparzony")
+    character.id = 1
+    character.current_hp = 2
+    character.status_effects = [
+        make_status("burning", 3, 1, "Smok"),
+        make_status("frozen", 3, 1, "Mróz"),
+    ]
+    action = PlayerAction(character_id=1, action_text="Czekam", intent="other")
+
+    resolve_status_turn([character], [action])
+
+    assert character.current_hp == 0
+    assert character.death_state == "downed"
+    assert character.status_effects == []
+
+
+def test_death_clears_legacy_status_effects_from_downed_character():
+    character = make_level_four_character("Poparzony")
+    character.id = 1
+    character.current_hp = 0
+    character.is_alive = False
+    character.death_state = "downed"
+    character.death_failures = 2
+    character.status_effects = [make_status("burning", 3, 1, "Smok")]
+
+    events = resolve_status_turn([character], [])
+
+    assert character.death_state == "dead"
+    assert character.status_effects == []
+    assert any(event["type"] == "character_died" for event in events)
 
 
 def test_boss_status_damage_keeps_the_character_source_for_ui_attribution():
