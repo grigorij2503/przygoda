@@ -106,9 +106,9 @@
             </button>
             <strong class="font-fantasy" x-text="deathStateLabel(currentCharacter)"></strong>
             <p class="mt-1 text-gray-300" x-show="currentCharacter?.death_state === 'downed'">
-              Na końcu każdej kolejnej tury otrzymujesz porażkę śmierci. Trzecia oznacza zgon. Sojusznik może Cię ustabilizować lub podnieść akcją wsparcia.
+              Na końcu każdej kolejnej tury otrzymujesz porażkę śmierci. Trzecia oznacza zgon. Każdy sojusznik może Cię ustabilizować udaną akcją wsparcia; zdolność lecząca może również przywrócić Ci PW.
             </p>
-            <p class="mt-1 text-gray-300" x-show="currentCharacter?.death_state === 'stable'">Nie wykonujesz akcji i nie zbierasz porażek śmierci. Udane wsparcie przywróci Ci co najmniej 1 PW.</p>
+            <p class="mt-1 text-gray-300" x-show="currentCharacter?.death_state === 'stable'">Nie wykonujesz akcji i nie zbierasz porażek śmierci. Skuteczne leczenie przywróci Ci co najmniej 1 PW.</p>
             <p class="mt-1 text-gray-300" x-show="currentCharacter?.death_state === 'dead'">Zwykłe leczenie nie działa. Potrzebna jest odblokowana zdolność o efekcie wskrzeszenia.</p>
           </div>
 

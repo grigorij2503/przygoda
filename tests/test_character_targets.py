@@ -79,6 +79,30 @@ def test_non_healing_support_grants_protection_instead_of_restoring_hp():
     assert not any(event["type"] == "support" for event in events)
 
 
+def test_basic_support_stabilizes_downed_character_without_restoring_hp():
+    actor = make_character(1, "Minsc")
+    target = make_character(2, "Markello", hp=0)
+    target.is_alive = False
+    target.death_state = "downed"
+    target.death_failures = 2
+    action = PlayerAction(
+        character_id=1,
+        action_text="Korzystam z wiedzy Boo, by pomóc Markello",
+        intent="support",
+        target_ref="2",
+        outcome_tier="critical_success",
+    )
+
+    events = resolve_status_turn([actor, target], [action])
+
+    assert target.current_hp == 0
+    assert target.death_state == "stable"
+    assert target.death_failures == 0
+    assert target.is_alive is False
+    assert any(event["type"] == "stabilized" and event["target"] == "Markello" for event in events)
+    assert not any(event["type"] in {"support_failed", "revived"} for event in events)
+
+
 def test_resurrection_does_not_restore_status_effects_left_on_dead_character():
     cleric = make_character(1, "Kapłan")
     cleric.class_id = "cleric"

@@ -654,6 +654,17 @@ def _resolve_support_action(
 
     mechanic_key = ability.get("mechanic_key") if ability else None
     params = ability.get("mechanic_params", {}) if ability else {}
+
+    # Każda postać może udzielić podstawowej pierwszej pomocy. Udane zwykłe
+    # wsparcie zatrzymuje agonię, ale nie przywraca HP; do podniesienia
+    # nieprzytomnej postaci nadal potrzebna jest zdolność z mechaniką leczenia.
+    if target_state == "downed" and mechanic_key in {None, "support"}:
+        target.death_state = "stable"
+        target.death_failures = 0
+        target.is_alive = False
+        events.append({"type": "stabilized", "actor": actor.name, "target": target.name})
+        return
+
     healing_intent = mechanic_key == "heal" or bool(re.search(
         r"\b(?:lecz|uzdraw|opatru|stabiliz|bandaz|reanim|pierwsz\w*\s+pomoc)\w*\b",
         normalize_text(action.action_text),
