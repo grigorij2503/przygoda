@@ -13,7 +13,9 @@ from app.config import settings
 
 
 ROOM_SESSION_COOKIE = "ttrpg_room_session"
-ROOM_SESSION_TTL_SECONDS = 24 * 60 * 60
+# Keep trusted devices signed in without storing the room password in the browser.
+# The cookie is renewed after every successful room-access check.
+ROOM_SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
 PASSWORD_ITERATIONS = 310_000
 
 

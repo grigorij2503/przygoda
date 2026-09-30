@@ -469,6 +469,8 @@ Ruleset używa pięciu kanonicznych atrybutów: Siły, Zręczności, Intelektu, 
 
 Każda zakończona zmiana w projekcie musi obejmować aktualizację `README.md` oraz `AGENTS.md` o informacje opisujące nowy lub zmieniony stan aplikacji. Dotyczy to również zmian funkcjonalnych, konfiguracji, struktury projektu, komend i procesu pracy. Na końcu podsumowania każdej zmiany należy zaproponować krótką, opisową nazwę commitu w języku angielskim.
 
+Automatyczny agent nie uruchamia ani nie proponuje uruchamiania testów bez wyraźnej prośby użytkownika w bieżącej rozmowie. Polecenia wdrożenia, naprawy, weryfikacji lub zakończenia zmiany nie stanowią takiej zgody. Po każdej zakończonej zmianie agent podaje propozycję angielskiej nazwy commitu, ale nie tworzy commita bez osobnego polecenia.
+
 ---
 
 ## 📜 Licencja & Zespół

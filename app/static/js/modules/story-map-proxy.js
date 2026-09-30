@@ -635,6 +635,7 @@
     },
 
     canOpenProxyAction(character) {
+      if (!character?.is_alive) return false;
       if (character?.participation_status === 'on_break') return false;
       const availableAt = Date.parse(character?.proxy_action?.available_at || '');
       const isAvailable = character?.proxy_action?.available || (

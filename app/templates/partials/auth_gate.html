@@ -13,7 +13,7 @@
         <div>
           <label for="room-code" class="block text-xs font-semibold text-amber-400/80 uppercase tracking-widest text-left mb-1">Kod pokoju</label>
           <input id="room-code" type="text" x-model.trim="roomCode" autocomplete="username" placeholder="np. kampania-1"
-                 pattern="[a-z0-9-]{3,50}" required
+                 pattern="[a-z0-9\-]{3,50}" required
                  class="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition">
         </div>
         <div>
@@ -48,7 +48,7 @@
 
       <form x-show="showRoomCreation" x-cloak @submit.prevent="createRoom()" class="mt-5 pt-5 border-t border-slate-700/70 space-y-3 text-left">
         <p class="text-xs text-gray-400">Nowy stół rozpocznie niezależną kampanię. Do utworzenia potrzebny jest administracyjny PIN MG.</p>
-        <input type="text" x-model.trim="newRoom.room_code" required pattern="[a-z0-9-]{3,50}" placeholder="Kod nowego pokoju"
+        <input type="text" x-model.trim="newRoom.room_code" required pattern="[a-z0-9\-]{3,50}" placeholder="Kod nowego pokoju"
                aria-label="Kod nowego pokoju" class="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
         <div>
           <label for="new-room-world" class="block text-xs text-amber-400/90 uppercase mb-1">Świat kampanii</label>

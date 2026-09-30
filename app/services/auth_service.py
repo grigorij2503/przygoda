@@ -30,6 +30,25 @@ ROOM_CREATION_WINDOW_SECONDS = 5 * 60
 room_creation_attempts: dict[str, list[float]] = {}
 
 
+def _set_room_access_cookie(
+    response: Response,
+    request: Request,
+    room_code: str,
+) -> None:
+    response.set_cookie(
+        key=ROOM_SESSION_COOKIE,
+        value=create_room_session_token(
+            int(time.time()) + ROOM_SESSION_TTL_SECONDS,
+            room_code,
+        ),
+        max_age=ROOM_SESSION_TTL_SECONDS,
+        httponly=True,
+        secure=request.url.scheme == "https",
+        samesite="strict",
+        path="/",
+    )
+
+
 async def verify_password(
     payload: VerifyPasswordRequest,
     response: Response,
@@ -53,18 +72,7 @@ async def verify_password(
         session.room_password_hash = hash_room_password(payload.password)
         await db.commit()
 
-    response.set_cookie(
-        key=ROOM_SESSION_COOKIE,
-        value=create_room_session_token(
-            int(time.time()) + ROOM_SESSION_TTL_SECONDS,
-            session.room_code,
-        ),
-        max_age=ROOM_SESSION_TTL_SECONDS,
-        httponly=True,
-        secure=request.url.scheme == "https",
-        samesite="strict",
-        path="/",
-    )
+    _set_room_access_cookie(response, request, session.room_code)
     return {
         "success": True,
         "message": "Autoryzacja pomyślna",
@@ -73,9 +81,11 @@ async def verify_password(
     }
 
 
-async def room_access_status(room_code: str, request: Request):
-    require_room(request, room_code.strip().lower())
-    return {"authenticated": True, "room_code": room_code.strip().lower()}
+async def room_access_status(room_code: str, request: Request, response: Response):
+    normalized_room_code = room_code.strip().lower()
+    require_room(request, normalized_room_code)
+    _set_room_access_cookie(response, request, normalized_room_code)
+    return {"authenticated": True, "room_code": normalized_room_code}
 
 
 async def create_room(

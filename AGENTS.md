@@ -1,5 +1,11 @@
 # Repository Guidelines
 
+## Non-Negotiable Agent Workflow
+- **Never run tests, test suites, test commands, or test-related validation unless the user explicitly asks for tests in the current turn.** A request to fix, implement, verify, or finish a change is not permission to run tests. Do not propose that tests be run; the user runs them independently.
+- After every completed code, configuration, documentation, or workflow change, end the final response with exactly `Proponowana nazwa commitu: <short English subject>`.
+- Always provide that proposed commit subject, even when no tests were run. Never create the commit unless the user explicitly requests it.
+- Respond in Polish and report only validation actually performed.
+
 ## Project Structure & Module Organization
 This is a Python/FastAPI multiplayer TTRPG application with Gemini narration and generated illustrations.
 - `app/main.py`: FastAPI composition, middleware, static mounts, lifespan wiring, and domain-router registration.

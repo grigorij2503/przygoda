@@ -10,6 +10,7 @@ from app.config import settings
 from app.database import Base, get_db
 from app.main import app
 from app.models import Character, GameSession, Turn
+from app.services.room_access import ROOM_SESSION_TTL_SECONDS
 
 
 @pytest.mark.asyncio
@@ -49,6 +50,7 @@ async def test_parallel_rooms_have_independent_credentials_and_state(monkeypatch
                 "room_code": "piatkowa-gra", "password": "pierwsze-haslo",
             })
             assert logged_in.status_code == 200
+            assert f"Max-Age={ROOM_SESSION_TTL_SECONDS}" in logged_in.headers["set-cookie"]
             first_session_response = await client.get("/api/session?room_code=piatkowa-gra")
             assert first_session_response.status_code == 200
             first_session = first_session_response.json()
@@ -72,6 +74,25 @@ async def test_parallel_rooms_have_independent_credentials_and_state(monkeypatch
     finally:
         app.dependency_overrides.pop(get_db, None)
         await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_room_access_check_renews_the_persistent_cookie(isolated_dark_fantasy_db):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="https://test") as client:
+        logged_in = await client.post("/api/verify-password", json={
+            "room_code": "kampania-1",
+            "password": settings.ROOM_PASSWORD,
+        })
+        assert logged_in.status_code == 200
+
+        restored = await client.get("/api/room-access?room_code=kampania-1")
+
+        assert restored.status_code == 200
+        cookie = restored.headers["set-cookie"]
+        assert f"Max-Age={ROOM_SESSION_TTL_SECONDS}" in cookie
+        assert "HttpOnly" in cookie
+        assert "SameSite=strict" in cookie
+        assert "Secure" in cookie
 
 
 @pytest.mark.asyncio

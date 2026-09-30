@@ -13,6 +13,7 @@ STYLE_PATH = STATIC_ROOT / "css" / "style.css"
 SERVICE_WORKER_PATH = STATIC_ROOT / "sw.js"
 STORY_MAP_PROXY_PATH = STATIC_ROOT / "js" / "modules" / "story-map-proxy.js"
 STORY_HISTORY_PATH = ROOT / "app" / "templates" / "partials" / "table" / "story_history.html"
+AUTH_GATE_PATH = ROOT / "app" / "templates" / "partials" / "auth_gate.html"
 
 
 def local_static_path(url: str) -> Path:
@@ -43,6 +44,13 @@ def test_index_partials_render_and_referenced_assets_exist():
     local_assets = set(re.findall(r'(?:src|href)="(/static/[^"]+)', rendered))
     assert local_assets
     assert all(local_static_path(url).is_file() for url in local_assets)
+
+
+def test_room_code_patterns_escape_hyphen_for_html_v_mode_regex():
+    auth_gate = AUTH_GATE_PATH.read_text(encoding="utf-8")
+
+    assert auth_gate.count(r'pattern="[a-z0-9\-]{3,50}"') == 2
+    assert 'pattern="[a-z0-9-]{3,50}"' not in auth_gate
 
 
 def test_stylesheet_imports_exist_and_keep_declared_order():
@@ -78,7 +86,7 @@ def test_local_frontend_assets_are_precached_and_scripts_load_before_alpine():
     )
 
     assert all(f"'{url}'" in service_worker for url in local_assets)
-    assert "const CACHE_NAME = 'ttrpg-gemini-v60';" in service_worker
+    assert "const CACHE_NAME = 'ttrpg-gemini-v61';" in service_worker
 
     scripts = re.findall(r'<script[^>]+src="([^"]+)"', index_source)
     app_index = scripts.index("/static/js/app.js?v=35")
@@ -105,6 +113,17 @@ def test_character_break_never_exposes_proxy_vote_after_wait_timer():
     timer_fallback = "this.proxyNow >= availableAt"
     assert break_guard in method
     assert method.index(break_guard) < method.index(timer_fallback)
+
+
+def test_incapacitated_character_never_exposes_proxy_vote_after_wait_timer():
+    source = STORY_MAP_PROXY_PATH.read_text(encoding="utf-8")
+    method = source.split("canOpenProxyAction(character) {", 1)[1].split(
+        "openProxyActionVote(character) {", 1
+    )[0]
+    alive_guard = "!character?.is_alive"
+    timer_fallback = "this.proxyNow >= availableAt"
+    assert alive_guard in method
+    assert method.index(alive_guard) < method.index(timer_fallback)
 
 
 def test_incapacitated_character_is_not_presented_as_waiting_for_action():
