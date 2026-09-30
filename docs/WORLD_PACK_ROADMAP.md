@@ -567,7 +567,10 @@ może wskazać rzucającego. Pierwsze przeszukanie pomieszczenia zamyka dalsze
 próby także po porażce lub pustym wyniku; zdobyty przedmiot trafia do
 znalazcy i ma tę samą nazwę w narracji oraz plecaku. Jeśli pojawi się
 przeklęty przedmiot, po założeniu karta pokazuje premię i karę. MG może
-zapisać epilog, po czym historia pozostaje widoczna, a kolejne akcje są
+wygenerować na podstawie całej kroniki podsumowanie oraz edytowalną propozycję
+epilogu bez zmiany stanu kampanii. Długa kronika jest streszczana chronologicznie
+w etapach, bez odrzucania pierwszych tur. Dopiero zapisanie zaakceptowanego
+epilogu kończy kampanię; historia pozostaje widoczna, a kolejne akcje są
 zamknięte do nowego scenariusza.
 
 ### Odbiór skalowania trudności

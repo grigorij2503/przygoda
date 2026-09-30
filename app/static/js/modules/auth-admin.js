@@ -123,6 +123,7 @@
       this.gmPin = '';
       this.gmAuthError = '';
       this.resetConfirmation = '';
+      this.clearCampaignEndingDraft();
       this.selectedCharacterId = null;
       localStorage.removeItem(`rpg_selected_char:${this.roomCode}`);
       this.closeWebSocket();
@@ -216,6 +217,13 @@
       this.showIntroModal = false;
       this.resetConfirmation = '';
       window.TTRPG_THEME?.clearWorldPreview();
+    },
+
+    clearCampaignEndingDraft() {
+      this.gmCampaignSummary = '';
+      this.gmEpilogue = '';
+      this.gmEndingDraftError = '';
+      this.gmEpilogueError = '';
     },
 
     async resolvePartyCrisis() {
@@ -573,6 +581,31 @@
       }
     },
 
+    async generateCampaignEndingDraft() {
+      this.gmEndingDraftError = '';
+      this.gmEpilogueError = '';
+      this.isGeneratingCampaignEnding = true;
+      try {
+        const res = await fetch('/api/session/generate-ending-draft', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room_code: this.roomCode })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 403) { this.requireGmUnlock(); return; }
+        if (!res.ok) {
+          throw new Error(data.detail || 'Nie udało się wygenerować szkicu finału kampanii.');
+        }
+        this.gmCampaignSummary = data.history_summary || '';
+        this.gmEpilogue = data.epilogue || '';
+        this.addToast('AI przygotowało podsumowanie i edytowalny szkic epilogu.', 'success');
+      } catch (error) {
+        this.gmEndingDraftError = error.message;
+      } finally {
+        this.isGeneratingCampaignEnding = false;
+      }
+    },
+
     async finishCampaign() {
       this.gmEpilogueError = '';
       const epilogue = this.gmEpilogue.trim();
@@ -591,7 +624,7 @@
         if (res.status === 403) { this.requireGmUnlock(); return; }
         if (!res.ok) throw new Error(data.detail || 'Nie udało się zakończyć kampanii.');
         this.showIntroModal = false;
-        this.gmEpilogue = '';
+        this.clearCampaignEndingDraft();
         await this.fetchSession();
         this.addToast('Kampania została zakończona. Epilog zapisano w kronice.', 'success');
       } catch (error) {

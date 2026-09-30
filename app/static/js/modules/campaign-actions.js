@@ -134,6 +134,7 @@
         }
         this.showIntroModal = false;
         this.resetConfirmation = '';
+        this.clearCampaignEndingDraft();
         this.addToast('Nowe lobby kampanii jest gotowe.', 'success');
         await this.fetchSession();
       } catch (err) {

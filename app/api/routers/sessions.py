@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.schemas import GenerateIntroResponse
+from app.schemas import CampaignEndingDraftResponse, GenerateIntroResponse
 from app.services import session_service
 
 
@@ -30,6 +30,12 @@ router.add_api_route(
     "/api/session/start-prologue",
     session_service.start_prologue,
     methods=["POST"],
+)
+router.add_api_route(
+    "/api/session/generate-ending-draft",
+    session_service.generate_campaign_ending_draft,
+    methods=["POST"],
+    response_model=CampaignEndingDraftResponse,
 )
 router.add_api_route(
     "/api/session/finish-campaign",

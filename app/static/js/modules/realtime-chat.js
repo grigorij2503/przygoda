@@ -122,6 +122,7 @@
           break;
 
         case 'LOBBY_STARTED':
+          this.clearCampaignEndingDraft();
           this.addToast(`🏰 Mistrz Gry otworzył Zbiórkę Drużyny dla nowego scenariusza: ${msg.title}!`, 'info');
           await this.fetchSession();
           break;

@@ -130,6 +130,7 @@
     "/api/room-access": ["GET"],
     "/api/rooms": ["POST"],
     "/api/session": ["GET"],
+    "/api/session/generate-ending-draft": ["POST"],
     "/api/session/finish-campaign": ["POST"],
     "/api/session/resolve-party-crisis": ["POST"],
     "/api/session/name-entity": ["POST"],

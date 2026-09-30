@@ -78,6 +78,20 @@ class FinishCampaignRequest(BaseModel):
     room_code: str = Field(min_length=1, max_length=50)
     epilogue: str = Field(min_length=20, max_length=5000)
 
+
+class GenerateCampaignEndingRequest(BaseModel):
+    room_code: str = Field(min_length=1, max_length=50)
+
+
+class CampaignHistoryChunkSummary(BaseModel):
+    summary: str = Field(min_length=20, max_length=6000)
+
+
+class CampaignEndingDraftResponse(BaseModel):
+    history_summary: str = Field(min_length=50, max_length=5000)
+    epilogue: str = Field(min_length=20, max_length=5000)
+
+
 class GenerateIntroRequest(BaseModel):
     scenario_type: str = Field(
         ...,

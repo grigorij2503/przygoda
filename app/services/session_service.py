@@ -19,7 +19,12 @@ from app.combat import (
 )
 from app.config import settings
 from app.database import get_db
-from app.gemini_service import generate_campaign_intro_ai, generate_party_prologue_ai
+from app.gemini_service import (
+    CampaignEndingGenerationError,
+    generate_campaign_ending_draft_ai,
+    generate_campaign_intro_ai,
+    generate_party_prologue_ai,
+)
 from app.magic import get_ability, get_ability_book
 from app.map_generator import serialize_campaign_map
 from app.models import (
@@ -32,8 +37,10 @@ from app.models import (
     Turn,
 )
 from app.schemas import (
+    CampaignEndingDraftResponse,
     CreateSessionRequest,
     FinishCampaignRequest,
+    GenerateCampaignEndingRequest,
     GenerateIntroRequest,
     NameEntityRequest,
     PrologueRequest,
@@ -454,6 +461,53 @@ async def generate_intro(payload: GenerateIntroRequest, request: Request):
     return await generate_campaign_intro_ai(
         payload.scenario_type, payload.tone, world_pack
     )
+
+
+async def generate_campaign_ending_draft(
+    payload: GenerateCampaignEndingRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> CampaignEndingDraftResponse:
+    require_room(request, payload.room_code)
+    require_gm(request)
+    stmt = (
+        select(GameSession)
+        .where(GameSession.room_code == payload.room_code)
+        .options(
+            selectinload(GameSession.characters).selectinload(Character.inventory),
+            selectinload(GameSession.turns)
+            .selectinload(Turn.actions)
+            .selectinload(PlayerAction.character),
+            selectinload(GameSession.lore_entities),
+            selectinload(GameSession.campaign_map),
+        )
+    )
+    session = (await db.execute(stmt)).scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Sesja nie została znaleziona")
+    if session.status != "in_progress":
+        raise HTTPException(
+            status_code=409,
+            detail="Szkic finału można wygenerować tylko dla trwającej kampanii",
+        )
+    if session.is_turn_resolving:
+        raise HTTPException(status_code=409, detail="Poczekaj na rozstrzygnięcie tury")
+    if not session.characters:
+        raise HTTPException(status_code=409, detail="Brak postaci w kampanii")
+    if not session.campaign_intro and not any(
+        turn.status == "completed" and turn.gm_narration
+        for turn in session.turns
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Kampania nie ma jeszcze historii do podsumowania",
+        )
+
+    try:
+        return await generate_campaign_ending_draft_ai(session)
+    except CampaignEndingGenerationError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+
 
 async def finish_campaign(
     payload: FinishCampaignRequest,

@@ -7,7 +7,7 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import httpx
 
@@ -18,6 +18,8 @@ from app.config import settings, UPLOADS_DIR
 from app.magic import get_unlocked_abilities
 from app.models import Character, GameSession, Turn
 from app.schemas import (
+    CampaignEndingDraftResponse,
+    CampaignHistoryChunkSummary,
     GeminiTurnResolutionSchema,
     GenerateIntroResponse,
     MapLocationUpdateSchema,
@@ -42,6 +44,14 @@ CLASS_ARCHETYPE_INSTRUCTION = (
     "Nazwa klasy jest stałą nazwą archetypu w formie męskiej i nie określa płci. "
     "Nie odmieniaj jej na formę żeńską."
 )
+
+CAMPAIGN_ENDING_DIRECT_CONTEXT_CHARS = 26000
+CAMPAIGN_ENDING_CHUNK_CHARS = 22000
+CAMPAIGN_ENDING_FINAL_SUMMARY_CHARS = 24000
+
+
+class CampaignEndingGenerationError(RuntimeError):
+    """Raised when an AI campaign-ending draft cannot be generated."""
 
 
 def narrative_form_instruction(character: Character) -> str:
@@ -236,6 +246,299 @@ async def generate_campaign_intro_ai(
             campaign_intro=profile.campaign_intro,
             first_challenge=profile.first_challenge,
         )
+
+
+def _json_size(value: Any) -> int:
+    return len(json.dumps(value, ensure_ascii=False, default=str))
+
+
+def _group_campaign_material(items: list[Any], max_chars: int) -> list[list[Any]]:
+    groups: list[list[Any]] = []
+    current: list[Any] = []
+    current_size = 2
+    for item in items:
+        item_size = _json_size(item) + 1
+        if current and current_size + item_size > max_chars:
+            groups.append(current)
+            current = []
+            current_size = 2
+        current.append(item)
+        current_size += item_size
+    if current:
+        groups.append(current)
+    return groups
+
+
+def _campaign_turn_record(turn: Turn) -> dict[str, Any]:
+    actions = []
+    for action in sorted(turn.actions or [], key=lambda item: item.id or 0):
+        actions.append({
+            "character": getattr(action.character, "name", None),
+            "declaration": action.action_text,
+            "intent": action.intent,
+            "outcome": action.outcome_tier,
+            "dice_total": action.dice_total,
+            "dc": action.dc,
+            "damage_dealt": int(action.damage_dealt or 0),
+            "hp_delta": int(action.hp_delta or 0),
+            "xp_gained": int(action.xp_gained or 0),
+            "individual_summary": action.gm_individual_summary or "",
+        })
+    return {
+        "turn_number": turn.turn_number,
+        "next_challenge_after_turn": turn.next_turn_prompt or "",
+        "narration": turn.gm_narration or "",
+        "actions": actions,
+        "mechanical_events": turn.combat_events or [],
+    }
+
+
+def _campaign_ending_context(session: GameSession) -> dict[str, Any]:
+    world_pack = get_session_world_pack(session)
+    characters = []
+    for character in sorted(session.characters or [], key=lambda item: item.id or 0):
+        characters.append({
+            "name": character.name,
+            "player_name": character.player_name,
+            "class": character.character_class,
+            "narrative_form": character.narrative_form or "neutral",
+            "narrative_form_instruction": narrative_form_instruction(character),
+            "level": int(character.level or 1),
+            "xp": int(character.xp or 0),
+            "hp": f"{int(character.current_hp or 0)}/{int(character.max_hp or 0)}",
+            "death_state": character.death_state or "alive",
+            "participation_status": character.participation_status or "active",
+            "coins": int(character.coins or 0),
+            "status_effects": character.status_effects or [],
+            "inventory": [
+                {
+                    "name": item.name,
+                    "quantity": int(item.quantity or 0),
+                    "equipped": bool(item.is_equipped),
+                }
+                for item in character.inventory or []
+            ],
+        })
+
+    lore = [
+        {
+            "category": entity.category,
+            "name": entity.custom_name,
+            "description": entity.original_description,
+            "named_by": entity.named_by_character_name,
+            "discovered_turn": entity.discovered_turn_number,
+            "active": bool(entity.is_active),
+            "npc_disposition": entity.npc_disposition,
+            "npc_goal": entity.npc_goal,
+        }
+        for entity in sorted(
+            session.lore_entities or [],
+            key=lambda item: (item.discovered_turn_number or 0, item.id or 0),
+        )
+    ]
+
+    visited_locations = []
+    campaign_map = session.campaign_map
+    if campaign_map:
+        layout = campaign_map.layout or {}
+        nodes_by_id = {
+            str(node.get("id")): node
+            for node in layout.get("nodes", [])
+            if node.get("id") is not None
+        }
+        discovered_node_ids = list(campaign_map.discovered_node_ids or [])
+        if campaign_map.current_node_id not in discovered_node_ids:
+            discovered_node_ids.append(campaign_map.current_node_id)
+        for node_id in discovered_node_ids:
+            node = nodes_by_id.get(str(node_id), {})
+            visited_locations.append({
+                "id": node_id,
+                "name": node.get("custom_name") or node.get("name"),
+                "summary": node.get("exploration_summary") or node.get("description"),
+                "notable_elements": node.get("notable_elements") or node.get("contents") or [],
+            })
+
+    current_turn = next(
+        (
+            turn for turn in session.turns or []
+            if turn.turn_number == session.current_turn_number
+            and turn.status != "completed"
+        ),
+        None,
+    )
+    return {
+        "campaign": {
+            "title": session.title,
+            "world": world_pack.display_name,
+            "scenario": session.scenario_type,
+            "tone": session.setting_theme,
+            "intro": session.campaign_intro,
+            "completed_turn_count": len([
+                turn for turn in session.turns or [] if turn.status == "completed"
+            ]),
+            "unresolved_current_situation": (
+                current_turn.next_turn_prompt if current_turn else None
+            ),
+        },
+        "characters_at_end": characters,
+        "named_lore": lore,
+        "visited_locations": visited_locations,
+        "active_enemy_at_end": {
+            "name": session.active_boss_name,
+            "title": session.active_boss_title,
+            "hp": session.active_boss_hp,
+            "max_hp": session.active_boss_max_hp,
+        } if session.active_boss_name else None,
+    }
+
+
+async def _summarize_campaign_material(
+    client: genai.Client,
+    material: list[Any],
+    source_label: str,
+) -> str:
+    prompt = (
+        "Tworzysz pośrednie, wierne streszczenie materiału z kampanii TTRPG. "
+        "Zachowaj kolejność, związki przyczynowo-skutkowe, decyzje i wyniki bohaterów, "
+        "ważnych NPC, miejsca, odkrycia, zwycięstwa, porażki, śmierci oraz nierozwiązane wątki. "
+        "Nie dopisuj nowych wydarzeń i nie zmieniaj wyniku mechaniki. To materiał dla kolejnego "
+        "etapu generowania, więc preferuj kompletność faktów nad ozdobny styl.\n\n"
+        f"Zakres materiału: {source_label}\n"
+        f"Dane:\n{json.dumps(material, ensure_ascii=False, default=str)}"
+    )
+    response = await call_gemini_with_retry(
+        client=client,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=CampaignHistoryChunkSummary,
+            temperature=0.2,
+        ),
+    )
+    return CampaignHistoryChunkSummary(
+        **json.loads(clean_json_text(response.text))
+    ).summary
+
+
+async def generate_campaign_ending_draft_ai(
+    session: GameSession,
+) -> CampaignEndingDraftResponse:
+    """Generate an editable summary and epilogue draft from the canonical campaign record."""
+    client = get_genai_client()
+    if not client:
+        raise CampaignEndingGenerationError(
+            "Generator AI jest niedostępny, ponieważ nie skonfigurowano klucza Gemini API."
+        )
+
+    completed_turns = sorted(
+        (
+            turn for turn in session.turns or []
+            if turn.status == "completed" and (turn.gm_narration or turn.actions)
+        ),
+        key=lambda item: item.turn_number,
+    )
+    turn_records = [_campaign_turn_record(turn) for turn in completed_turns]
+    ending_context = _campaign_ending_context(session)
+
+    try:
+        if _json_size(turn_records) <= CAMPAIGN_ENDING_DIRECT_CONTEXT_CHARS:
+            history_material: dict[str, Any] = {
+                "mode": "complete_turn_records",
+                "turns": turn_records,
+            }
+        else:
+            summaries = []
+            turn_groups = _group_campaign_material(
+                turn_records, CAMPAIGN_ENDING_CHUNK_CHARS
+            )
+            for index, group in enumerate(turn_groups, start=1):
+                first_turn = group[0]["turn_number"]
+                last_turn = group[-1]["turn_number"]
+                summaries.append(await _summarize_campaign_material(
+                    client,
+                    group,
+                    f"tury {first_turn}-{last_turn}, część {index}/{len(turn_groups)}",
+                ))
+
+            reduction_round = 1
+            while (
+                len(summaries) > 8
+                or _json_size(summaries) > CAMPAIGN_ENDING_FINAL_SUMMARY_CHARS
+            ):
+                reduced = []
+                summary_groups = _group_campaign_material(
+                    summaries, CAMPAIGN_ENDING_CHUNK_CHARS
+                )
+                if len(summary_groups) == 1:
+                    reduced.append(await _summarize_campaign_material(
+                        client,
+                        summary_groups[0],
+                        f"scalenie historii, poziom {reduction_round}",
+                    ))
+                else:
+                    for index, group in enumerate(summary_groups, start=1):
+                        reduced.append(await _summarize_campaign_material(
+                            client,
+                            group,
+                            f"scalenie historii, poziom {reduction_round}, część "
+                            f"{index}/{len(summary_groups)}",
+                        ))
+                summaries = reduced
+                reduction_round += 1
+
+            history_material = {
+                "mode": "hierarchical_complete_history_summary",
+                "summaries_in_chronological_order": summaries,
+            }
+
+        world_pack = get_session_world_pack(session)
+        system_instruction = (
+            f"{world_pack.narrative_profile.narrator_instructions}\n"
+            "Tworzysz finał istniejącej kampanii TTRPG wyłącznie na podstawie przekazanego "
+            "kanonicznego zapisu. Nie wymyślaj nowych wcześniejszych wydarzeń, przedmiotów, "
+            "relacji ani osiągnięć. Nie zmieniaj wyników mechanicznych. Nierozwiązanych wątków "
+            "nie przedstawiaj jako rozstrzygniętych; epilog może pozostawić je otwarte. "
+            "Uwzględnij każdą postać i jej zapisaną formę narracji. Nazwa klasy nie określa płci. "
+            f"{CLASS_ARCHETYPE_INSTRUCTION}"
+        )
+        payload = {
+            "campaign_state": ending_context,
+            "canonical_history": history_material,
+            "output_requirements": {
+                "history_summary": (
+                    "Rzetelne, chronologiczne podsumowanie całej kampanii po polsku: początek, "
+                    "najważniejsze decyzje, punkty zwrotne, odkrycia, sukcesy, porażki i stan końcowy."
+                ),
+                "epilogue": (
+                    "Literacka propozycja epilogu po polsku, spójna z klimatem świata i faktami. "
+                    "Pokaż następstwa wyprawy i los każdej postaci, ale nie zamykaj jako rozwiązanych "
+                    "wątków, których zapis nie rozstrzygnął."
+                ),
+            },
+        }
+        response = await call_gemini_with_retry(
+            client=client,
+            contents=json.dumps(payload, ensure_ascii=False, default=str),
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                response_mime_type="application/json",
+                response_schema=CampaignEndingDraftResponse,
+                temperature=0.65,
+            ),
+        )
+        return CampaignEndingDraftResponse(
+            **json.loads(clean_json_text(response.text))
+        )
+    except CampaignEndingGenerationError:
+        raise
+    except Exception as error:
+        logger.warning(
+            "Nie udało się wygenerować podsumowania i epilogu kampanii: %s",
+            error,
+        )
+        raise CampaignEndingGenerationError(
+            "Gemini nie zdołało teraz przygotować finału kampanii. Spróbuj ponownie."
+        ) from error
 
 async def resolve_turn_with_gemini(
     session: GameSession,

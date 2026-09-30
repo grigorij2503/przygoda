@@ -219,6 +219,7 @@
           throw new Error(err.detail || 'Błąd resetowania kampanii.');
         }
         this.showIntroModal = false;
+        this.clearCampaignEndingDraft();
         this.addToast('Nowa kampania rozpoczęta!', 'success');
         await this.fetchSession();
       } catch (err) {
