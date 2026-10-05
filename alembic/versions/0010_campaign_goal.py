@@ -45,12 +45,19 @@ def upgrade() -> None:
                 server_default="started",
             ),
         )
-    op.execute(
-        "UPDATE game_sessions SET campaign_goal_status = "
-        "CASE WHEN status = 'completed' THEN 'completed' ELSE 'started' END "
-        "WHERE campaign_goal_status IS NULL OR campaign_goal_status NOT IN "
-        "('started', 'in_progress', 'near_resolution', 'completed')"
-    )
+    if "status" in session_columns:
+        op.execute(
+            "UPDATE game_sessions SET campaign_goal_status = "
+            "CASE WHEN status = 'completed' THEN 'completed' ELSE 'started' END "
+            "WHERE campaign_goal_status IS NULL OR campaign_goal_status NOT IN "
+            "('started', 'in_progress', 'near_resolution', 'completed')"
+        )
+    else:
+        op.execute(
+            "UPDATE game_sessions SET campaign_goal_status = 'started' "
+            "WHERE campaign_goal_status IS NULL OR campaign_goal_status NOT IN "
+            "('started', 'in_progress', 'near_resolution', 'completed')"
+        )
 
 
 def downgrade() -> None:

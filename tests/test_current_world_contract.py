@@ -229,7 +229,10 @@ async def test_existing_classes_keep_starter_items_and_session_shape(
 
 
 @pytest.mark.asyncio
-async def test_current_ui_markers_remain_rendered(dark_fantasy_contract):
+async def test_current_ui_markers_remain_rendered(
+    isolated_contract_db,
+    dark_fantasy_contract,
+):
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/")
 
