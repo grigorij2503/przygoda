@@ -35,6 +35,9 @@ async def init_db():
         new_columns = [
             ("game_sessions", "room_password_hash", "VARCHAR(255)"),
             ("game_sessions", "scenario_type", "VARCHAR(200)"),
+            ("game_sessions", "campaign_goal_summary", "TEXT NOT NULL DEFAULT ''"),
+            ("game_sessions", "campaign_current_clue", "TEXT NOT NULL DEFAULT ''"),
+            ("game_sessions", "campaign_goal_status", "VARCHAR(30) NOT NULL DEFAULT 'started'"),
             ("game_sessions", "active_boss_name", "VARCHAR(100)"),
             ("game_sessions", "active_boss_title", "VARCHAR(150)"),
             ("game_sessions", "active_boss_hp", "INTEGER"),
@@ -134,6 +137,20 @@ async def init_db():
         await conn.execute(text(
             "UPDATE game_sessions SET world_pack_version = 1 "
             "WHERE world_pack_version IS NULL OR world_pack_version < 1"
+        ))
+        await conn.execute(text(
+            "UPDATE game_sessions SET campaign_goal_summary = '' "
+            "WHERE campaign_goal_summary IS NULL"
+        ))
+        await conn.execute(text(
+            "UPDATE game_sessions SET campaign_current_clue = '' "
+            "WHERE campaign_current_clue IS NULL"
+        ))
+        await conn.execute(text(
+            "UPDATE game_sessions SET campaign_goal_status = "
+            "CASE WHEN status = 'completed' THEN 'completed' ELSE 'started' END "
+            "WHERE campaign_goal_status IS NULL OR campaign_goal_status NOT IN "
+            "('started', 'in_progress', 'near_resolution', 'completed')"
         ))
         await conn.execute(text(
             """

@@ -15,6 +15,9 @@ class GameSession(Base):
     title = Column(String(200), default="Wyprawa do Przeklętej Twierdzy")
     setting_theme = Column(String(100), default="Dark Fantasy / Gothic Horror")
     campaign_intro = Column(Text, default="")
+    campaign_goal_summary = Column(Text, nullable=False, default="")
+    campaign_current_clue = Column(Text, nullable=False, default="")
+    campaign_goal_status = Column(String(30), nullable=False, default="started")
     current_turn_number = Column(Integer, default=1)
     is_turn_resolving = Column(Boolean, default=False)
     status = Column(String(50), default="in_progress")  # lobby, in_progress, completed

@@ -44,10 +44,20 @@ CLASS_ARCHETYPE_INSTRUCTION = (
     "Nazwa klasy jest stałą nazwą archetypu w formie męskiej i nie określa płci. "
     "Nie odmieniaj jej na formę żeńską."
 )
+GENTLE_OPENING_INSTRUCTION = (
+    "Rozpocznij kampanię spokojnie, w bezpiecznym lub względnie bezpiecznym miejscu "
+    "pasującym do świata. Bohaterowie mają dostać chwilę na poznanie siebie i otoczenia. "
+    "Pierwszym problemem ma być małe, lokalne zadanie o niskiej stawce, możliwe do "
+    "rozwiązania rozmową, obserwacją albo prostym działaniem. Nie zaczynaj in medias res: "
+    "bez trwającej walki, pościgu, katastrofy, bezpośredniego ataku głównego przeciwnika "
+    "ani natychmiastowego zagrożenia życia. Główny temat scenariusza pokaż najwyżej jako "
+    "pogłoskę, drobny ślad lub odległą obietnicę; nie ujawniaj od razu celu i stawki całej "
+    "kampanii. Pierwsze poważne zagrożenie powinno wyniknąć z późniejszej eskalacji."
+)
 
-CAMPAIGN_ENDING_DIRECT_CONTEXT_CHARS = 26000
-CAMPAIGN_ENDING_CHUNK_CHARS = 22000
-CAMPAIGN_ENDING_FINAL_SUMMARY_CHARS = 24000
+CAMPAIGN_ENDING_DIRECT_CONTEXT_CHARS = 160000
+CAMPAIGN_ENDING_CHUNK_CHARS = 140000
+CAMPAIGN_ENDING_FINAL_SUMMARY_CHARS = 120000
 
 
 class CampaignEndingGenerationError(RuntimeError):
@@ -59,6 +69,34 @@ def narrative_form_instruction(character: Character) -> str:
         getattr(character, "narrative_form", "neutral") or "neutral",
         NARRATIVE_FORM_INSTRUCTIONS["neutral"],
     )
+
+
+def _gentle_opening_copy(
+    world_pack: WorldPack,
+    scenario_type: str,
+    names: str,
+) -> tuple[str, str, list[str]]:
+    """Return a low-stakes opening when Gemini is unavailable."""
+
+    profile = world_pack.narrative_profile
+    start_location = world_pack.map_profile.start_location_name
+    prologue = (
+        f"Przygoda rozpoczyna się spokojnie w miejscu „{start_location}”. "
+        f"{profile.party_presence_prefix} {names}. Zanim grupa wyruszy tropem sprawy "
+        f"„{scenario_type}”, może poznać siebie i najbliższe otoczenie. Wśród zwykłych "
+        "przygotowań pojawia się tylko pierwsza, niepewna pogłoska o większej przygodzie."
+    )
+    first_challenge = (
+        "Podczas przygotowań ginie niewielki, ale potrzebny pakunek, a dwie miejscowe "
+        "osoby zaczynają obwiniać się nawzajem. Nikt nie jest zagrożony i nie zanosi się "
+        "na walkę — trzeba spokojnie ustalić, co się stało. Co robicie?"
+    )
+    suggested_actions = [
+        "◎ Oglądam miejsce, w którym ostatnio widziano pakunek.",
+        "◈ Rozmawiam osobno z uczestnikami nieporozumienia.",
+        "▸ Pomagam odtworzyć kolejność wydarzeń.",
+    ]
+    return prologue, first_challenge, suggested_actions
 
 def get_genai_client() -> Optional[genai.Client]:
     api_key = settings.GEMINI_API_KEY.strip()
@@ -97,7 +135,8 @@ async def call_gemini_with_retry(client: genai.Client, contents: any, config: ty
     for model_name in candidate_models:
         for attempt in range(1, max_retries + 1):
             try:
-                return client.models.generate_content(
+                return await asyncio.to_thread(
+                    client.models.generate_content,
                     model=model_name,
                     contents=contents,
                     config=config,
@@ -152,27 +191,31 @@ async def generate_party_prologue_ai(
         f"Klimat: {effective_tone}\n"
         f"Świat: {world_pack.display_name}\n\n"
         f"WYMAGANIA DLA PROLOGU:\n"
+        f"0. {GENTLE_OPENING_INSTRUCTION}\n"
         f"1. Wymień każdego {profile.prologue_character_noun} z imienia i klasy, bez zmieniania danych postaci.\n"
         "1a. Stosuj zapisaną formę narracji każdej postaci. Imię nie określa płci. "
         f"{CLASS_ARCHETYPE_INSTRUCTION} "
         "Gdy podajesz klasę, użyj konstrukcji „postać klasy [nazwa]”; w pozostałych zdaniach używaj "
         "imienia i formy narracji. Dla formy neutralnej używaj imienia i konstrukcji bez rodzaju "
         "gramatycznego.\n"
-        f"2. Osadź zdarzenie inicjujące i drogę do pierwszego wyzwania w podanej scenerii.\n"
+        f"2. Osadź spokojne spotkanie drużyny i mały lokalny problem w podanej scenerii.\n"
         f"3. Nie wprowadzaj motywów sprzecznych z instrukcjami aktywnego świata.\n"
         f"4. Zwróć dokładnie 3 {profile.prologue_action_qualifier}, klasowo neutralne suggested_actions, "
         f"które nie zakładają posiadania konkretnego przedmiotu. Zdolności klasowe wybiera się osobno.\n"
-        f"5. first_challenge ma bezpośrednio otwierać Turę 1."
+        f"5. first_challenge ma bezpośrednio otwierać Turę 1 i być prostym zadaniem bez walki."
     )
 
     if not client:
         names = ", ".join(c.name for c in characters) or world_pack.terminology.party
+        prologue_story, first_challenge, suggested_actions = _gentle_opening_copy(
+            world_pack, scenario_type, names
+        )
         return PrologueResponse(
             title=profile.default_title,
             setting_theme=effective_tone,
-            prologue_story=f"{profile.campaign_intro}\n\n{profile.party_presence_prefix} {names}.",
-            suggested_actions=list(profile.suggested_actions),
-            first_challenge=profile.first_challenge,
+            prologue_story=prologue_story,
+            suggested_actions=suggested_actions,
+            first_challenge=first_challenge,
         )
 
     try:
@@ -190,12 +233,16 @@ async def generate_party_prologue_ai(
         return PrologueResponse(**data)
     except Exception as e:
         logger.error(f"Błąd generowania prologu przez Gemini: {e}. Używam generatora awaryjnego.")
+        names = ", ".join(c.name for c in characters) or world_pack.terminology.party
+        prologue_story, first_challenge, suggested_actions = _gentle_opening_copy(
+            world_pack, scenario_type, names
+        )
         return PrologueResponse(
             title=profile.default_title,
             setting_theme=effective_tone,
-            prologue_story=profile.campaign_intro,
-            suggested_actions=list(profile.suggested_actions),
-            first_challenge=profile.first_challenge,
+            prologue_story=prologue_story,
+            suggested_actions=suggested_actions,
+            first_challenge=first_challenge,
         )
 
 async def generate_campaign_intro_ai(
@@ -209,11 +256,14 @@ async def generate_campaign_intro_ai(
     effective_tone = tone or profile.setting_theme
     client = get_genai_client()
     if not client:
+        campaign_intro, first_challenge, _ = _gentle_opening_copy(
+            world_pack, scenario_type, world_pack.terminology.party
+        )
         return GenerateIntroResponse(
             title=profile.default_title,
             setting_theme=effective_tone,
-            campaign_intro=profile.campaign_intro,
-            first_challenge=profile.first_challenge,
+            campaign_intro=campaign_intro,
+            first_challenge=first_challenge,
         )
 
     prompt = (
@@ -221,8 +271,10 @@ async def generate_campaign_intro_ai(
         f"Stwórz klimatyczny wstęp do turowej sesji TTRPG w stylu {effective_tone}.\n"
         f"Aktywny świat: {world_pack.display_name}.\n"
         f"Tematyka/Scenariusz: {scenario_type}.\n"
+        f"ZASADA OTWARCIA: {GENTLE_OPENING_INSTRUCTION}\n"
         f"Wygeneruj tytuł kampanii, zwięzły motyw przewodni (setting_theme), plastyczny i wciągający opis "
-        f"początkowej sytuacji dla drużyny (campaign_intro) oraz bezpośrednie pierwsze wyzwanie (first_challenge)."
+        f"spokojnego spotkania drużyny (campaign_intro) oraz bezpośrednie, proste i niewymagające "
+        f"walki pierwsze zadanie (first_challenge)."
     )
 
     try:
@@ -250,6 +302,49 @@ async def generate_campaign_intro_ai(
 
 def _json_size(value: Any) -> int:
     return len(json.dumps(value, ensure_ascii=False, default=str))
+
+
+def _fit_campaign_ending_text(value: Any, max_chars: int) -> str:
+    """Fit model prose locally while retaining both its setup and final closure."""
+    text = str(value or "").strip()
+    if len(text) <= max_chars:
+        return text
+
+    omission = "\n\n[…]\n\n"
+    available = max_chars - len(omission)
+    head_limit = int(available * 0.68)
+    tail_limit = available - head_limit
+
+    head = text[:head_limit]
+    head_boundaries = [
+        head.rfind("\n\n"),
+        head.rfind(". "),
+        head.rfind("! "),
+        head.rfind("? "),
+    ]
+    head_boundary = max(head_boundaries)
+    if head_boundary >= int(head_limit * 0.6):
+        head = head[:head_boundary + 1]
+    elif " " in head:
+        head = head.rsplit(" ", 1)[0]
+
+    tail = text[-tail_limit:]
+    tail_boundaries = [
+        boundary for boundary in (
+            tail.find("\n\n"),
+            tail.find(". "),
+            tail.find("! "),
+            tail.find("? "),
+        )
+        if 0 <= boundary <= int(tail_limit * 0.4)
+    ]
+    if tail_boundaries:
+        tail = tail[min(tail_boundaries) + 2:]
+    elif " " in tail:
+        tail = tail.split(" ", 1)[1]
+
+    fitted = f"{head.rstrip()}{omission}{tail.lstrip()}"
+    return fitted[:max_chars].rstrip()
 
 
 def _group_campaign_material(items: list[Any], max_chars: int) -> list[list[Any]]:
@@ -286,7 +381,6 @@ def _campaign_turn_record(turn: Turn) -> dict[str, Any]:
         })
     return {
         "turn_number": turn.turn_number,
-        "next_challenge_after_turn": turn.next_turn_prompt or "",
         "narration": turn.gm_narration or "",
         "actions": actions,
         "mechanical_events": turn.combat_events or [],
@@ -373,10 +467,15 @@ def _campaign_ending_context(session: GameSession) -> dict[str, Any]:
             "scenario": session.scenario_type,
             "tone": session.setting_theme,
             "intro": session.campaign_intro,
+            "known_campaign_goal": {
+                "main_mission": session.campaign_goal_summary,
+                "current_clue": session.campaign_current_clue,
+                "status": session.campaign_goal_status,
+            },
             "completed_turn_count": len([
                 turn for turn in session.turns or [] if turn.status == "completed"
             ]),
-            "unresolved_current_situation": (
+            "closing_situation_to_resolve": (
                 current_turn.next_turn_prompt if current_turn else None
             ),
         },
@@ -422,8 +521,10 @@ async def _summarize_campaign_material(
 
 async def generate_campaign_ending_draft_ai(
     session: GameSession,
+    ending_tone: str = "auto",
+    gm_guidance: str = "",
 ) -> CampaignEndingDraftResponse:
-    """Generate an editable summary and epilogue draft from the canonical campaign record."""
+    """Generate an editable summary, definitive finale, and epilogue draft."""
     client = get_genai_client()
     if not client:
         raise CampaignEndingGenerationError(
@@ -492,43 +593,116 @@ async def generate_campaign_ending_draft_ai(
             }
 
         world_pack = get_session_world_pack(session)
+        ending_tone_instruction = {
+            "victorious": "zwycięskie: bohaterowie osiągają główny cel, choć zachowaj poniesione koszty",
+            "bittersweet": "gorzkie: główny konflikt zostaje zamknięty, ale zwycięstwo ma trwałą cenę",
+            "tragic": "tragiczne: kampania kończy się porażką lub bolesną ofiarą, bez cofania zapisanych zdarzeń",
+            "auto": "dobierz do zapisanych sukcesów, porażek, strat i końcowego stanu drużyny",
+        }.get(ending_tone, "dobierz do przebiegu kampanii")
         system_instruction = (
             f"{world_pack.narrative_profile.narrator_instructions}\n"
-            "Tworzysz finał istniejącej kampanii TTRPG wyłącznie na podstawie przekazanego "
-            "kanonicznego zapisu. Nie wymyślaj nowych wcześniejszych wydarzeń, przedmiotów, "
-            "relacji ani osiągnięć. Nie zmieniaj wyników mechanicznych. Nierozwiązanych wątków "
-            "nie przedstawiaj jako rozstrzygniętych; epilog może pozostawić je otwarte. "
+            "Tworzysz definitywne zakończenie istniejącej kampanii TTRPG na podstawie "
+            "przekazanego kanonicznego zapisu. TO NIE JEST KOLEJNA TURA. Nie zadawaj pytań "
+            "graczom, nie proponuj dalszych działań, nie otwieraj następnego wyzwania i nie "
+            "kończ cliffhangerem. Główny konflikt oraz cel scenariusza muszą otrzymać wyraźne, "
+            "ostateczne rozstrzygnięcie. Masz upoważnienie MG, by doprowadzić bieżącą sytuację "
+            "do końca przez bezpośrednie, logiczne następstwa dotychczasowych decyzji. Możesz "
+            "dopisać tylko takie szczegóły ostatniej sceny, które łączą zapisane fakty w finał; "
+            "nie twórz nowych wcześniejszych wydarzeń, przedmiotów, relacji ani osiągnięć. "
+            "Nie zmieniaj zapisanych rzutów, HP, śmierci, ekwipunku ani innych wyników mechaniki. "
+            "Jeśli aktywny przeciwnik nadal ma HP, nie ogłaszaj jego zabicia atakiem; konflikt "
+            "może jednak zakończyć się ucieczką, odcięciem zagrożenia, układem, kapitulacją albo "
+            "zwycięstwem przeciwnika — zgodnie z historią i wybranym tonem. Poboczne tajemnice "
+            "mogą pozostać niedopowiedziane, ale opowieść jako całość ma być zamknięta. "
             "Uwzględnij każdą postać i jej zapisaną formę narracji. Nazwa klasy nie określa płci. "
             f"{CLASS_ARCHETYPE_INSTRUCTION}"
         )
         payload = {
             "campaign_state": ending_context,
             "canonical_history": history_material,
+            "ending_direction": {
+                "tone": ending_tone_instruction,
+                "gm_guidance": gm_guidance.strip() or "Brak dodatkowej wskazówki MG.",
+            },
             "output_requirements": {
                 "history_summary": (
                     "Rzetelne, chronologiczne podsumowanie całej kampanii po polsku: początek, "
-                    "najważniejsze decyzje, punkty zwrotne, odkrycia, sukcesy, porażki i stan końcowy."
+                    "najważniejsze decyzje, punkty zwrotne, odkrycia, sukcesy, porażki i stan końcowy. "
+                    "Bezwzględnie nie przekraczaj 4500 znaków."
+                ),
+                "finale_story": (
+                    "Ostatnia scena kampanii w 4-8 akapitach. Rozstrzygnij główny konflikt i cel "
+                    "scenariusza, pokaż decydujące następstwo działań drużyny i zakończ mocnym, "
+                    "zamkniętym obrazem. Nie używaj pytań, sugestii działań ani zapowiedzi kolejnej "
+                    "tury. Bezwzględnie nie przekraczaj 2200 znaków."
                 ),
                 "epilogue": (
-                    "Literacka propozycja epilogu po polsku, spójna z klimatem świata i faktami. "
-                    "Pokaż następstwa wyprawy i los każdej postaci, ale nie zamykaj jako rozwiązanych "
-                    "wątków, których zapis nie rozstrzygnął."
+                    "Epilog rozgrywający się po finałowej scenie. Pokaż trwałe następstwa wyprawy "
+                    "oraz dalszy los każdej postaci zgodnie z jej stanem końcowym. Nie wprowadzaj "
+                    "nowej misji i zakończ tonem ostatecznego domknięcia. Bezwzględnie nie "
+                    "przekraczaj 2200 znaków."
                 ),
             },
         }
-        response = await call_gemini_with_retry(
-            client=client,
-            contents=json.dumps(payload, ensure_ascii=False, default=str),
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                response_mime_type="application/json",
-                response_schema=CampaignEndingDraftResponse,
-                temperature=0.65,
-            ),
+        async def request_ending_draft(
+            request_payload: dict[str, Any], temperature: float
+        ) -> dict[str, Any]:
+            response = await call_gemini_with_retry(
+                client=client,
+                contents=json.dumps(request_payload, ensure_ascii=False, default=str),
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    response_mime_type="application/json",
+                    response_schema=CampaignEndingDraftResponse,
+                    temperature=temperature,
+                ),
+            )
+            data = json.loads(clean_json_text(response.text))
+            if not isinstance(data, dict):
+                raise ValueError("Gemini nie zwróciło obiektu finału kampanii")
+            return data
+
+        draft_data = await request_ending_draft(payload, 0.55)
+        finale_story = str(draft_data.get("finale_story") or "")
+        finale_tail = finale_story.strip().casefold()[-500:]
+        open_ending_markers = (
+            "co robicie",
+            "co zrobicie",
+            "jak odpowiecie",
+            "kolejna tura",
+            "następne wyzwanie",
+            "dalszy ciąg",
+            "to dopiero początek",
         )
-        return CampaignEndingDraftResponse(
-            **json.loads(clean_json_text(response.text))
+        length_limits = {
+            "history_summary": 5000,
+            "finale_story": 2400,
+            "epilogue": 2400,
+        }
+        overlong_fields = [
+            field_name for field_name, max_chars in length_limits.items()
+            if len(str(draft_data.get(field_name) or "")) > max_chars
+        ]
+        looks_open = finale_story.rstrip().endswith("?") or any(
+            marker in finale_tail for marker in open_ending_markers
         )
+        if overlong_fields or looks_open:
+            revision_payload = dict(payload)
+            revision_payload["rejected_draft"] = draft_data
+            revision_payload["revision_instruction"] = (
+                "Przepisz odpowiedź z zachowaniem faktów i domknięcia. Finał nie może zawierać "
+                "pytań, nowych zadań, cliffhangerów ani zapowiedzi dalszej gry. Limity są "
+                "bezwzględne: history_summary maks. 5000 znaków, finale_story maks. 2400 znaków, "
+                "epilogue maks. 2400 znaków."
+            )
+            draft_data = await request_ending_draft(revision_payload, 0.35)
+
+        normalized_data = dict(draft_data)
+        for field_name, max_chars in length_limits.items():
+            normalized_data[field_name] = _fit_campaign_ending_text(
+                normalized_data.get(field_name), max_chars
+            )
+        return CampaignEndingDraftResponse(**normalized_data)
     except CampaignEndingGenerationError:
         raise
     except Exception as error:
@@ -703,6 +877,21 @@ async def resolve_turn_with_gemini(
             "mechanicznym wynikiem silnika i muszą być dokładnie zgodne z narracją."
         )
 
+    early_pacing_instruction = ""
+    if not boss_is_alive and turn.turn_number <= 2:
+        early_pacing_instruction = (
+            "\nWCZESNA FAZA KAMPANII: następna tura nadal ma rozwijać mały lokalny problem "
+            "i relacje drużyny. Może ujawnić kolejny ślad głównego scenariusza, ale nie może "
+            "rozpoczynać walki, pościgu, katastrofy ani bezpośredniego ataku głównego "
+            "przeciwnika. Ustaw next_challenge_tier na standard.\n"
+        )
+    elif not boss_is_alive and turn.turn_number == 3:
+        early_pacing_instruction = (
+            "\nPRZEJŚCIE DO WŁAŚCIWEJ PRZYGODY: następna tura może pokazać pierwsze "
+            "poważniejsze zagrożenie wynikające z dotychczasowych tropów, ale pozostaw drużynie "
+            "możliwość przygotowania, rozmowy lub uniknięcia natychmiastowej walki.\n"
+        )
+
     system_instruction = (
         f"{narrative_profile.narrator_instructions}\n"
         f"Prowadzisz świat „{world_pack.display_name}” w klimacie „{session.setting_theme}”.\n"
@@ -743,6 +932,7 @@ async def resolve_turn_with_gemini(
         "Gdy jest puste, ustaw destination_node_id na current_node_id i nie opisuj wejścia do nowej lokacji. "
         "location_summary ma krótko opisywać wyłącznie to, co naprawdę pojawiło się w narracji tej tury, "
         "a notable_elements zawiera maksymalnie 5 konkretnych elementów sceny. Nie twórz nowych węzłów ani przejść.\n"
+        f"{early_pacing_instruction}"
         f"{boss_info}"
     )
 
@@ -753,6 +943,11 @@ async def resolve_turn_with_gemini(
         "image_art_direction": narrative_profile.image_art_direction,
         "campaign_setting": session.setting_theme,
         "campaign_intro": session.campaign_intro,
+        "known_campaign_goal": {
+            "main_mission": session.campaign_goal_summary,
+            "current_clue": session.campaign_current_clue,
+            "status": session.campaign_goal_status,
+        },
         "turn_number": turn.turn_number,
         "opening_situation": turn.next_turn_prompt,
         "active_lore_entities": lore_context,
@@ -970,10 +1165,24 @@ def _generate_rich_offline_resolution(
 
     next_challenge = narrative_profile.offline_next_challenge
     next_turn_number = turn.turn_number + 1
-    next_challenge_tier = (
-        "climactic" if next_turn_number % 5 == 0 else
-        "hard" if next_turn_number % 3 == 0 else "standard"
-    )
+    if not session.active_boss_name and next_turn_number <= 3:
+        next_challenge_tier = "standard"
+        if next_turn_number == 2:
+            next_challenge = (
+                "Drobny problem okazuje się nieporozumieniem, ale pozostaje jeszcze jeden "
+                "sprzeczny szczegół do spokojnego wyjaśnienia. Co robicie?"
+            )
+        else:
+            next_challenge = (
+                f"Rozwiązanie lokalnej sprawy odsłania pierwszy wiarygodny trop związany ze "
+                f"scenariuszem „{session.scenario_type or session.title}”. Można go zbadać bez "
+                "wchodzenia w bezpośrednie zagrożenie. Co robicie?"
+            )
+    else:
+        next_challenge_tier = (
+            "climactic" if next_turn_number % 5 == 0 else
+            "hard" if next_turn_number % 3 == 0 else "standard"
+        )
     if next_challenge_tier == "climactic":
         next_challenge = f"Stawka tej próby jest wyjątkowo wysoka. {next_challenge}"
     elif next_challenge_tier == "hard":
@@ -981,7 +1190,7 @@ def _generate_rich_offline_resolution(
     suggested = list(narrative_profile.offline_suggested_actions)
 
     naming_opp = None
-    if (turn.turn_number == 2 and not session.active_boss_name
+    if (turn.turn_number == 4 and not session.active_boss_name
             and narrative_profile.offline_auto_enemy_naming):
         naming_opp = NamingOpportunitySchema(
             category=enemy_profile.lore_category_id,

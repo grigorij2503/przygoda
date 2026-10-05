@@ -10,6 +10,7 @@ from app.config import settings
 from app.database import get_db
 from app.models import GameSession, Turn
 from app.schemas import CreateRoomRequest, VerifyPasswordRequest
+from app.services.campaign_goal_service import reset_campaign_goal
 from app.services.room_access import (
     ROOM_SESSION_COOKIE,
     ROOM_SESSION_TTL_SECONDS,
@@ -161,6 +162,7 @@ async def create_room(
         current_turn_number=1,
         status="lobby",
     )
+    reset_campaign_goal(session, current_clue=profile.lobby_prompt)
     db.add(session)
     await db.flush()
     db.add(Turn(

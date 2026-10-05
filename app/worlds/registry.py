@@ -103,13 +103,21 @@ class WorldPackRegistry:
 
     def catalog(self) -> WorldCatalogResponse:
         default = self.default
+        latest_by_world: dict[str, WorldPack] = {}
+        for pack in self.list():
+            current = latest_by_world.get(pack.id)
+            if current is None or pack.version > current.version:
+                latest_by_world[pack.id] = pack
         return WorldCatalogResponse(
             default_world=WorldPackReference(
                 id=default.id,
                 version=default.version,
                 key=default.key,
             ),
-            worlds=tuple(WorldPackSummary.from_pack(pack) for pack in self.list()),
+            worlds=tuple(
+                WorldPackSummary.from_pack(latest_by_world[world_id])
+                for world_id in sorted(latest_by_world)
+            ),
         )
 
     def resolve_class(

@@ -1,5 +1,7 @@
+import asyncio
 import json
 import secrets
+import time
 from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException
@@ -37,7 +39,7 @@ from app.models import (
     Turn,
 )
 from app.schemas import (
-    CampaignEndingDraftResponse,
+    CampaignEndingDraftJobResponse,
     CreateSessionRequest,
     FinishCampaignRequest,
     GenerateCampaignEndingRequest,
@@ -47,6 +49,13 @@ from app.schemas import (
     ResolveTurnRequest,
     SetupScenarioRequest,
     TriggerNamingRequest,
+)
+from app.services.campaign_goal_service import (
+    advance_campaign_goal,
+    complete_campaign_goal,
+    ensure_campaign_goal,
+    reset_campaign_goal,
+    serialize_campaign_goal,
 )
 from app.services.runtime import (
     PROXY_ACTION_WAIT,
@@ -74,6 +83,59 @@ from app.services.market_service import (
 from app.services.room_access import require_room
 from app.websocket_manager import ws_manager
 from app.worlds.registry import WORLD_PACK_REGISTRY, WorldPackNotFoundError
+
+
+CAMPAIGN_ENDING_JOB_TTL_SECONDS = 30 * 60
+campaign_ending_jobs: dict[str, dict] = {}
+
+
+def _prune_campaign_ending_jobs() -> None:
+    cutoff = time.monotonic() - CAMPAIGN_ENDING_JOB_TTL_SECONDS
+    for job_id, job in list(campaign_ending_jobs.items()):
+        if job["created_at"] >= cutoff:
+            continue
+        task = job.get("task")
+        if task and not task.done():
+            task.cancel()
+        campaign_ending_jobs.pop(job_id, None)
+
+
+def _serialize_campaign_ending_job(job: dict) -> CampaignEndingDraftJobResponse:
+    result = job.get("result")
+    return CampaignEndingDraftJobResponse(
+        job_id=job["job_id"],
+        status=job["status"],
+        history_summary=result.history_summary if result else None,
+        finale_story=result.finale_story if result else None,
+        epilogue=result.epilogue if result else None,
+        error=job.get("error"),
+    )
+
+
+async def _run_campaign_ending_job(
+    job_id: str,
+    session: GameSession,
+    ending_tone: str,
+    gm_guidance: str,
+) -> None:
+    job = campaign_ending_jobs.get(job_id)
+    if not job:
+        return
+    try:
+        job["result"] = await generate_campaign_ending_draft_ai(
+            session,
+            ending_tone=ending_tone,
+            gm_guidance=gm_guidance,
+        )
+        job["status"] = "completed"
+    except CampaignEndingGenerationError as error:
+        job["status"] = "failed"
+        job["error"] = str(error)
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        job["status"] = "failed"
+        job["error"] = "Nie udało się przygotować finału kampanii. Spróbuj ponownie."
 
 
 async def get_current_session(
@@ -125,6 +187,16 @@ async def get_current_session(
         (t for t in game_session.turns if t.turn_number == game_session.current_turn_number),
         None,
     )
+    if ensure_campaign_goal(
+        game_session,
+        current_clue=current_turn.next_turn_prompt if current_turn else None,
+        near_resolution=bool(
+            game_session.campaign_map
+            and game_session.campaign_map.current_node_id
+            == (game_session.campaign_map.layout or {}).get("final_node_id")
+        ),
+    ):
+        session_changed = True
     now = datetime.now(timezone.utc)
     alive_character_ids = {
         character.id for character in game_session.characters
@@ -359,6 +431,7 @@ async def get_current_session(
         "scenario_type": game_session.scenario_type,
         "setting_theme": game_session.setting_theme,
         "campaign_intro": game_session.campaign_intro,
+        "campaign_goal": serialize_campaign_goal(game_session),
         "campaign_epilogue": game_session.campaign_epilogue or "",
         "current_turn_number": game_session.current_turn_number,
         "is_turn_resolving": game_session.is_turn_resolving,
@@ -467,7 +540,7 @@ async def generate_campaign_ending_draft(
     payload: GenerateCampaignEndingRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
-) -> CampaignEndingDraftResponse:
+) -> CampaignEndingDraftJobResponse:
     require_room(request, payload.room_code)
     require_gm(request)
     stmt = (
@@ -503,10 +576,53 @@ async def generate_campaign_ending_draft(
             detail="Kampania nie ma jeszcze historii do podsumowania",
         )
 
-    try:
-        return await generate_campaign_ending_draft_ai(session)
-    except CampaignEndingGenerationError as error:
-        raise HTTPException(status_code=503, detail=str(error)) from error
+    _prune_campaign_ending_jobs()
+    pending_job = next(
+        (
+            job for job in campaign_ending_jobs.values()
+            if job["session_id"] == session.id and job["status"] == "pending"
+        ),
+        None,
+    )
+    if pending_job:
+        return _serialize_campaign_ending_job(pending_job)
+
+    job_id = secrets.token_urlsafe(18)
+    job = {
+        "job_id": job_id,
+        "session_id": session.id,
+        "room_code": session.room_code,
+        "status": "pending",
+        "created_at": time.monotonic(),
+        "result": None,
+        "error": None,
+        "task": None,
+    }
+    campaign_ending_jobs[job_id] = job
+    job["task"] = asyncio.create_task(_run_campaign_ending_job(
+        job_id,
+        session,
+        payload.ending_tone,
+        payload.gm_guidance,
+    ))
+    return _serialize_campaign_ending_job(job)
+
+
+async def get_campaign_ending_draft_job(
+    request: Request,
+    room_code: str,
+    job_id: str,
+) -> CampaignEndingDraftJobResponse:
+    require_room(request, room_code)
+    require_gm(request)
+    _prune_campaign_ending_jobs()
+    job = campaign_ending_jobs.get(job_id)
+    if not job or job["room_code"] != room_code:
+        raise HTTPException(
+            status_code=404,
+            detail="Szkic finału wygasł albo serwer został uruchomiony ponownie",
+        )
+    return _serialize_campaign_ending_job(job)
 
 
 async def finish_campaign(
@@ -535,6 +651,7 @@ async def finish_campaign(
         raise HTTPException(status_code=409, detail="Brak postaci w kampanii")
     session.campaign_epilogue = epilogue
     session.status = "completed"
+    complete_campaign_goal(session)
     session.pending_naming_category = None
     session.pending_naming_prompt = None
     session.pending_naming_character_id = None
@@ -642,6 +759,10 @@ async def resolve_party_crisis(
     next_prompt = (
         "Po dotkliwej porażce drużyna dochodzi do siebie w bezpiecznym miejscu. "
         "Trzeba opatrzyć rany, ocenić straty i zdecydować, czy wrócić po rewanż. Co robicie?"
+    )
+    advance_campaign_goal(
+        session,
+        current_clue=next_prompt,
     )
     turn.combat_events = [{
         "type": "party_retreat",
@@ -769,6 +890,10 @@ async def reset_campaign(
             suggested_actions=list(narrative_profile.suggested_actions),
             image_prompt=narrative_profile.initial_image_prompt,
         )
+        reset_campaign_goal(
+            session,
+            current_clue=initial_turn.next_turn_prompt,
+        )
         db.add(initial_turn)
         await replace_campaign_map(db, session)
         await db.commit()
@@ -840,6 +965,7 @@ async def setup_scenario(
     session.pending_naming_turn_number = None
     session.pending_naming_map_node_id = None
     session.pending_naming_question = None
+    reset_campaign_goal(session, current_clue=narrative_profile.lobby_prompt)
 
     # Wyczyść postacie z poprzedniej wyprawy, aby drużyna mogła stworzyć świeże postacie pod nowy scenariusz
     for c in list(session.characters):
@@ -937,6 +1063,7 @@ async def start_prologue(
     session.status = "in_progress"
     session.current_turn_number = 1
     session.is_turn_resolving = False
+    reset_campaign_goal(session, current_clue=prologue_data.first_challenge)
 
     turn1 = next((t for t in session.turns if t.turn_number == 1), None)
     if not turn1:

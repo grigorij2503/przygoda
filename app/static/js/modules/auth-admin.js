@@ -221,7 +221,10 @@
 
     clearCampaignEndingDraft() {
       this.gmCampaignSummary = '';
+      this.gmFinaleStory = '';
       this.gmEpilogue = '';
+      this.gmEndingTone = 'auto';
+      this.gmEndingGuidance = '';
       this.gmEndingDraftError = '';
       this.gmEpilogueError = '';
     },
@@ -589,16 +592,22 @@
         const res = await fetch('/api/session/generate-ending-draft', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ room_code: this.roomCode })
+          body: JSON.stringify({
+            room_code: this.roomCode,
+            ending_tone: this.gmEndingTone,
+            gm_guidance: this.gmEndingGuidance.trim()
+          })
         });
         const data = await res.json().catch(() => ({}));
         if (res.status === 403) { this.requireGmUnlock(); return; }
         if (!res.ok) {
           throw new Error(data.detail || 'Nie udało się wygenerować szkicu finału kampanii.');
         }
-        this.gmCampaignSummary = data.history_summary || '';
-        this.gmEpilogue = data.epilogue || '';
-        this.addToast('AI przygotowało podsumowanie i edytowalny szkic epilogu.', 'success');
+        const draft = await this.waitForCampaignEndingDraft(data);
+        this.gmCampaignSummary = draft.history_summary || '';
+        this.gmFinaleStory = draft.finale_story || '';
+        this.gmEpilogue = draft.epilogue || '';
+        this.addToast('AI przygotowało podsumowanie, finał i epilog postaci.', 'success');
       } catch (error) {
         this.gmEndingDraftError = error.message;
       } finally {
@@ -606,11 +615,50 @@
       }
     },
 
+    async waitForCampaignEndingDraft(initialJob) {
+      let job = initialJob;
+      for (let attempt = 0; attempt < 300; attempt += 1) {
+        if (job.status === 'completed') return job;
+        if (job.status === 'failed') {
+          throw new Error(job.error || 'Gemini nie zdołało przygotować finału kampanii.');
+        }
+        if (!job.job_id) {
+          throw new Error('Serwer nie zwrócił identyfikatora generowania finału.');
+        }
+        await new Promise(resolve => window.setTimeout(resolve, 2000));
+        const params = new URLSearchParams({
+          room_code: this.roomCode,
+          job_id: job.job_id
+        });
+        const res = await fetch(`/api/session/generate-ending-draft?${params}`, {
+          cache: 'no-store'
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 403) {
+          this.requireGmUnlock();
+          throw new Error('Sesja MG wygasła podczas generowania finału.');
+        }
+        if (!res.ok) {
+          throw new Error(data.detail || 'Nie udało się odebrać wygenerowanego finału.');
+        }
+        job = data;
+      }
+      throw new Error('Generowanie trwa zbyt długo. Spróbuj ponownie za chwilę.');
+    },
+
     async finishCampaign() {
       this.gmEpilogueError = '';
+      const finale = this.gmFinaleStory.trim();
       const epilogue = this.gmEpilogue.trim();
-      if (epilogue.length < 20) {
+      const campaignEnding = finale
+        ? `Finał\n\n${finale}\n\nEpilog\n\n${epilogue}`
+        : epilogue;
+      if (campaignEnding.length < 20) {
         this.gmEpilogueError = 'Wpisz epilog o długości co najmniej 20 znaków.';
+        return;
+      }
+      if (campaignEnding.length > 5000) {
+        this.gmEpilogueError = 'Połączony finał i epilog mogą mieć maksymalnie 5000 znaków.';
         return;
       }
       this.isFinishingCampaign = true;
@@ -618,7 +666,7 @@
         const res = await fetch('/api/session/finish-campaign', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ room_code: this.roomCode, epilogue })
+          body: JSON.stringify({ room_code: this.roomCode, epilogue: campaignEnding })
         });
         const data = await res.json().catch(() => ({}));
         if (res.status === 403) { this.requireGmUnlock(); return; }

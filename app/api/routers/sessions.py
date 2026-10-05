@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.schemas import CampaignEndingDraftResponse, GenerateIntroResponse
+from app.schemas import CampaignEndingDraftJobResponse, GenerateIntroResponse
 from app.services import session_service
 
 
@@ -35,7 +35,14 @@ router.add_api_route(
     "/api/session/generate-ending-draft",
     session_service.generate_campaign_ending_draft,
     methods=["POST"],
-    response_model=CampaignEndingDraftResponse,
+    response_model=CampaignEndingDraftJobResponse,
+    status_code=202,
+)
+router.add_api_route(
+    "/api/session/generate-ending-draft",
+    session_service.get_campaign_ending_draft_job,
+    methods=["GET"],
+    response_model=CampaignEndingDraftJobResponse,
 )
 router.add_api_route(
     "/api/session/finish-campaign",

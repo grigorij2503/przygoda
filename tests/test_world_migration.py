@@ -88,6 +88,10 @@ def test_alembic_backfills_existing_campaign_without_changing_progress(tmp_path)
     market = connection.execute(
         "SELECT market_state, market_revision, room_password_hash FROM game_sessions WHERE id = 1"
     ).fetchone()
+    campaign_goal = connection.execute(
+        "SELECT campaign_goal_summary, campaign_current_clue, campaign_goal_status "
+        "FROM game_sessions WHERE id = 1"
+    ).fetchone()
     craft_item_ids = connection.execute(
         "SELECT craft_item_ids FROM player_actions WHERE id = 1"
     ).fetchone()
@@ -101,5 +105,6 @@ def test_alembic_backfills_existing_campaign_without_changing_progress(tmp_path)
     assert action == ("lightning_bolt", "lightning_bolt")
     assert turn == (1, 7, "standard")
     assert market == ("{}", 0, None)
+    assert campaign_goal == ("", "", "started")
     assert craft_item_ids == (None,)
-    assert revision == ("0009_scenario_narrative_form",)
+    assert revision == ("0010_campaign_goal",)

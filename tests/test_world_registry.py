@@ -11,14 +11,14 @@ from app.worlds.models import WorldPack
 from app.worlds.registry import WORLD_PACK_REGISTRY, WorldPackNotFoundError
 
 
-def test_registry_contains_fifteen_versioned_packs_with_dark_fantasy_default():
+def test_registry_contains_sixteen_versioned_packs_with_dark_fantasy_default():
     packs = WORLD_PACK_REGISTRY.list()
 
-    assert len(packs) == 15
+    assert len(packs) == 16
     assert {pack.key for pack in packs} >= {
         "dark_fantasy@1", "neokatowice_3077@1",
         "szepty_zatopionej_gwiazdy@1", "zagadka_gazowej_latarni@1",
-        "lochy_lup_klopoty@1",
+        "lochy_lup_klopoty@1", "archipelag_korsarzy@2",
     }
     assert WORLD_PACK_REGISTRY.default.key == "dark_fantasy@1"
     assert all(pack.ruleset_id == "d20_v1" for pack in packs)
@@ -134,6 +134,11 @@ async def test_world_catalog_exposes_all_public_summaries():
     }
     worlds = {world["key"]: world for world in payload["worlds"]}
     assert len(worlds) == 15
+    assert "archipelag_korsarzy@1" not in worlds
+    assert [item["id"] for item in worlds["archipelag_korsarzy@2"]["classes"]] == [
+        "kapitan", "nawigator", "pokladowy", "korsarz", "medyk_okretowy",
+        "szczur_portowy",
+    ]
     assert worlds["neokatowice_3077@1"]["display_name"] == "NeoKatowice 3077"
     assert worlds["neokatowice_3077@1"]["theme"]["shape_id"] == "cut_corner"
     assert [attribute["id"] for attribute in worlds["dark_fantasy@1"]["attributes"]] == [

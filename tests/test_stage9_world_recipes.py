@@ -59,15 +59,19 @@ MASCULINE_CLASS_LABELS = {
 }
 
 
+def _recipe_version(world_id: str) -> int:
+    return 2 if world_id == "archipelag_korsarzy" else 1
+
+
 def _recipe_payload(world_id: str) -> dict:
-    path: Path = PACKS_DIR / f"{world_id}_v1.json"
+    path: Path = PACKS_DIR / f"{world_id}_v{_recipe_version(world_id)}.json"
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 @pytest.mark.parametrize("world_id", sorted(STAGE_NINE_IDS))
 def test_stage_nine_recipe_expands_to_complete_world_contract(world_id: str):
     recipe = WorldRecipe.model_validate(_recipe_payload(world_id))
-    pack = WORLD_PACK_REGISTRY.get(world_id, 1)
+    pack = WORLD_PACK_REGISTRY.get(world_id, _recipe_version(world_id))
 
     assert materialize_recipe(recipe) == pack
     assert WorldPack.model_validate(pack.model_dump(mode="json")) == pack
@@ -95,12 +99,12 @@ def test_stage_nine_recipe_expands_to_complete_world_contract(world_id: str):
 
 def test_stage_nine_recipe_source_set_is_complete():
     recipe_ids = {
-        path.stem.removesuffix("_v1")
-        for path in PACKS_DIR.glob("*_v1.json")
+        json.loads(path.read_text(encoding="utf-8"))["id"]
+        for path in PACKS_DIR.glob("*_v*.json")
         if json.loads(path.read_text(encoding="utf-8")).get("format") == "recipe_v1"
     }
     assert recipe_ids == STAGE_NINE_IDS
-    assert len(WORLD_PACK_REGISTRY.list()) == 15
+    assert len(WORLD_PACK_REGISTRY.list()) == 16
     assert WORLD_PACK_REGISTRY.default.key == "dark_fantasy@1"
 
 

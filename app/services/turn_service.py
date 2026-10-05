@@ -40,6 +40,7 @@ from app.models import (
 )
 from app.push_service import schedule_web_push
 from app.schemas import InterpretActionRequest, ResolveTurnRequest, SubmitActionRequest
+from app.services.campaign_goal_service import advance_campaign_goal
 from app.services.runtime import (
     XP_LEVEL_THRESHOLDS,
     apply_map_narrative_update,
@@ -1004,6 +1005,14 @@ async def resolve_turn_background(session_id: int, turn_id: int):
             new_turn_number = session.current_turn_number + 1
             session.current_turn_number = new_turn_number
             session.is_turn_resolving = False
+            advance_campaign_goal(
+                session,
+                current_clue=gemini_result.next_turn_prompt,
+                near_resolution=(
+                    campaign_map.current_node_id
+                    == (campaign_map.layout or {}).get("final_node_id")
+                ),
+            )
 
             next_turn = Turn(
                 session_id=session.id,

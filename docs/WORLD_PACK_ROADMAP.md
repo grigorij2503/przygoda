@@ -541,7 +541,7 @@ po innym motywie.
 
 | Świat / klucz | Dodatkowy odbiór przez UI |
 |---|---|
-| Archipelag Korsarzy / `archipelag_korsarzy@1` | Sprawdzić morski prolog, porty mapy, pirackie klasy i wyposażenie. |
+| Archipelag Korsarzy / `archipelag_korsarzy@2` | Sprawdzić spokojny portowy prolog, porty mapy, sześć pirackich klas i wyposażenie. |
 | Piaski Ekspedycji / `piaski_ekspedycji@1` | Sprawdzić pustynne wykopaliska, mapę ruin i tropienie oparte na Percepcji. |
 | Słowiańska Gromada / `slowianska_gromada@1` | Sprawdzić wiejskie problemy, słowiańskie role i rozwiązanie tury rozmową. |
 | Front 1944 / `front_1944_relikty_nocy@1` | Sprawdzić frontowe wyposażenie, wojskowe i nadnaturalne zagrożenie oraz ton narracji. |
@@ -567,9 +567,17 @@ może wskazać rzucającego. Pierwsze przeszukanie pomieszczenia zamyka dalsze
 próby także po porażce lub pustym wyniku; zdobyty przedmiot trafia do
 znalazcy i ma tę samą nazwę w narracji oraz plecaku. Jeśli pojawi się
 przeklęty przedmiot, po założeniu karta pokazuje premię i karę. MG może
-wygenerować na podstawie całej kroniki podsumowanie oraz edytowalną propozycję
-epilogu bez zmiany stanu kampanii. Długa kronika jest streszczana chronologicznie
-w etapach, bez odrzucania pierwszych tur. Dopiero zapisanie zaakceptowanego
+wygenerować w zadaniu tła na podstawie całej kroniki podsumowanie, definitywną
+scenę finałową oraz osobny epilog postaci bez zmiany stanu kampanii. MG wybiera
+automatyczny, zwycięski, gorzki albo tragiczny ton i może dopisać wskazówkę.
+  Finał rozstrzyga główny konflikt, nie zadaje pytań ani nie otwiera kolejnej tury;
+  wynik z markerem kontynuacji albo przekroczonym limitem pola jest jednokrotnie
+  poprawiany, a nadal zbyt długi tekst zostaje bezpiecznie dopasowany lokalnie do
+  kontraktu odpowiedzi. Interfejs odpytuje o wynik, więc
+długie generowanie nie utrzymuje jednego żądania przez limit proxy i nie blokuje
+pozostałych tras. Długa kronika jest streszczana chronologicznie w etapach, bez
+odrzucania pierwszych tur, ale używa dużych partii ograniczających liczbę wywołań
+Gemini. Dopiero zapisanie zaakceptowanego
 epilogu kończy kampanię; historia pozostaje widoczna, a kolejne akcje są
 zamknięte do nowego scenariusza.
 
@@ -631,6 +639,14 @@ wcześniej po udanym przejściu do innej lokacji. Oba rodzaje restartu również
 zamykają stary postój. Nie wykonywać tych czynności na aktywnej bazie kampanii.
 
 ### Odbiór odkryć Kroniki
+
+Po migracji `0010_campaign_goal` Kronika pokazuje domyślnie zwinięty „Cel
+wyprawy” z główną misją, aktualnym tropem i kontrolowanym postępem. Serwer
+buduje misję z jawnej nazwy scenariusza, a trop kopiuje wyłącznie z wyzwania
+już widocznego dla graczy. Sekcja nie może korzystać z ukrytych danych
+przeciwnika ani przyszłych lokacji. Po rozstrzygnięciu zwykłej tury stan
+przechodzi z „Rozpoczęta” do „W toku”, wejście do finałowej lokacji oznacza
+„Blisko rozwiązania”, a zapisanie finału ustawia „Zakończona”.
 
 Na osobnej bazie lub kopii kampanii po migracji `0004_lore_discoveries` sprawdzić,
 że stare wpisy Kroniki pozostają, a oczekująca propozycja nazwania zachowuje

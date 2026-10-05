@@ -19,9 +19,11 @@ zachowanie wspólne dla wszystkich światów, a `pakiet` treść z wersjonowaneg
 ## Backend i mechanika
 
 Po etapie 9 `app/main.py` składa aplikację i rejestruje routery bez gałęzi
-zależnych od świata. Publikowanych jest 15 pakietów: dwa wcześniejsze pełne
-JSON-y oraz 13 nowych `recipe_v1`, rozwijanych przy imporcie do kompletnego
-`WorldPack`.
+zależnych od świata. Rejestr ładuje 16 wersji pakietów dla 15 światów: dwa
+wcześniejsze pełne JSON-y, 13 receptur `recipe_v1` z etapu 9 oraz rozszerzony
+`archipelag_korsarzy@2`. Katalog wyboru publikuje wyłącznie najnowszą wersję
+każdego świata, więc v1 Archipelagu pozostaje tylko warstwą zgodności dla
+historycznych zapisów.
 Klasy, startery, szybkie akcje, księgi zdolności, wskazówki cechy w opisie akcji,
 słowniki wyposażenia i przeszukiwania,
 łup/crafting, profil głównego przeciwnika i statusów, mapa, etykiety kroniki,
@@ -38,6 +40,7 @@ kampanii. Kolorystyka i CSS korzystają z kontrolowanych profili motywów.
 | `app/services/session_service.py` DTO sesji | `magic_book` i `active_boss` | adapter plus `ability_book` i terminologia świata |
 | `app/services/session_service.py` reset/setup | Dark Fantasy i karczma | wybór i inicjalizacja pakietu |
 | `app/services/session_service.py` naming | broń jako domyślna nagroda | profil kroniki i przedmiotów |
+| `app/services/campaign_goal_service.py` | brak — cel korzysta tylko z jawnego scenariusza i promptu tury | serwerowy, niezależny od świata stan celu w Kronice bez danych narratora |
 | `app/services/turn_service.py` rozstrzyganie | magic ability i boss event types | ogólna zdolność i role encounter |
 | `app/services/image_service.py` ilustracje | fallback Dark Fantasy | `image_art_direction` |
 | `app/magic.py` | Czarodziej, Kleryk, księgi i polskie aliasy magii | ogólny katalog zdolności pakietu |
@@ -58,7 +61,7 @@ wizualną i neutralną tożsamość PWA. Etap 7 dodał
 serwerowe `data-theme`/meta koloru, trzynaście kontrolowanych tokenów,
 `theme-bootstrap.js`, semantyczne nadpisania w `theme.css`, neutralny manifest
 oraz wybór świata przy potwierdzonym restarcie MG. Neon pozostaje wyłącznie
-lokalnym podglądem; każdy z 15 pakietów ma własny kontrolowany motyw.
+lokalnym podglądem; każdy z 15 światów ma własny kontrolowany motyw.
 
 | Miejsce | Zależności od Dark Fantasy | Kierunek ekstrakcji |
 |---|---|---|

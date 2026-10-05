@@ -81,6 +81,8 @@ class FinishCampaignRequest(BaseModel):
 
 class GenerateCampaignEndingRequest(BaseModel):
     room_code: str = Field(min_length=1, max_length=50)
+    ending_tone: Literal["auto", "victorious", "bittersweet", "tragic"] = "auto"
+    gm_guidance: str = Field(default="", max_length=1000)
 
 
 class CampaignHistoryChunkSummary(BaseModel):
@@ -89,7 +91,25 @@ class CampaignHistoryChunkSummary(BaseModel):
 
 class CampaignEndingDraftResponse(BaseModel):
     history_summary: str = Field(min_length=50, max_length=5000)
-    epilogue: str = Field(min_length=20, max_length=5000)
+    finale_story: str = Field(
+        min_length=50,
+        max_length=2400,
+        description="Definitywna ostatnia scena rozstrzygająca główny konflikt kampanii",
+    )
+    epilogue: str = Field(
+        min_length=20,
+        max_length=2400,
+        description="Następstwa finału oraz dalsze losy każdej postaci",
+    )
+
+
+class CampaignEndingDraftJobResponse(BaseModel):
+    job_id: str
+    status: Literal["pending", "completed", "failed"]
+    history_summary: Optional[str] = None
+    finale_story: Optional[str] = None
+    epilogue: Optional[str] = None
+    error: Optional[str] = None
 
 
 class GenerateIntroRequest(BaseModel):
