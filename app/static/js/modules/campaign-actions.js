@@ -228,6 +228,110 @@
     },
 
     // --- Składanie Akcji ---
+    get actionMentionOptions() {
+      if (!this.actionMention || this.actionMention.text !== this.actionText) return [];
+      const normalize = value => value.normalize('NFC').toLocaleLowerCase('pl-PL');
+      const characters = (this.session?.characters || []).filter(character =>
+        character.participation_status !== 'on_break' && character.name?.trim()
+      );
+      const counts = new Map();
+      characters.forEach(character => {
+        const name = normalize(character.name);
+        counts.set(name, (counts.get(name) || 0) + 1);
+      });
+      const query = normalize(this.actionMention.query);
+      return characters
+        .filter(character => counts.get(normalize(character.name)) === 1 &&
+          normalize(character.name).startsWith(query))
+        .map(character => ({ id: character.id, name: character.name }))
+        .sort((left, right) => left.name.localeCompare(right.name, 'pl-PL'));
+    },
+
+    updateActionMention(input) {
+      const end = input.selectionStart;
+      const before = input.value.slice(0, end);
+      const match = before.match(/(^|[^\p{L}\p{N}\p{M}_@])@([^@\n"„“”]*)$/u);
+      this.actionMention = match && input.selectionStart === input.selectionEnd
+        ? { start: match.index + match[1].length, end, query: match[2], text: input.value }
+        : null;
+      this.actionMentionIndex = 0;
+    },
+
+    actionDialogueClosingQuoteAt(position) {
+      const closingQuotes = { '"': '"', '„': '”', '“': '”' };
+      let closingQuote = null;
+      for (const character of this.actionText.slice(0, position)) {
+        if (closingQuote) {
+          if (character === closingQuote) closingQuote = null;
+        } else {
+          closingQuote = closingQuotes[character] || null;
+        }
+      }
+      return closingQuote;
+    },
+
+    selectActionMention(option) {
+      if (!this.actionMention || this.actionMention.text !== this.actionText || !option) return;
+      const { start, end } = this.actionMention;
+      const closingQuote = this.actionDialogueClosingQuoteAt(start);
+      let insertion = `@${option.name} `;
+      let after = this.actionText.slice(end);
+      let caret = start + insertion.length;
+      if (!closingQuote) {
+        // Picking a recipient always inserts speech, even outside an existing quote.
+        insertion = `"${insertion}"`;
+        caret = start + insertion.length - 1;
+      } else if (!after.includes(closingQuote)) {
+        after += closingQuote;
+      }
+      this.actionText = this.actionText.slice(0, start) + insertion + after;
+      this.actionMention = null;
+      this.actionInterpretation = null;
+      this.actionInterpretationRequestId += 1;
+      this.marketCraftItemIds = [];
+      this.$nextTick(() => {
+        const input = this.$refs.actionInput;
+        if (!input) return;
+        input.focus();
+        input.setSelectionRange(caret, caret);
+      });
+      this.interpretAction();
+    },
+
+    handleActionMentionKey(event) {
+      if (event.isComposing) return;
+      if (event.key === 'Tab' && event.shiftKey) {
+        this.actionMention = null;
+        return;
+      }
+      if (event.target.selectionStart !== event.target.selectionEnd) {
+        this.actionMention = null;
+        return;
+      }
+      if (event.key === 'Escape' && this.actionMention) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.actionMention = null;
+        return;
+      }
+      const options = this.actionMentionOptions;
+      if (!options.length) return;
+      const currentIndex = Math.min(this.actionMentionIndex, options.length - 1);
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const step = event.key === 'ArrowDown' ? 1 : -1;
+        this.actionMentionIndex = (currentIndex + step + options.length) % options.length;
+        this.$nextTick(() => {
+          document.getElementById(`action-mention-${this.actionMentionIndex}`)
+            ?.scrollIntoView({ block: 'nearest' });
+        });
+      } else if (event.key === 'Enter' || event.key === 'Tab') {
+        event.preventDefault();
+        event.stopPropagation();
+        this.selectActionMention(options[currentIndex]);
+      }
+    },
+
     effectiveActionIntent() {
       return this.actionIntent || this.actionInterpretation?.intent;
     },
@@ -513,7 +617,7 @@
 
     selectNamedAttack(attack) {
       if (!attack || !(this.activeEnemy?.hp > 0)) return;
-      this.actionText = `Atakuję przeciwnika techniką „${attack.name}”.`;
+      this.actionText = `Atakuję przeciwnika techniką ${attack.name}.`;
       this.magicAbilityId = null;
       this.namedAttackId = attack.id;
       this.actionIntent = 'attack';

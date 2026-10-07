@@ -7,6 +7,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.action_dialogue import preserve_action_dialogue
 from app.combat import (
     action_dc,
     ensure_enemy_encounter,
@@ -784,6 +785,9 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                 list(turn.combat_events or []),
                 world_pack,
             )
+            gemini_result.gm_story_narration = preserve_action_dialogue(
+                gemini_result.gm_story_narration, actions_with_rolls, participating_characters,
+            )
             for event in (turn.combat_events or []):
                 if isinstance(event, dict) and event.get("type") == "merchant_arrived":
                     gemini_result.gm_story_narration += "\n\n" + event["greeting"]
@@ -811,6 +815,14 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                         list(turn.combat_events or []),
                     )
                     or "Wynik akcji zapisano w rozstrzygnięciu tury."
+                )
+                consequence.individual_summary = preserve_action_dialogue(
+                    consequence.individual_summary,
+                    [
+                        action for action in actions_with_rolls
+                        if action["character_id"] == consequence.character_id
+                    ],
+                    participating_characters,
                 )
 
             boss_defeated_this_turn = any(

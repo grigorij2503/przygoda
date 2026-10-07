@@ -28,6 +28,8 @@
 
     // Turn Actions & Error
     actionText: '',
+    actionMention: null,
+    actionMentionIndex: 0,
     actionIntent: null,
     actionTestedStat: null,
     actionTargetRef: null,

@@ -4,6 +4,7 @@ import secrets
 import unicodedata
 from typing import Iterable
 
+from app.action_dialogue import action_mechanics_text
 from app.inventory import get_effectively_equipped_items
 from app.dice import calculate_item_modifier_details
 from app.magic import get_ability
@@ -63,7 +64,7 @@ def normalize_text(value: str) -> str:
 
 def is_retreat_action(action_text: str) -> bool:
     """Recognize an explicit decision to leave an encounter, not a passing mention."""
-    normalized = normalize_text(action_text)
+    normalized = normalize_text(action_mechanics_text(action_text))
     return bool(RETREAT_PATTERN.search(normalized)) and not RETREAT_NEGATION_PATTERN.search(normalized)
 
 
@@ -92,7 +93,7 @@ def infer_action_intent_details(
             "reason": "korekta gracza lub reguła wybranej zdolności",
         }
 
-    normalized = normalize_text(action_text)
+    normalized = normalize_text(action_mechanics_text(action_text))
     scores = {intent: 0 for intent in INTENT_RULES}
     strongest_matches: dict[str, tuple[int, int, str] | None] = {
         intent: None for intent in INTENT_RULES
@@ -207,7 +208,7 @@ STATUS_RELIEF_PATTERNS: dict[str, tuple[str, ...]] = {
 
 def infer_status_relief_type(action_text: str) -> str | None:
     """Rozpoznaje jawnie zadeklarowaną próbę usunięcia własnego efektu."""
-    normalized = normalize_text(action_text)
+    normalized = normalize_text(action_mechanics_text(action_text))
     for effect_type, patterns in STATUS_RELIEF_PATTERNS.items():
         if any(re.search(pattern, normalized) for pattern in patterns):
             return effect_type
@@ -520,7 +521,7 @@ def effect_from_attack(
 ) -> dict | None:
     if outcome_tier not in {"success", "critical_success"}:
         return None
-    normalized = normalize_text(action_text)
+    normalized = normalize_text(action_mechanics_text(action_text))
     world_pack = world_pack or get_default_world_pack()
     potency = 2 if outcome_tier == "critical_success" else 1
     ability_params = ability.get("mechanic_params", {}) if ability else {}
@@ -667,7 +668,7 @@ def _resolve_support_action(
 
     healing_intent = mechanic_key == "heal" or bool(re.search(
         r"\b(?:lecz|uzdraw|opatru|stabiliz|bandaz|reanim|pierwsz\w*\s+pomoc)\w*\b",
-        normalize_text(action.action_text),
+        normalize_text(action_mechanics_text(action.action_text)),
     ))
 
     if mechanic_key == "cleanse":
@@ -1068,7 +1069,10 @@ def _resolve_character_attack(
                        "target": target.name, "damage": 0})
         return True
 
-    if re.search(r"\b(?:kamien|kamyk|otoczak)\w*\b", normalize_text(action.action_text)):
+    if re.search(
+        r"\b(?:kamien|kamyk|otoczak)\w*\b",
+        normalize_text(action_mechanics_text(action.action_text)),
+    ):
         roll = secrets.randbelow(4) + 1
         base = roll + max(0, int(action.stat_modifier or 0) // 2)
         multiplier = {"partial_success": 0.5, "success": 1, "critical_success": 1.5}[action.outcome_tier]

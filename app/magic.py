@@ -4,6 +4,7 @@ import re
 import unicodedata
 from typing import Any
 
+from app.action_dialogue import action_mechanics_text
 from app.worlds.models import AbilityDefinition, WorldClassDefinition, WorldPack
 from app.worlds.registry import WORLD_PACK_REGISTRY, get_default_world_pack
 
@@ -99,7 +100,7 @@ def find_ability_in_text(
     pack: WorldPack,
     action_text: str,
 ) -> tuple[str, dict[str, Any]] | None:
-    normalized = normalize_ability_text(action_text)
+    normalized = normalize_ability_text(action_mechanics_text(action_text))
     if not normalized:
         return None
     abilities_by_id = {ability.id: ability for ability in pack.abilities}
@@ -120,7 +121,7 @@ def find_ability_in_text(
 
 
 def looks_like_ability_action(pack: WorldPack, action_text: str) -> bool:
-    normalized = normalize_ability_text(action_text)
+    normalized = normalize_ability_text(action_mechanics_text(action_text))
     markers = (
         marker
         for class_definition in pack.classes

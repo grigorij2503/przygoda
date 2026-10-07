@@ -3,6 +3,7 @@
 import re
 import unicodedata
 
+from app.action_dialogue import action_mechanics_text
 from app.models import Character
 
 
@@ -22,7 +23,7 @@ def infer_character_attack_target(
     action_text: str, actor: Character, characters: list[Character]
 ) -> tuple[Character | None, str | None]:
     """Only infer a target when an offensive declaration points at a party member."""
-    normalized = _plain(action_text)
+    normalized = _plain(action_mechanics_text(action_text))
     attack = _ATTACK_VERB.search(normalized)
     if not attack:
         return None, None

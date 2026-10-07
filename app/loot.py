@@ -5,6 +5,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Iterable
 
+from app.action_dialogue import action_mechanics_text
 from app.models import CampaignMap, Character, GameSession, InventoryItem, Turn
 from app.worlds.models import LootRarityDefinition, WorldPack
 from app.worlds.registry import WORLD_PACK_REGISTRY, get_default_world_pack
@@ -51,6 +52,7 @@ def _has_token_stem(value: str, stems: Iterable[str]) -> bool:
 
 
 def has_crafting_intent(action_text: str, world_pack: WorldPack | None = None) -> bool:
+    action_text = action_mechanics_text(action_text)
     if _has_token_stem(action_text, CRAFTING_KEYWORDS):
         return True
     pack = world_pack or get_default_world_pack()
@@ -75,6 +77,7 @@ def has_loot_search_intent(
     action_text: str, world_pack: WorldPack | None = None
 ) -> bool:
     world_pack = world_pack or get_default_world_pack()
+    action_text = action_mechanics_text(action_text)
     normalized = normalize_game_text(action_text)
     return any(
         normalize_game_text(marker) in normalized
@@ -89,6 +92,7 @@ def infer_crafting_source_items(
     world_pack: WorldPack | None = None,
 ) -> list[InventoryItem]:
     """Rozpoznaje konkretne, trwałe przedmioty wymienione w deklaracji craftingu."""
+    action_text = action_mechanics_text(action_text)
     if not has_crafting_intent(action_text, world_pack):
         return []
 
@@ -139,6 +143,7 @@ def validate_special_action(
     craft_item_ids: list[int] | None = None,
 ) -> str | None:
     world_pack = world_pack or get_default_world_pack()
+    action_text = action_mechanics_text(action_text)
     crafting = has_crafting_intent(action_text, world_pack)
     searching = has_loot_search_intent(action_text, world_pack)
 

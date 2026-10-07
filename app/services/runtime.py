@@ -26,6 +26,7 @@ import secrets
 import json
 from datetime import datetime, timedelta, timezone
 
+from app.action_dialogue import action_mechanics_text
 from app.config import UPLOADS_DIR, settings
 from app.combat import (
     action_dc,
@@ -508,7 +509,7 @@ def suggest_map_destination(campaign_map: CampaignMap, actions_with_rolls: list[
     for action in actions_with_rolls:
         if action.get("outcome_tier") in {"failure", "critical_failure"}:
             continue
-        declaration = normalize_game_text(action.get("action_text") or "")
+        declaration = normalize_game_text(action_mechanics_text(action.get("action_text") or ""))
         if not movement_pattern.search(declaration):
             continue
         for node in nodes:
@@ -637,7 +638,7 @@ def validate_action_item_claim(
     world_pack: WorldPack | None = None,
 ) -> str | None:
     """Blokuje jawne użycie broni lub pancerza, którego postać nie ma albo nie założyła."""
-    normalized_action = normalize_game_text(action_text)
+    normalized_action = normalize_game_text(action_mechanics_text(action_text))
     action_clauses = re.split(r"[,.!?;]", normalized_action)
     effectively_equipped_items = get_effectively_equipped_items(inventory)
     ignored_labels = ignored_labels or set()

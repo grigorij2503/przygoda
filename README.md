@@ -10,11 +10,14 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
    - Wymuszone formatowanie **Strict Structured Output JSON** (Pydantic).
    - Gemini interpretuje wyniki rzutów wykonanych przez backend i tworzy filmową narrację.
    - Narracja uwzględnia mechaniczne konsekwencje tury, rozwój postaci, walkę i stan świata zapisany przez backend. Model nie ustala ani nie zmienia HP, XP, ekwipunku, statusów ani mechanicznego ruchu na mapie; otrzymuje gotowy dziennik zdarzeń i opisuje jego rezultat.
+   - Tekst akcji w cudzysłowie (`"..."`, `„...”` lub `“...”`) jest wypowiedzią postaci. Narrator wplata go dosłownie w historię również przy porażce; działa to także offline. W cytacie `@Imię postaci` wskazuje adresata z bieżącej drużyny, a w historii pojawia się jego imię bez `@`. Nie dopisuje to adresatowi odpowiedzi ani własnej akcji. Wiele cytatów zachowuje kolejność; nieznana lub niejednoznaczna wzmianka pozostaje dosłownym tekstem, a niedomknięty cudzysłów zwykłym opisem. Serwer uzupełnia wypowiedź pominiętą przez AI lub usuniętą podczas porządkowania narracji.
+   - Wpisanie `@` w polu akcji otwiera filtrowaną listę imion aktywnych postaci z bieżącego pokoju, także imion ze spacjami. Adresata wypowiedzi można wybrać kliknięciem, dotknięciem lub strzałkami i Enter/Tab; Escape zamyka listę. Wybór poza cytatem tworzy kompletny cytat z wzmianką i ustawia kursor w środku, a w otwartym cytacie zachowuje jego rodzaj i uzupełnia brakujący znak zamykający. Lista pomija niejednoznaczne identyczne imiona i postacie na przerwie; wybór jest wyłącznie adresatem słów, nie mechanicznym celem ataku.
    - Sugerowanie plastycznych promptów dla sceny w języku angielskim dla Imagen 3.
 2. **Serwerowy Silnik Rzutów d20:**
    - Kryptograficznie bezpieczny generator liczb losowych (`secrets` w Pythonie); wynik jest losowy, a nie deterministyczny.
    - Narracyjny opis gracza jest podstawowym źródłem zamiaru i testowanej cechy; ważone reguły rozpoznają dominującą czynność oraz sposób wykonania zamiast wybierać pierwszy napotkany wyraz.
    - Poboczne ozdobniki, takie jak okrzyk podczas ataku, nie przebijają fizycznej metody działania; przy niejednoznacznym ataku silnik korzysta z cechy używanej broni, a następnie z najlepiej pasującej cechy postaci.
+   - Słowa w kompletnym cudzysłowie nie wskazują rodzaju akcji, cechy, celu ataku, używanej broni, zdolności, leczenia, usuwania statusu, craftingu, przeszukania ani ruchu po mapie. Wypowiedź sama w sobie nie uruchamia tych mechanik; zamiar opisuje się poza cytatem, np. `Próbuję przekonać strażnika: „Pozwól nam przejść”`. Pełna deklaracja pozostaje zapisana bez zmian w istniejącym polu akcji; funkcja nie wymaga migracji ani konfiguracji.
    - Brak jeszcze niezapisanej lub historycznie nieuzupełnionej wartości cechy jest bezpiecznie traktowany jak `0`, także po dodaniu Percepcji do starszych postaci.
    - Formularz na bieżąco pokazuje nieblokującą interpretację (`zamiar • cecha`), poziom niskiej pewności i krótkie uzasadnienie; gracz może opcjonalnie skorygować oba pola przed zatwierdzeniem bez rezygnowania ze swobodnego opisu.
    - Atak na członka drużyny wskazuje cel w opisie akcji, bez listy celów ataku. Podgląd pokazuje rozpoznaną postać; przy niejednoznacznym „koledze” w większej drużynie trzeba dopisać imię.
@@ -124,6 +127,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │   ├── inventory.py           # Sloty, zajęte ręce i aktywny ekwipunek
 │   ├── loot.py                # Łup, przeszukiwanie i crafting według pakietu świata
 │   ├── targeting.py           # Odczyt celu ataku na postać z treści deklaracji
+│   ├── action_dialogue.py     # Oddzielenie wypowiedzi od mechaniki, adresaci @ i zachowanie cytatów w narracji
 │   ├── magic.py               # Ogólne księgi zdolności i adaptery dawnej magii
 │   ├── map_generator.py       # Mapa grafowa generowana z profilu świata
 │   ├── gemini_service.py      # Integracja Google GenAI (Gemini 3.8 Flash + Imagen 3)

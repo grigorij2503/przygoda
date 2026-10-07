@@ -2,6 +2,7 @@ import re
 import secrets
 import unicodedata
 from typing import Tuple
+from app.action_dialogue import action_mechanics_text
 from app.inventory import get_effectively_equipped_items
 from app.models import Character
 from app.worlds.models import WorldPack
@@ -88,7 +89,7 @@ def deduce_tested_attribute_details(
             "reason": "korekta gracza lub reguła wybranej zdolności",
         }
 
-    cleaned_text = _normalize_action_text(action_text)
+    cleaned_text = _normalize_action_text(action_mechanics_text(action_text))
     scores = {stat: 0 for stat in CANONICAL_STATS}
     strongest_evidence = {stat: 0 for stat in scores}
 
@@ -185,7 +186,7 @@ def calculate_item_modifier_details(
     aktywne przez cały czas noszenia przedmiotu.
     """
     equipped = get_effectively_equipped_items(character.inventory)
-    normalized_action = _normalize_action_text(action_text or "")
+    normalized_action = _normalize_action_text(action_mechanics_text(action_text or ""))
     legacy_mode = action_text is None
     shield_action = bool(re.search(
         r"\b(?:broni|blokuj|paruj|oslani|zaslani|tarc)\w*\b",
