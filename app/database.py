@@ -82,6 +82,7 @@ async def init_db():
             ("inventory_items", "curse_stat", "VARCHAR(50)"),
             ("inventory_items", "curse_penalty", "INTEGER NOT NULL DEFAULT 0"),
             ("turns", "suggested_actions", "TEXT"),
+            ("turns", "character_suggested_actions", "JSON NOT NULL DEFAULT '{}'"),
             ("turns", "challenge_tier", "VARCHAR(20) NOT NULL DEFAULT 'standard'"),
             ("turns", "mechanics_resolved_at", "DATETIME"),
             ("turns", "combat_events", "JSON"),

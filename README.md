@@ -71,8 +71,8 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
     - Każda klasa używa księgi właściwej swojemu światu: od czarów Czarodzieja i modlitw Kleryka po hacki, dedukcję lub komediowe sztuczki.
     - Zdolności odblokowywane poziomami, walidowane po stronie backendu i powiązane z właściwą cechą postaci.
     - Szybkie akcje są dopasowane do klasy wybranego bohatera; Wojownik i Łotrzyk nie otrzymują propozycji czarów, a Czarodziej i Kleryk widzą wśród skrótów wyłącznie odblokowane zdolności ze swojej księgi lub modlitw.
-    - Podpowiedzi taktyczne powstają dla wybranej postaci po rozwinięciu panelu: trzy krótkie, różne deklaracje w pierwszej osobie („Rzucam…”, „Chwytam…”). Uwzględniają już opublikowaną scenę, własne położenie, stan zdrowia, statusy i rzeczywisty ekwipunek; postać w niebezpieczeństwie dostaje pomysły na własne działanie, a jej towarzysze na pomoc ze swojej pozycji. Podpowiedzi pozostają niemagiczne; zdolności klasowe wybiera się osobno.
-    - Odczyt `GET /api/characters/{character_id}/tactical-hints?turn_id=…` wymaga dostępu do właściwego pokoju, żywej aktywnej postaci i bieżącej otwartej tury. Wspólne zapytania dla tego samego kontekstu są łączone, a wynik przez krótki czas pozostaje w pamięci serwera. Zmiana postaci, sceny, przeciwnika, zdrowia, statusów lub wyposażenia odświeża rozwinięty panel; spóźnione odpowiedzi są pomijane. Przy niedostępności narratora panel wyraźnie oznacza pomysły jako ogólne. Odczyt nie zapisuje deklaracji ani nie zmienia kampanii i działa również w już otwartej turze, bez nowej migracji lub konfiguracji.
+    - Podpowiedzi taktyczne wszystkich żywych aktywnych postaci powstają w tej samej odpowiedzi Gemini co prolog lub rozstrzygnięcie tury i są trwale zapisane przy nowej turze. Każda postać otrzymuje trzy krótkie, różne deklaracje w pierwszej osobie („Rzucam…”, „Chwytam…”), uwzględniające opublikowaną scenę, własne położenie, zdrowie, statusy i rzeczywisty ekwipunek. Postać w niebezpieczeństwie dostaje pomysły na własne działanie, a jej towarzysze na pomoc ze swojej pozycji. Podpowiedzi pozostają niemagiczne; zdolności klasowe wybiera się osobno.
+    - Odczyt `GET /api/characters/{character_id}/tactical-hints?turn_id=…` wymaga dostępu do właściwego pokoju, żywej aktywnej postaci i bieżącej otwartej tury. Rozwinięcie panelu, zmiana postaci, odświeżenie strony i restart serwera nie uruchamiają dodatkowych zapytań do Gemini: endpoint czyta bazę, a spóźnione odpowiedzi są pomijane. Jeśli stan postaci, drużyny, przeciwnika lub sceny zmienił się od zapisu, podpowiedzi są nieprawidłowe albo tura pochodzi sprzed tej funkcji, panel pokazuje oznaczone ogólne pomysły przygotowane lokalnie. Brak podpowiedzi nie wywołuje korekty AI ani odrzucenia poprawnej narracji. Personalizacja zwiększa liczbę tokenów zwykłego zapytania, bez osobnego wywołania dla każdej postaci. Odczyt nie zapisuje deklaracji ani nie zmienia kampanii; nie wymaga nowych zmiennych `.env`.
     - Wybrana zdolność jawnie ustala swój zamiar i cechę rzucania; tych wartości nie zastępuje automatyczna interpretacja ozdobników dopisanych przez gracza.
     - Kleryk od 7. poziomu otrzymuje Wskrzeszenie, które jako jedyne zwykłe działanie może przywrócić poległego bohatera (25% PW, a przy krytycznym sukcesie 50% PW).
 11. **Łup, Ekwipunek i Crafting:**
@@ -131,6 +131,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │   ├── magic.py               # Ogólne księgi zdolności i adaptery dawnej magii
 │   ├── map_generator.py       # Mapa grafowa generowana z profilu świata
 │   ├── gemini_service.py      # Integracja Google GenAI (Gemini 3.8 Flash + Imagen 3)
+│   ├── tactical_hints.py      # Walidacja, zapis kontekstu i lokalne podpowiedzi bez wywołań AI
 │   ├── push_service.py        # Wysyłanie powiadomień Web Push
 │   ├── generate_vapid_keys.py # Generator kluczy VAPID
 │   ├── websocket_manager.py   # Menedżer WebSockets i broadcast zdarzeń
@@ -141,7 +142,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │   │   ├── runtime.py         # Wspólne reguły pomocnicze, inicjalizacja i lifespan
 │   │   ├── session_service.py # Odczyt, konfiguracja, reset i prolog kampanii
 │   │   ├── character_service.py # Postacie, gotowość, rozwój, notatki, ekwipunek i przekazywanie przedmiotów
-│   │   ├── tactical_hint_service.py # Podpowiedzi wybranej postaci, kontekst jawnej sceny i cache w pamięci
+│   │   ├── tactical_hint_service.py # Odczyt zapisanych podpowiedzi i kontrola dostępu do pokoju
 │   │   ├── admin_service.py   # PIN MG, korekty postaci i przełączanie aktywność/przerwa
 │   │   ├── room_access.py     # Skróty haseł oraz podpisany, związany z kodem dostęp do pokoju
 │   │   ├── market_service.py  # Postój, oferta, ceny, handel, negocjacje i konsekwencje kradzieży
@@ -197,7 +198,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │       └── 0001-versioned-world-packs.md # Decyzja o deklaratywnych pakietach świata
 ├── uploads/                   # Katalog na wygenerowane obrazy z Imagen 3
 ├── data/                      # Katalog na plik bazy SQLite (w Dockerze)
-├── alembic/                   # Migracje 0001–0010, w tym pokoje, scenariusz, forma narracji i cel kampanii
+├── alembic/                   # Migracje 0001–0011, w tym pokoje, cel kampanii i zapis podpowiedzi postaci
 ├── alembic.ini                # Konfiguracja migracji korzystająca z DATABASE_URL
 ├── Dockerfile                 # Zoptymalizowany obraz produkcyjny Python 3.12-slim
 ├── docker-compose.yml         # Konfiguracja uruchomieniowa kontenera
@@ -305,6 +306,8 @@ W systemach Linux/macOS środowisko aktywuje polecenie `source .venv/bin/activat
 
 Aplikacja będzie dostępna pod adresem: `http://localhost:8000`.
 Migracja `0002_encounter_difficulty` dodaje poziom trudności do tur; istniejące tury zachowują zwykły poziom DC 12. Migracja `0003_inventory_wallet` dodaje saldo `coins` i nadaje historycznym postaciom `0`, bez zmiany ich ekwipunku. Migracja `0004_lore_discoveries` dodaje wybierane ataki postaci, cechy NPC i kontekst oczekującej propozycji nazwania bez usuwania dotychczasowej Kroniki. Migracja `0005_campaign_endings_cursed_items` dodaje zapis epilogu i karę przeklętych przedmiotów, zachowując dotychczasowy ekwipunek. Migracja `0006_market_post` dodaje stan wizyty handlarza i identyfikatory składników craftingu do akcji, bez zmiany starych tur. Migracja `0007_character_breaks` dodaje kontrolowany status udziału i numer rozpoczęcia przerwy; wszystkie historyczne postacie pozostają aktywne z niezmienionym poziomem i postępem. Migracja `0008_multi_room_access` dodaje nullable skrót hasła pokoju bez resetowania sesji, postaci ani tur. Migracja `0009_scenario_narrative_form` zapisuje scenariusz sesji i kontrolowaną formę narracji postaci; historyczne kampanie zachowują przebieg, a ich postacie otrzymują formę neutralną. Migracja `0010_campaign_goal` dodaje główną misję, aktualny trop i kontrolowany stan celu bez zmiany historii kampanii. Bezpośredni start przez `uvicorn` uzupełnia wymagane kolumny w starszych lokalnych bazach bez historii Alembic; późniejsze `alembic upgrade head` zapisuje formalną wersję schematu. Nie są potrzebne nowe zmienne `.env`. Przed migracją istniejącej kampanii wykonaj kopię bazy SQLite. `SECRET_KEY` podpisuje ciasteczko związane z kodem pokoju i używane przez chronione operacje HTTP oraz WebSocket.
+
+Migracja `0011_tactical_hints` dodaje JSON `turns.character_suggested_actions` z domyślną pustą mapą, bez zmiany historii i postępu kampanii. Nowe podpowiedzi są zapisywane razem z kolejną narracją; starsze otwarte tury korzystają z lokalnych pomysłów ogólnych bez dodatkowego zapytania AI. Kontener wykonuje tę migrację w standardowym `alembic upgrade head`, a bezpośredni start przez `uvicorn` dodaje tę samą kolumnę przez `init_db`.
 
 Własny portret handlarza można dostarczyć jako PNG z przezroczystym tłem, zastępując odpowiedni plik w `app/static/img/merchants/`. Nazwa pliku to `theme_id` świata, np. `archipelag_korsarzy.png` lub `neo_katowice.png` (identyfikator motywu NeoKatowic różni się od ID pakietu). Interfejs wybiera portret według przypiętego świata, bez zmian w JSON pakietów i bez dodatkowej zmiennej `.env`. Po podmianie zasobu trzeba odświeżyć wersję adresu portretu w `app/static/js/modules/market.js` oraz wersję modułu i cache PWA, aby przeglądarki pobrały nowy plik.
 

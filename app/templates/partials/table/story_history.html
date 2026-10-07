@@ -340,7 +340,7 @@
                         <!-- Rozwinięta lista ścieżek z Click-to-Fill -->
                         <div x-show="showHints" x-cloak x-transition.opacity.duration.250ms class="mt-3 space-y-2"
                              :id="'tactical-hints-' + t.id" :aria-busy="hintsLoading">
-                          <p x-show="hintsLoading" role="status" class="text-[11px] text-gray-400">Szukam pomysłów pasujących do Twojej sytuacji…</p>
+                          <p x-show="hintsLoading" role="status" class="text-[11px] text-gray-400">Pobieram zapisane podpowiedzi…</p>
                           <div x-show="hintsError" role="alert" class="text-[11px] text-amber-300">
                             <p x-text="hintsError"></p>
                             <button type="button" @click="loadHints()" class="mt-1 underline">Spróbuj ponownie</button>

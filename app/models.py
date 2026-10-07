@@ -158,6 +158,7 @@ class Turn(Base):
     next_turn_prompt = Column(Text, default="")
     challenge_tier = Column(String(20), nullable=False, default="standard")
     suggested_actions = Column(JSON, default=list)
+    character_suggested_actions = Column(JSON, nullable=False, default=dict, server_default="{}")
     image_prompt = Column(Text, default="")
     image_url = Column(String(500), nullable=True)
     is_generating_image = Column(Boolean, default=False)

@@ -337,6 +337,27 @@ class TacticalHintsResponse(TacticalHintsSchema):
     contextual: bool
 
 
+class CharacterTacticalHintsSchema(BaseModel):
+    character_id: int = Field(description="ID żywej aktywnej postaci wykonującej te akcje")
+    suggested_actions: List[str] = Field(
+        default_factory=list,
+        description="Trzy krótkie, różne, niemagiczne deklaracje tej postaci w pierwszej osobie liczby pojedynczej i czasie teraźniejszym",
+    )
+
+
+def parse_character_tactical_hints(value: object) -> List[CharacterTacticalHintsSchema]:
+    """A malformed hint group must not discard an otherwise valid narration."""
+    if not isinstance(value, list):
+        return []
+    groups = []
+    for entry in value:
+        try:
+            groups.append(CharacterTacticalHintsSchema.model_validate(entry))
+        except ValueError:
+            continue
+    return groups
+
+
 class ProxyActionVoteRequest(BaseModel):
     voter_character_id: int
     option_id: str = Field(min_length=1, max_length=50)
@@ -454,11 +475,20 @@ class GeminiTurnResolutionSchema(BaseModel):
         default_factory=list,
         description="Dokładnie 3 konkretne, zróżnicowane, niemagiczne deklaracje w pierwszej osobie liczby pojedynczej i czasie teraźniejszym, dostępne dla każdej klasy"
     )
+    character_suggested_actions: List[CharacterTacticalHintsSchema] = Field(
+        default_factory=list,
+        description="Osobne trzy deklaracje dla każdej żywej aktywnej postaci, dotyczące next_turn_prompt i jej własnej sytuacji po rozstrzygnięciu",
+    )
     naming_opportunity: Optional[NamingOpportunitySchema] = Field(default=None, description="Opcjonalna okazja do nazwania nowego bossa, niezwykłej lokacji, napotkanego NPC, potężnej broni lub ataku zespołowego przez gracza")
     map_update: Optional[MapLocationUpdateSchema] = Field(
         default=None,
         description="Aktualizacja kroniki mapy; nie może tworzyć lokacji ani przejść spoza przekazanej mapy",
     )
+
+    @field_validator("character_suggested_actions", mode="before")
+    @classmethod
+    def validate_hint_groups(cls, value: object) -> List[CharacterTacticalHintsSchema]:
+        return parse_character_tactical_hints(value)
 
 class GenerateImageRequest(BaseModel):
     turn_id: int
@@ -516,3 +546,12 @@ class PrologueResponse(BaseModel):
     prologue_story: str
     suggested_actions: List[str] = Field(description="Trzy konkretne, niemagiczne deklaracje w pierwszej osobie liczby pojedynczej i czasie teraźniejszym, dostępne dla każdej klasy na start")
     first_challenge: str
+    character_suggested_actions: List[CharacterTacticalHintsSchema] = Field(
+        default_factory=list,
+        description="Osobne trzy deklaracje dla każdej żywej aktywnej postaci, dotyczące first_challenge i jej własnej sytuacji w prologu",
+    )
+
+    @field_validator("character_suggested_actions", mode="before")
+    @classmethod
+    def validate_hint_groups(cls, value: object) -> List[CharacterTacticalHintsSchema]:
+        return parse_character_tactical_hints(value)

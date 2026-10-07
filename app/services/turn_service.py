@@ -56,6 +56,7 @@ from app.services.market_service import close_market_visit
 from app.services.world_service import get_session_world_pack
 from app.services.room_access import require_room
 from app.targeting import infer_character_attack_target
+from app.tactical_hints import build_saved_tactical_hints
 from app.websocket_manager import ws_manager
 from app.worlds.models import WorldPack
 
@@ -1035,6 +1036,9 @@ async def resolve_turn_background(session_id: int, turn_id: int):
                 challenge_tier=gemini_result.next_challenge_tier,
                 suggested_actions=gemini_result.suggested_actions,
                 image_prompt="",
+            )
+            next_turn.character_suggested_actions = build_saved_tactical_hints(
+                session, next_turn, list(characters), gemini_result.character_suggested_actions,
             )
             db.add(next_turn)
             await db.commit()

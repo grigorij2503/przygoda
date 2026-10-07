@@ -50,6 +50,7 @@ from app.schemas import (
     SetupScenarioRequest,
     TriggerNamingRequest,
 )
+from app.tactical_hints import build_saved_tactical_hints
 from app.services.campaign_goal_service import (
     advance_campaign_goal,
     complete_campaign_goal,
@@ -993,6 +994,7 @@ async def setup_scenario(
     turn1.next_turn_prompt = narrative_profile.lobby_prompt
     turn1.challenge_tier = "standard"
     turn1.suggested_actions = []
+    turn1.character_suggested_actions = {}
     turn1.image_prompt = narrative_profile.initial_image_prompt
 
     await replace_campaign_map(db, session)
@@ -1074,6 +1076,9 @@ async def start_prologue(
     turn1.next_turn_prompt = prologue_data.first_challenge
     turn1.challenge_tier = "standard"
     turn1.suggested_actions = prologue_data.suggested_actions
+    turn1.character_suggested_actions = build_saved_tactical_hints(
+        session, turn1, list(session.characters), prologue_data.character_suggested_actions,
+    )
     turn1.status = "waiting_for_actions"
     turn1.image_prompt = world_pack.narrative_profile.initial_image_prompt
 
