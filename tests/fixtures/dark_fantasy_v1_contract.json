@@ -118,6 +118,7 @@
     "/api/characters/{char_id}/inventory/{item_id}/use": ["POST"],
     "/api/characters/{char_id}/personal-note": ["GET", "PUT"],
     "/api/characters/{char_id}/spend-stat-point": ["POST"],
+    "/api/characters/{character_id}/tactical-hints": ["GET"],
     "/api/characters/{character_id}/toggle-ready": ["POST"],
     "/api/generate-image": ["POST"],
     "/api/generate-intro": ["POST"],

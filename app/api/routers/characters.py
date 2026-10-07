@@ -1,9 +1,16 @@
 from fastapi import APIRouter
 
-from app.services import character_service
+from app.schemas import TacticalHintsResponse
+from app.services import character_service, tactical_hint_service
 
 
 router = APIRouter()
+router.add_api_route(
+    "/api/characters/{character_id}/tactical-hints",
+    tactical_hint_service.get_tactical_hints,
+    methods=["GET"],
+    response_model=TacticalHintsResponse,
+)
 router.add_api_route(
     "/api/characters/{character_id}/toggle-ready",
     character_service.toggle_character_ready,

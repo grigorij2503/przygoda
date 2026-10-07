@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ttrpg-gemini-v64';
+const CACHE_NAME = 'ttrpg-gemini-v65';
 const PRECACHE_ASSETS = [
   '/',
   '/static/css/style.css?v=33',
@@ -20,11 +20,11 @@ const PRECACHE_ASSETS = [
   '/static/js/modules/session-character.js?v=39',
   '/static/js/modules/story-map-proxy.js?v=42',
   '/static/js/modules/realtime-chat.js?v=39',
-  '/static/js/modules/campaign-actions.js?v=35',
+  '/static/js/modules/campaign-actions.js?v=36',
   '/static/js/modules/equipment-images.js?v=34',
   '/static/js/modules/market.js?v=2',
-  '/static/js/modules/local-components.js?v=31',
-  '/static/js/app.js?v=35',
+  '/static/js/modules/local-components.js?v=32',
+  '/static/js/app.js?v=36',
   '/manifest.json?v=2',
   '/static/icons/icon.svg?v=2',
   '/static/icons/d20.svg',

@@ -68,7 +68,8 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
     - Każda klasa używa księgi właściwej swojemu światu: od czarów Czarodzieja i modlitw Kleryka po hacki, dedukcję lub komediowe sztuczki.
     - Zdolności odblokowywane poziomami, walidowane po stronie backendu i powiązane z właściwą cechą postaci.
     - Szybkie akcje są dopasowane do klasy wybranego bohatera; Wojownik i Łotrzyk nie otrzymują propozycji czarów, a Czarodziej i Kleryk widzą wśród skrótów wyłącznie odblokowane zdolności ze swojej księgi lub modlitw.
-    - Drużynowe podpowiedzi Gemini pozostają niemagiczne i dostępne dla każdej klasy; magia jest deklarowana wyłącznie przez wybór konkretnej zdolności klasowej.
+    - Podpowiedzi taktyczne powstają dla wybranej postaci po rozwinięciu panelu: trzy krótkie, różne deklaracje w pierwszej osobie („Rzucam…”, „Chwytam…”). Uwzględniają już opublikowaną scenę, własne położenie, stan zdrowia, statusy i rzeczywisty ekwipunek; postać w niebezpieczeństwie dostaje pomysły na własne działanie, a jej towarzysze na pomoc ze swojej pozycji. Podpowiedzi pozostają niemagiczne; zdolności klasowe wybiera się osobno.
+    - Odczyt `GET /api/characters/{character_id}/tactical-hints?turn_id=…` wymaga dostępu do właściwego pokoju, żywej aktywnej postaci i bieżącej otwartej tury. Wspólne zapytania dla tego samego kontekstu są łączone, a wynik przez krótki czas pozostaje w pamięci serwera. Zmiana postaci, sceny, przeciwnika, zdrowia, statusów lub wyposażenia odświeża rozwinięty panel; spóźnione odpowiedzi są pomijane. Przy niedostępności narratora panel wyraźnie oznacza pomysły jako ogólne. Odczyt nie zapisuje deklaracji ani nie zmienia kampanii i działa również w już otwartej turze, bez nowej migracji lub konfiguracji.
     - Wybrana zdolność jawnie ustala swój zamiar i cechę rzucania; tych wartości nie zastępuje automatyczna interpretacja ozdobników dopisanych przez gracza.
     - Kleryk od 7. poziomu otrzymuje Wskrzeszenie, które jako jedyne zwykłe działanie może przywrócić poległego bohatera (25% PW, a przy krytycznym sukcesie 50% PW).
 11. **Łup, Ekwipunek i Crafting:**
@@ -136,6 +137,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │   │   ├── runtime.py         # Wspólne reguły pomocnicze, inicjalizacja i lifespan
 │   │   ├── session_service.py # Odczyt, konfiguracja, reset i prolog kampanii
 │   │   ├── character_service.py # Postacie, gotowość, rozwój, notatki, ekwipunek i przekazywanie przedmiotów
+│   │   ├── tactical_hint_service.py # Podpowiedzi wybranej postaci, kontekst jawnej sceny i cache w pamięci
 │   │   ├── admin_service.py   # PIN MG, korekty postaci i przełączanie aktywność/przerwa
 │   │   ├── room_access.py     # Skróty haseł oraz podpisany, związany z kodem dostęp do pokoju
 │   │   ├── market_service.py  # Postój, oferta, ceny, handel, negocjacje i konsekwencje kradzieży
@@ -191,7 +193,7 @@ Wieloosobowy silnik rozgrywek turowych z 15 wersjonowanymi światami kampanii, w
 │       └── 0001-versioned-world-packs.md # Decyzja o deklaratywnych pakietach świata
 ├── uploads/                   # Katalog na wygenerowane obrazy z Imagen 3
 ├── data/                      # Katalog na plik bazy SQLite (w Dockerze)
-├── alembic/                   # Migracje 0001–0009, w tym wiele pokoi, scenariusz sesji i formę narracji
+├── alembic/                   # Migracje 0001–0010, w tym pokoje, scenariusz, forma narracji i cel kampanii
 ├── alembic.ini                # Konfiguracja migracji korzystająca z DATABASE_URL
 ├── Dockerfile                 # Zoptymalizowany obraz produkcyjny Python 3.12-slim
 ├── docker-compose.yml         # Konfiguracja uruchomieniowa kontenera

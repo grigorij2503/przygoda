@@ -433,6 +433,43 @@
       );
     },
 
+    get canRequestTacticalHints() {
+      const character = this.currentCharacter;
+      return Boolean(
+        this.session?.status === 'in_progress'
+        && !this.session.is_turn_resolving
+        && this.currentStoryTurn?.status === 'waiting_for_actions'
+        && character?.is_alive
+        && (character.death_state || 'alive') === 'alive'
+        && character.participation_status !== 'on_break'
+      );
+    },
+
+    get tacticalHintsContextKey() {
+      if (!this.canRequestTacticalHints) return '';
+      const character = this.currentCharacter;
+      const turn = this.currentStoryTurn;
+      const party = (this.session.characters || [])
+        .filter(member => member.participation_status !== 'on_break' && member.death_state !== 'dead')
+        .map(member => [
+          member.id, member.name, member.character_class, member.narrative_form,
+          member.current_hp, member.max_hp, member.is_alive, member.death_state,
+          member.status_effects
+        ]);
+      return JSON.stringify([
+        this.session.session_id, this.session.room_code, this.session.world_pack_id,
+        this.session.world_pack_version, this.session.title, this.session.setting_theme, this.session.campaign_intro,
+        turn.id, turn.turn_number, turn.next_turn_prompt, turn.gm_narration,
+        this.latestResolvedTurn?.gm_narration || '',
+        this.activeEnemy?.name, this.activeEnemy?.title, this.activeEnemy?.hp, character.id,
+        character.strength, character.agility, character.intellect,
+        character.charisma, character.perception, party,
+        (character.inventory || []).map(item => [
+          item.id, item.name, item.description, item.item_type, item.quantity, item.is_equipped
+        ])
+      ]);
+    },
+
     availableSuggestedActions(actions) {
       if (!Array.isArray(actions)) return [];
       const phrases = this.session?.world_pack?.ability_action_phrases || [];
@@ -441,6 +478,7 @@
         .replace(/[\u0300-\u036f]/g, '')
         .toLowerCase();
       return actions.filter(action => {
+        if (typeof action !== 'string' || !action.trim()) return false;
         const normalized = normalize(action);
         return !phrases.some(phrase => {
           const marker = normalize(phrase).trim();

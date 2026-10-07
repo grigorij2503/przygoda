@@ -305,6 +305,38 @@ class ActionInterpretationResponse(BaseModel):
     stat_confidence: float
     reason: str
 
+class TacticalHintsSchema(BaseModel):
+    suggested_actions: List[str] = Field(
+        min_length=3,
+        max_length=3,
+        description=(
+            "Trzy krótkie deklaracje wybranej postaci w pierwszej osobie liczby pojedynczej "
+            "i czasie teraźniejszym, np. 'Chwytam linę i próbuję wydostać się z wody'. "
+            "Każda dotyczy jej własnego działania możliwego w opublikowanej scenie."
+        ),
+    )
+
+    @field_validator("suggested_actions")
+    @classmethod
+    def validate_declarations(cls, actions: List[str]) -> List[str]:
+        cleaned = [action.strip() for action in actions]
+        if any(not 12 <= len(action) <= 280 for action in cleaned):
+            raise ValueError("Podpowiedź musi mieć od 12 do 280 znaków")
+        if len({action.casefold() for action in cleaned}) != 3:
+            raise ValueError("Podpowiedzi muszą się od siebie różnić")
+        for action in cleaned:
+            opening = action.split(maxsplit=1)[0].rstrip(".,:;!?").casefold()
+            if not opening.isalpha() or not opening.endswith(("ę", "am", "em")):
+                raise ValueError("Podpowiedź musi zaczynać się od czasownika w pierwszej osobie")
+        return cleaned
+
+
+class TacticalHintsResponse(TacticalHintsSchema):
+    character_id: int
+    turn_id: int
+    contextual: bool
+
+
 class ProxyActionVoteRequest(BaseModel):
     voter_character_id: int
     option_id: str = Field(min_length=1, max_length=50)
@@ -420,7 +452,7 @@ class GeminiTurnResolutionSchema(BaseModel):
     )
     suggested_actions: List[str] = Field(
         default_factory=list,
-        description="Dokładnie 3 konkretne, zróżnicowane, niemagiczne ścieżki działania dostępne dla każdej klasy (np. natarcie, spryt/flanka, analiza otoczenia)"
+        description="Dokładnie 3 konkretne, zróżnicowane, niemagiczne deklaracje w pierwszej osobie liczby pojedynczej i czasie teraźniejszym, dostępne dla każdej klasy"
     )
     naming_opportunity: Optional[NamingOpportunitySchema] = Field(default=None, description="Opcjonalna okazja do nazwania nowego bossa, niezwykłej lokacji, napotkanego NPC, potężnej broni lub ataku zespołowego przez gracza")
     map_update: Optional[MapLocationUpdateSchema] = Field(
@@ -482,5 +514,5 @@ class PrologueResponse(BaseModel):
     title: str
     setting_theme: str
     prologue_story: str
-    suggested_actions: List[str] = Field(description="Trzy konkretne, niemagiczne ścieżki działania dostępne dla każdej klasy na start")
+    suggested_actions: List[str] = Field(description="Trzy konkretne, niemagiczne deklaracje w pierwszej osobie liczby pojedynczej i czasie teraźniejszym, dostępne dla każdej klasy na start")
     first_challenge: str

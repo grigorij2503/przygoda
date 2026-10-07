@@ -11,6 +11,24 @@ async def get_world_catalog() -> WorldCatalogResponse:
     return WORLD_PACK_REGISTRY.catalog()
 
 
+def get_ability_action_phrases(pack: WorldPack) -> list[str]:
+    return list(dict.fromkeys(
+        phrase for phrase in (
+            *(
+                marker
+                for class_definition in pack.classes
+                if class_definition.ability_book
+                for marker in class_definition.ability_book.action_markers
+            ),
+            *(
+                phrase
+                for ability in pack.abilities
+                for phrase in (ability.name, *ability.aliases)
+            ),
+        )
+    ))
+
+
 def serialize_world_runtime(pack: WorldPack) -> dict:
     """Return the declarative subset consumed by the generic frontend."""
     return {
@@ -64,21 +82,7 @@ def serialize_world_runtime(pack: WorldPack) -> dict:
             "first_character_message": pack.narrative_profile.first_character_message,
             "lobby_create_first_message": pack.narrative_profile.lobby_create_first_message,
         },
-        "ability_action_phrases": list(dict.fromkeys(
-            phrase for phrase in (
-                *(
-                    marker
-                    for class_definition in pack.classes
-                    if class_definition.ability_book
-                    for marker in class_definition.ability_book.action_markers
-                ),
-                *(
-                    phrase
-                    for ability in pack.abilities
-                    for phrase in (ability.name, *ability.aliases)
-                ),
-            )
-        )),
+        "ability_action_phrases": get_ability_action_phrases(pack),
         "lore_categories": [
             category.model_dump(mode="json") for category in pack.lore_categories
         ],
