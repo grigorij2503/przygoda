@@ -1,6 +1,11 @@
 import pytest
 from app.models import Character, InventoryItem
-from app.dice import deduce_tested_attribute, calculate_item_modifier, resolve_dice_roll
+from app.dice import (
+    calculate_item_modifier,
+    calculate_item_modifier_details,
+    deduce_tested_attribute,
+    resolve_dice_roll,
+)
 
 def test_deduce_tested_attribute():
     char = Character(
@@ -77,12 +82,54 @@ def test_deduce_tested_attribute_uses_best_character_stat_only_as_fallback():
 
     assert deduce_tested_attribute("Idę za drużyną w dół schodów.", char) == "strength"
 
+
+@pytest.mark.parametrize(
+    ("action_text", "expected_stat"),
+    [
+        ("Nasłuchuję odgłosów za drzwiami.", "perception"),
+        ("Wypatruję zasadzki i ukrytych przeciwników.", "perception"),
+        ("Analizuję zapisany dokument i jego znaczenie.", "intellect"),
+    ],
+)
+def test_perception_is_distinct_from_intellectual_analysis(action_text, expected_stat):
+    char = Character(
+        id=1,
+        player_name="Piotr",
+        name="Thorgal",
+        character_class="Wojownik",
+        strength=1,
+        agility=1,
+        intellect=3,
+        charisma=1,
+        perception=3,
+    )
+
+    assert deduce_tested_attribute(action_text, char) == expected_stat
+
+
+def test_attack_ignores_charisma_flavor_and_uses_physical_fallback():
+    char = Character(
+        id=1,
+        player_name="Piotr",
+        name="Thorgal",
+        character_class="Wojownik",
+        strength=5,
+        agility=2,
+        intellect=0,
+        charisma=8,
+    )
+    char.inventory = []
+
+    action = 'Atakuję przeciwnika, wykorzystując jego chwilę nieuwagi i krzycząc "Tandaradei!"'
+
+    assert deduce_tested_attribute(action, char, intent="attack") == "strength"
+
 def test_calculate_item_modifier():
     char = Character(
         id=1,
         player_name="Anna",
         name="Lyanna",
-        character_class="Łowczyni",
+        character_class="Łowca",
         strength=1,
         agility=3,
         intellect=1,
@@ -100,6 +147,29 @@ def test_calculate_item_modifier():
     assert calculate_item_modifier(char, "strength") == 1
     # Dla intellect brak
     assert calculate_item_modifier(char, "intellect") == 0
+
+
+def test_perception_item_modifier_uses_equipped_items():
+    char = Character(
+        id=1,
+        player_name="Anna",
+        name="Lyanna",
+        character_class="Łotrzyk",
+        perception=2,
+    )
+    char.inventory = [
+        InventoryItem(
+            id=1,
+            character_id=1,
+            name="Sokole Szkło",
+            item_type="accessory",
+            target_stat="perception",
+            stat_bonus=2,
+            is_equipped=True,
+        )
+    ]
+
+    assert calculate_item_modifier(char, "perception") == 2
 
 def test_resolve_dice_roll():
     char = Character(
@@ -125,3 +195,105 @@ def test_resolve_dice_roll():
     assert item_mod == 1
     assert total == d20_raw + stat_mod + item_mod
     assert outcome_tier in ["critical_success", "success", "partial_success", "failure", "critical_failure"]
+
+
+def test_defensive_status_action_does_not_use_unmentioned_weapon_bonus():
+    char = Character(
+        id=1,
+        name="Minsc i Boo",
+        strength=8,
+        agility=3,
+    )
+    char.inventory = [
+        InventoryItem(
+            name="Wielki topór",
+            item_type="weapon",
+            target_stat="strength",
+            stat_bonus=5,
+            is_equipped=True,
+        ),
+        InventoryItem(
+            name="Pas siłacza",
+            item_type="accessory",
+            target_stat="strength",
+            stat_bonus=2,
+            is_equipped=True,
+        ),
+        InventoryItem(
+            name="Pawęż",
+            item_type="shield",
+            target_stat="strength",
+            stat_bonus=4,
+            is_equipped=True,
+        ),
+    ]
+
+    modifier, sources = calculate_item_modifier_details(
+        char,
+        "strength",
+        action_text="Tarzam się po ziemi, aby ugasić płomienie",
+        intent="defend",
+    )
+
+    assert modifier == 2
+    assert [source["name"] for source in sources] == ["Pas siłacza"]
+
+
+def test_attack_uses_only_strongest_weapon_bonus_for_one_roll():
+    char = Character(id=1, name="Dwuręczny", strength=3)
+    char.inventory = [
+        InventoryItem(
+            name="Miecz",
+            item_type="weapon",
+            target_stat="strength",
+            stat_bonus=1,
+            is_equipped=True,
+        ),
+        InventoryItem(
+            name="Topór",
+            item_type="weapon",
+            target_stat="strength",
+            stat_bonus=3,
+            is_equipped=True,
+        ),
+    ]
+
+    modifier, sources = calculate_item_modifier_details(
+        char,
+        "strength",
+        action_text="Atakuję przeciwnika",
+        intent="attack",
+    )
+
+    assert modifier == 3
+    assert [source["name"] for source in sources] == ["Topór"]
+
+
+def test_attack_prefers_weapon_named_in_declaration():
+    char = Character(id=1, name="Łucznik", agility=3)
+    char.inventory = [
+        InventoryItem(
+            name="Łuk jesionowy",
+            item_type="weapon",
+            target_stat="agility",
+            stat_bonus=1,
+            is_equipped=True,
+        ),
+        InventoryItem(
+            name="Sztylet mistrza",
+            item_type="weapon",
+            target_stat="agility",
+            stat_bonus=3,
+            is_equipped=True,
+        ),
+    ]
+
+    modifier, sources = calculate_item_modifier_details(
+        char,
+        "agility",
+        action_text="Strzelam z łuku do przeciwnika",
+        intent="attack",
+    )
+
+    assert modifier == 1
+    assert [source["name"] for source in sources] == ["Łuk jesionowy"]

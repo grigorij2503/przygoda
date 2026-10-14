@@ -8,12 +8,20 @@ class GameSession(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     room_code = Column(String(50), unique=True, index=True, nullable=False)
+    room_password_hash = Column(String(255), nullable=True)
+    scenario_type = Column(String(200), nullable=True)
+    world_pack_id = Column(String(80), nullable=False, default="dark_fantasy")
+    world_pack_version = Column(Integer, nullable=False, default=1)
     title = Column(String(200), default="Wyprawa do Przeklętej Twierdzy")
     setting_theme = Column(String(100), default="Dark Fantasy / Gothic Horror")
     campaign_intro = Column(Text, default="")
+    campaign_goal_summary = Column(Text, nullable=False, default="")
+    campaign_current_clue = Column(Text, nullable=False, default="")
+    campaign_goal_status = Column(String(30), nullable=False, default="started")
     current_turn_number = Column(Integer, default=1)
     is_turn_resolving = Column(Boolean, default=False)
-    status = Column(String(50), default="in_progress")  # "lobby", "in_progress"
+    status = Column(String(50), default="in_progress")  # lobby, in_progress, completed
+    campaign_epilogue = Column(Text, nullable=False, default="")
     active_boss_name = Column(String(100), nullable=True)
     active_boss_title = Column(String(150), nullable=True)
     active_boss_hp = Column(Integer, nullable=True)
@@ -27,11 +35,17 @@ class GameSession(Base):
     last_loot_character_id = Column(Integer, nullable=True)
     looted_location_ids = Column(JSON, default=list)
     crafting_available_until_turn = Column(Integer, nullable=False, default=0)
+    market_state = Column(JSON, nullable=False, default=dict)
+    market_revision = Column(Integer, nullable=False, default=0)
+    last_image_generated_at = Column(DateTime, nullable=True)
 
     pending_naming_category = Column(String(50), nullable=True)  # boss, location, weapon, attack
     pending_naming_prompt = Column(Text, nullable=True)
     pending_naming_character_id = Column(Integer, nullable=True)
     pending_naming_character_name = Column(String(100), nullable=True)
+    pending_naming_turn_number = Column(Integer, nullable=True)
+    pending_naming_map_node_id = Column(String(100), nullable=True)
+    pending_naming_question = Column(Text, nullable=True)
 
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -60,6 +74,8 @@ class Character(Base):
     player_name = Column(String(100), nullable=False)
     name = Column(String(100), nullable=False)
     character_class = Column(String(100), default="Wojownik")
+    class_id = Column(String(80), nullable=False, default="warrior")
+    narrative_form = Column(String(20), nullable=False, default="neutral")
     level = Column(Integer, default=1)
     xp = Column(Integer, default=0)
     current_hp = Column(Integer, default=25)
@@ -68,18 +84,26 @@ class Character(Base):
     agility = Column(Integer, default=1)
     intellect = Column(Integer, default=1)
     charisma = Column(Integer, default=0)
+    perception = Column(Integer, nullable=False, default=0)
     unspent_stat_points = Column(Integer, nullable=False, default=0)
+    coins = Column(Integer, nullable=False, default=0)
     personal_note = Column(Text, nullable=False, default="")
     status_effects = Column(JSON, default=list)
     is_alive = Column(Boolean, default=True)
     death_state = Column(String(20), nullable=False, default="alive")  # alive, downed, stable, dead
     death_failures = Column(Integer, nullable=False, default=0)
+    participation_status = Column(String(20), nullable=False, default="active")  # active, on_break
+    break_started_turn = Column(Integer, nullable=True)
     is_ready = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     session = relationship("GameSession", back_populates="characters")
     inventory = relationship("InventoryItem", back_populates="character", cascade="all, delete-orphan")
     actions = relationship("PlayerAction", back_populates="character", cascade="all, delete-orphan")
+
+    @property
+    def is_participating(self) -> bool:
+        return (self.participation_status or "active") == "active"
 
 
 class WebPushSubscription(Base):
@@ -110,9 +134,11 @@ class InventoryItem(Base):
     character_id = Column(Integer, ForeignKey("characters.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(150), nullable=False)
     description = Column(String(300), default="")
-    item_type = Column(String(50), default="weapon")  # weapon, shield, armor, accessory, consumable, misc
-    target_stat = Column(String(50), default="strength")  # strength, agility, intellect, charisma, hp_max, none
+    item_type = Column(String(50), default="weapon")  # weapon, shield, armor, helmet, boots, accessory, consumable, misc
+    target_stat = Column(String(50), default="strength")  # strength, agility, intellect, charisma, perception, hp_max, none
     stat_bonus = Column(Integer, default=0)
+    curse_stat = Column(String(50), nullable=True)
+    curse_penalty = Column(Integer, nullable=False, default=0)
     damage_power = Column(Integer, nullable=False, default=0)
     hands_required = Column(Integer, nullable=False, default=1)  # 1 albo 2 dla broni; pozostałe typy ignorują tę wartość
     is_equipped = Column(Boolean, default=False)
@@ -130,7 +156,9 @@ class Turn(Base):
     status = Column(String(50), default="waiting_for_actions")  # waiting_for_actions, resolving, completed
     gm_narration = Column(Text, default="")
     next_turn_prompt = Column(Text, default="")
+    challenge_tier = Column(String(20), nullable=False, default="standard")
     suggested_actions = Column(JSON, default=list)
+    character_suggested_actions = Column(JSON, nullable=False, default=dict, server_default="{}")
     image_prompt = Column(Text, default="")
     image_url = Column(String(500), nullable=True)
     is_generating_image = Column(Boolean, default=False)
@@ -155,6 +183,8 @@ class PlayerAction(Base):
     character_id = Column(Integer, ForeignKey("characters.id", ondelete="CASCADE"), nullable=False)
     action_text = Column(Text, nullable=False)
     magic_ability_id = Column(String(80), nullable=True, default=None)
+    ability_id = Column(String(80), nullable=True, default=None)
+    named_attack_id = Column(Integer, nullable=True, default=None)
     intent = Column(String(30), nullable=True, default=None)
     target_ref = Column(String(100), nullable=True, default=None)
     tested_stat = Column(String(50), nullable=True, default=None)
@@ -173,6 +203,7 @@ class PlayerAction(Base):
     hp_delta = Column(Integer, nullable=False, default=0)
     xp_gained = Column(Integer, nullable=False, default=0)
     submission_source = Column(String(30), nullable=False, default="player")
+    craft_item_ids = Column(JSON, nullable=True)
     submitted_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     turn = relationship("Turn", back_populates="actions")
@@ -232,6 +263,11 @@ class NamedLoreEntity(Base):
     custom_name = Column(String(150), nullable=False)
     named_by_character_id = Column(Integer, nullable=True)
     named_by_character_name = Column(String(100), nullable=True)
+    discovered_turn_number = Column(Integer, nullable=True)
+    map_node_id = Column(String(100), nullable=True)
+    npc_disposition = Column(String(20), nullable=True)
+    npc_catchphrase = Column(String(150), nullable=True)
+    npc_goal = Column(String(200), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 

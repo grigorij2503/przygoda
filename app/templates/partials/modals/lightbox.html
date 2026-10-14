@@ -1,0 +1,8 @@
+  <!-- ==================== MODAL: LIGHTBOX DLA ILUSTRACJI ==================== -->
+  <div x-show="showLightbox" role="dialog" aria-modal="true" aria-label="Powiększona ilustracja" class="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 cursor-pointer" @click="showLightbox = false" x-cloak>
+    <div class="relative max-w-5xl w-full" @click.stop>
+      <button @click="showLightbox = false" class="absolute -top-10 right-0 text-white hover:text-amber-400 text-2xl font-bold">✕ Zamknij</button>
+      <img :src="lightboxImageUrl" alt="Powiększona ilustracja" class="w-full max-h-[85vh] object-contain rounded-xl shadow-2xl border border-amber-500/30">
+    </div>
+  </div>
+

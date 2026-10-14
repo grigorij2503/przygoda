@@ -6,6 +6,8 @@ from app.models import InventoryItem
 EQUIPMENT_SLOT_LIMITS = {
     "hands": 2,
     "armor": 1,
+    "helmet": 1,
+    "boots": 1,
     "active": 5,
 }
 
@@ -18,6 +20,8 @@ def equipment_slot_group(item_type: str) -> str | None:
         return "hands"
     if item_type == "armor":
         return "armor"
+    if item_type in {"helmet", "boots"}:
+        return item_type
     return "active"
 
 

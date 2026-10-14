@@ -1,0 +1,273 @@
+  <!-- ==================== MODAL: NARZĘDZIA MG ==================== -->
+  <div x-show="showIntroModal" role="dialog" aria-modal="true" aria-labelledby="gm-tools-dialog-title" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" x-cloak>
+    <div class="fantasy-card p-6 md:p-8 rounded-2xl max-w-xl w-full border border-amber-900/50 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-4">
+        <h3 id="gm-tools-dialog-title" class="ui-heading text-2xl font-fantasy font-bold text-amber-300 flex items-center gap-2">
+          <span>⚙️</span> NARZĘDZIA MISTRZA GRY
+        </h3>
+        <button @click="closeGmTools()" class="text-gray-400 hover:text-white text-lg" aria-label="Zamknij narzędzia Mistrza Gry">✕</button>
+      </div>
+      <div class="space-y-4">
+        <div x-show="hasPartyCrisis || (activeEnemy?.hp > 0)" x-cloak class="p-4 rounded-xl bg-rose-950/55 border border-rose-600/70 space-y-3">
+          <p class="text-sm font-bold text-rose-200">🚨 Odwrót drużyny</p>
+          <p class="text-xs text-rose-100/80">
+            MG może przerwać aktywne starcie bez zwycięstwa i łupu. Obecne PW żywych postaci zostaną zachowane; obezwładnione aktywne postacie wrócą z 1 PW bez szkodliwych efektów. Polegli pozostaną polegli.
+          </p>
+          <p x-show="hasPartyCrisis && recoverablePartyCrisisCount < 1 && !(activeEnemy?.hp > 0)" class="text-xs text-rose-300">
+            Nie ma postaci w agonii ani stabilnych — awaryjny odwrót nie może nikogo uratować.
+          </p>
+          <p x-show="partyCrisisError" x-text="partyCrisisError" role="alert" class="text-xs text-rose-300"></p>
+          <button type="button" @click="resolvePartyCrisis()"
+                  :disabled="isResolvingPartyCrisis || (!(activeEnemy?.hp > 0) && recoverablePartyCrisisCount < 1)"
+                  class="inventory-action disabled:opacity-40">
+            <span x-show="!isResolvingPartyCrisis">ZAKOŃCZ STARCIE ODWROTEM</span>
+            <span x-show="isResolvingPartyCrisis">RATOWANIE DRUŻYNY...</span>
+          </button>
+        </div>
+        <div x-show="session?.status === 'in_progress'" class="p-4 rounded-xl bg-slate-950/70 border border-amber-900/50 space-y-2">
+          <p class="text-sm font-bold text-amber-300">Postój i handlarz</p>
+          <p class="text-xs text-gray-400">Otwiera handel i warsztat w tej lokacji na maksymalnie trzy tury.</p>
+          <button type="button" class="inventory-action" @click="openMarketAsGm()" :disabled="marketBusy || session?.is_turn_resolving || (activeEnemy?.hp > 0) || !!session?.market?.merchant">Otwórz postój</button>
+        </div>
+        <form @submit.prevent="saveGmCharacterStats()" class="p-4 rounded-xl bg-slate-950/70 border border-amber-900/50">
+          <p class="text-sm font-bold text-amber-300 mb-1">🛠️ Awaryjna korekta atrybutów</p>
+          <p class="text-xs text-gray-400 mb-3">Ustawia bazowe wartości postaci. Nie zmienia bonusów ekwipunku, niewydanych punktów awansu ani już złożonych akcji.</p>
+
+          <template x-if="(session?.characters || []).length === 0">
+            <p class="text-xs text-gray-500">Brak postaci do edycji.</p>
+          </template>
+          <div x-show="(session?.characters || []).length > 0" class="space-y-3">
+            <div>
+              <label for="gm-stat-character" class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Postać</label>
+              <select id="gm-stat-character" x-model.number="gmStatCharacterId" @change="loadGmCharacterStats()"
+                      class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none">
+                <template x-for="character in session?.characters || []" :key="character.id">
+                  <option :value="character.id" x-text="`${character.name} — ${character.player_name} (${character.character_class})`"></option>
+                </template>
+              </select>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <template x-for="stat in worldAttributes.map(attribute => ({key: attribute.id, label: attribute.abbreviation}))" :key="stat.key">
+                <label class="bg-slate-900 p-2 rounded-lg border border-slate-800 text-center">
+                  <span class="block text-[10px] font-semibold text-gray-400 mb-1" x-text="stat.label"></span>
+                  <input type="number" min="0" :max="maxBaseStat" step="1" x-model.number="gmStatForm[stat.key]"
+                         :aria-label="`Bazowy atrybut ${stat.label}`"
+                         class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-center text-sm font-bold text-amber-300 focus:border-amber-500 focus:outline-none">
+                </label>
+              </template>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span class="text-gray-400">Suma: <b class="text-gray-200" x-text="gmStatTotal"></b></span>
+              <span :class="gmStatDelta === 0 ? 'text-gray-400' : (gmStatDelta > 0 ? 'text-emerald-400' : 'text-rose-400')"
+                    x-text="gmStatDelta === 0 ? 'Bilans bez zmian' : `Bilans: ${gmStatDelta > 0 ? '+' : ''}${gmStatDelta}`"></span>
+            </div>
+            <p x-show="gmStatError" x-text="gmStatError" class="text-xs text-red-300 bg-red-950/40 border border-red-900/60 rounded p-2"></p>
+            <button type="submit" :disabled="isSavingGmStats || !gmStatsValid || !gmStatsChanged"
+                    class="w-full py-2.5 bg-amber-700 hover:bg-amber-600 text-amber-50 font-fantasy font-bold rounded-lg text-xs transition disabled:opacity-35 disabled:cursor-not-allowed">
+              <span x-show="!isSavingGmStats">ZAPISZ KOREKTĘ ATRYBUTÓW</span>
+              <span x-show="isSavingGmStats">ZAPISYWANIE...</span>
+            </button>
+          </div>
+        </form>
+
+        <div x-show="gmStatCharacter" class="p-4 rounded-xl bg-slate-950/70 border border-amber-900/50 space-y-3">
+          <p class="text-sm font-bold text-amber-300">⏸️ Udział w kampanii</p>
+          <p class="text-xs text-gray-400">
+            Przerwa zachowuje poziom, XP, HP, monety i ekwipunek. Postać nie składa akcji, nie otrzymuje nagród i nie pojawia się w bieżącej narracji.
+          </p>
+          <p x-show="gmStatCharacter?.participation_status === 'on_break'" class="text-xs text-sky-300"
+             x-text="`Na przerwie od tury ${gmStatCharacter?.break_started_turn}.`"></p>
+          <p x-show="participationError" x-text="participationError" role="alert" class="text-xs text-rose-300"></p>
+          <button type="button" class="inventory-action" :disabled="isSavingParticipation || session?.is_turn_resolving"
+                  @click="setGmCharacterParticipation(gmStatCharacter?.participation_status === 'on_break' ? 'active' : 'on_break')"
+                  x-text="gmStatCharacter?.participation_status === 'on_break' ? 'Przywróć do gry' : 'Wyślij na przerwę'"></button>
+        </div>
+
+        <div x-show="gmStatCharacter" class="p-4 rounded-xl bg-slate-950/70 border border-amber-900/50 space-y-3">
+          <p class="text-sm font-bold text-amber-300">❤️ Punkty życia</p>
+          <p class="text-xs text-gray-400">Awaryjna korekta stanu postaci. Wartość dodatnia przywraca postać do życia; 0 oznacza obezwładnienie (nie wskrzesza poległych bez nadania PW).</p>
+          <form @submit.prevent="saveGmHealth()" class="space-y-2">
+            <label for="gm-health-value" class="block text-xs text-gray-300" x-text="`Bieżące PW (maks. ${gmStatCharacter?.max_hp || 0})`"></label>
+            <div class="flex gap-2">
+              <input id="gm-health-value" type="number" min="0" :max="gmStatCharacter?.max_hp || 0" step="1" x-model.number="gmHealthValue"
+                     class="min-w-0 flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+              <button type="submit" :disabled="isSavingGmHealth || session?.is_turn_resolving" class="inventory-action">Ustaw PW</button>
+            </div>
+            <p x-show="gmHealthError" x-text="gmHealthError" role="alert" class="text-xs text-rose-300"></p>
+          </form>
+          <form @submit.prevent="grantGmConsumable()" class="space-y-2 pt-3 border-t border-slate-800">
+            <p class="text-xs text-gray-300">Podaruj środek leczniczy właściwy dla tego świata</p>
+            <div class="flex gap-2">
+              <input type="number" min="1" max="20" step="1" x-model.number="gmConsumableQuantity" aria-label="Liczba środków leczniczych"
+                     class="w-24 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+              <button type="submit" :disabled="isGrantingConsumable || session?.is_turn_resolving" class="inventory-action">Podaruj</button>
+            </div>
+            <p x-show="gmConsumableError" x-text="gmConsumableError" role="alert" class="text-xs text-rose-300"></p>
+          </form>
+        </div>
+
+        <div x-show="gmStatCharacter" class="p-4 rounded-xl bg-slate-950/70 border border-amber-900/50 space-y-3">
+          <p class="text-sm font-bold text-amber-300">🎒 Ekwipunek postaci</p>
+          <p class="text-xs text-gray-400" x-text="gmStatCharacter ? `${gmStatCharacter.name}: ${gmStatCharacter.coins || 0} ${currencyLabel}` : ''"></p>
+          <form @submit.prevent="adjustGmCoins()" class="space-y-2">
+            <label for="gm-coin-amount" class="block text-xs text-gray-300">Zmiana salda (wartość ujemna odejmuje)</label>
+            <div class="flex gap-2">
+              <input id="gm-coin-amount" type="number" step="1" min="-1000000" max="1000000" x-model.number="gmCoinAmount" class="min-w-0 flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+              <button type="submit" :disabled="isSavingGmCoins" class="inventory-action">Zmień saldo</button>
+            </div>
+            <p x-show="gmCoinError" x-text="gmCoinError" role="alert" class="text-xs text-rose-300"></p>
+          </form>
+          <form @submit.prevent="grantGmWearable()" class="space-y-2 pt-3 border-t border-slate-800">
+            <p class="text-xs text-gray-300">Dodaj hełm lub buty do plecaka wybranej postaci</p>
+            <div class="grid grid-cols-2 gap-2">
+              <label class="text-xs text-gray-400">Slot
+                <select x-model="gmWearableForm.item_type" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm text-white"><option value="helmet">Hełm</option><option value="boots">Buty</option></select>
+              </label>
+              <label class="text-xs text-gray-400">Cecha
+                <select x-model="gmWearableForm.target_stat" @change="if (gmWearableForm.target_stat === 'none') gmWearableForm.stat_bonus = 0" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-sm text-white">
+                  <option value="none">Bez premii</option>
+                  <template x-for="attribute in worldAttributes" :key="attribute.id"><option :value="attribute.id" x-text="attribute.label"></option></template>
+                </select>
+              </label>
+            </div>
+            <label class="block text-xs text-gray-400">Nazwa
+              <input type="text" maxlength="150" required x-model="gmWearableForm.name" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+            </label>
+            <label class="block text-xs text-gray-400">Opis
+              <input type="text" maxlength="300" x-model="gmWearableForm.description" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+            </label>
+            <label class="block text-xs text-gray-400">Premia do cechy (0–1)
+              <input type="number" min="0" max="1" step="1" :disabled="gmWearableForm.target_stat === 'none'" x-model.number="gmWearableForm.stat_bonus" class="w-20 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+            </label>
+            <p x-show="gmWearableError" x-text="gmWearableError" role="alert" class="text-xs text-rose-300"></p>
+            <button type="submit" :disabled="isGrantingWearable" class="inventory-action">Dodaj przedmiot</button>
+          </form>
+        </div>
+
+        <form x-show="session?.status === 'in_progress'" @submit.prevent="finishCampaign()"
+              class="p-4 rounded-xl bg-slate-950/70 border border-amber-900/50 space-y-2">
+          <p class="text-sm font-bold text-amber-300">Zakończ kampanię</p>
+          <p class="text-xs text-gray-400">AI może przygotować podsumowanie kroniki, definitywną scenę finałową i epilog postaci. Wygenerowanie szkicu nie kończy kampanii — możesz go swobodnie poprawić przed zapisaniem.</p>
+          <div class="grid grid-cols-1 gap-2 pt-1">
+            <label for="gm-ending-tone" class="block text-xs text-gray-300">Charakter zakończenia</label>
+            <select id="gm-ending-tone" x-model="gmEndingTone"
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+              <option value="auto">Dobierz do przebiegu historii</option>
+              <option value="victorious">Zwycięskie</option>
+              <option value="bittersweet">Gorzkie zwycięstwo</option>
+              <option value="tragic">Tragiczne</option>
+            </select>
+            <label for="gm-ending-guidance" class="block text-xs text-gray-300">Wskazówka MG <span class="text-gray-500">(opcjonalna)</span></label>
+            <textarea id="gm-ending-guidance" x-model="gmEndingGuidance" maxlength="1000" rows="2"
+                      placeholder="Np. artefakt zostaje zniszczony, ale miasto upada."
+                      class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white"></textarea>
+          </div>
+          <button type="button" @click="generateCampaignEndingDraft()"
+                  :disabled="isGeneratingCampaignEnding || session?.is_turn_resolving"
+                  class="inventory-action disabled:opacity-40">
+            <span x-show="!isGeneratingCampaignEnding">Wygeneruj finał i epilog</span>
+            <span x-show="isGeneratingCampaignEnding">AI analizuje kronikę...</span>
+          </button>
+          <p x-show="gmEndingDraftError" x-text="gmEndingDraftError" role="alert" class="text-xs text-rose-300"></p>
+          <div x-show="gmCampaignSummary" x-cloak class="space-y-1 pt-2">
+            <label for="gm-campaign-summary" class="block text-xs text-gray-300">Podsumowanie historii</label>
+            <textarea id="gm-campaign-summary" x-model="gmCampaignSummary" rows="7" readonly
+                      class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm leading-relaxed text-gray-300"></textarea>
+            <p class="text-[11px] text-gray-500">Podsumowanie służy do podglądu i nie jest zapisywane jako finał kampanii.</p>
+          </div>
+          <div x-show="gmCampaignSummary" x-cloak class="space-y-1 pt-2">
+            <label for="gm-finale-story" class="block text-xs text-gray-300">Finał fabularny</label>
+            <textarea id="gm-finale-story" x-model="gmFinaleStory" maxlength="2400" rows="7"
+                      class="w-full bg-slate-900 border border-amber-800/70 rounded-lg px-3 py-2 text-sm leading-relaxed text-white"></textarea>
+          </div>
+          <label for="gm-epilogue" class="block text-xs text-gray-300" x-text="gmCampaignSummary ? 'Epilog postaci' : 'Epilog'"></label>
+          <textarea id="gm-epilogue" x-model="gmEpilogue" minlength="20" :maxlength="gmCampaignSummary ? 2400 : 5000" rows="5" required
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white"></textarea>
+          <p x-show="gmEpilogueError" x-text="gmEpilogueError" role="alert" class="text-xs text-rose-300"></p>
+          <button type="submit" :disabled="isFinishingCampaign || isGeneratingCampaignEnding || session?.is_turn_resolving"
+                  class="inventory-action">Zapisz finał kampanii</button>
+        </form>
+
+        <div class="p-4 rounded-xl bg-rose-950/40 border border-rose-800/60">
+          <p class="text-sm font-bold text-rose-300 mb-1">⚠️ Restart kampanii</p>
+          <p class="text-xs text-rose-200/80">Wybranie świata lub scenariusza dla nowej zbiórki usunie wszystkie postacie, tury i bieżący postęp. Tej operacji nie można cofnąć.</p>
+        </div>
+
+        <div>
+          <label for="world-choice" class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Świat następnej kampanii</label>
+          <select id="world-choice" x-model="selectedWorldKey" @change="selectWorldForNextCampaign()"
+                  :disabled="isLoadingWorldCatalog || worldCatalog.length === 0"
+                  class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none disabled:opacity-50">
+            <template x-for="world in worldCatalog" :key="world.key">
+              <option :value="world.key" x-text="`${world.display_name} • v${world.version}`"></option>
+            </template>
+          </select>
+          <p class="mt-1 text-xs text-gray-400">Zmiana świata nastąpi dopiero po potwierdzeniu restartu. Motyw można obejrzeć lokalnie poniżej.</p>
+          <p x-show="worldCatalogError" x-text="worldCatalogError" class="mt-1 text-xs text-rose-300" role="alert"></p>
+        </div>
+
+        <div>
+          <label for="scenario-choice" class="block text-xs font-semibold text-amber-400/90 uppercase mb-1">Wybierz motyw / scenerię</label>
+          <select id="scenario-choice" x-model="scenarioChoice" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none">
+            <template x-for="scenario in selectedWorldScenarioOptions" :key="scenario">
+              <option :value="scenario" x-text="scenario"></option>
+            </template>
+          </select>
+        </div>
+
+        <div class="p-3 rounded-xl ui-preview-controls">
+          <p class="text-xs font-semibold mb-2">Podgląd motywu (tylko na tym urządzeniu)</p>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" @click="showSelectedWorldThemePreview()" :disabled="!selectedWorldSummary" class="ui-button-secondary rounded-lg px-3 py-2 text-xs disabled:opacity-50">Wybrany świat — podgląd</button>
+            <button type="button" @click="showNeonThemePreview()" class="ui-button-secondary rounded-lg px-3 py-2 text-xs">Neon — podgląd</button>
+            <button type="button" @click="restoreCampaignTheme()" class="ui-button-secondary rounded-lg px-3 py-2 text-xs">Motyw kampanii</button>
+          </div>
+          <p class="mt-2 text-xs text-gray-400">Podgląd nie zmienia świata kampanii ani wyglądu u innych graczy.</p>
+        </div>
+
+        <div>
+          <label for="reset-confirmation" class="block text-xs font-semibold text-rose-300 uppercase mb-1">Wpisz RESETUJ, aby potwierdzić</label>
+          <input id="reset-confirmation" type="text" x-model="resetConfirmation" autocomplete="off" spellcheck="false" placeholder="RESETUJ"
+                 class="w-full bg-slate-950 border border-rose-900/70 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-700 focus:border-rose-500 focus:outline-none">
+        </div>
+
+        <div>
+          <button @click="setupScenarioLobby()" :disabled="isGeneratingIntro || resetConfirmation !== 'RESETUJ' || !selectedWorldSummary"
+                  class="w-full py-3.5 bg-rose-800 hover:bg-rose-700 text-rose-50 font-fantasy font-bold rounded-xl text-xs transition shadow-lg flex items-center justify-center gap-2 disabled:opacity-35 disabled:cursor-not-allowed">
+            <span>♻️</span>
+            <span x-show="!isGeneratingIntro">RESETUJ KAMPANIĘ I OTWÓRZ NOWĄ ZBIÓRKĘ</span>
+            <span x-show="isGeneratingIntro">RESETOWANIE KAMPANII...</span>
+          </button>
+        </div>
+
+        <div class="pt-4 border-t border-slate-800">
+          <p class="text-sm font-bold text-amber-300 mb-1">🧪 Testowe zdarzenia fabularne</p>
+          <p class="text-xs text-gray-400 mb-3">Ręcznie uruchamiają mechanizm nadawania nazwy dla losowego żywego bohatera i zmieniają stan kampanii.</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button @click="triggerManualNaming(enemyProfile.lore_category_id, enemyProfile.manual_trigger_description)"
+                    class="px-3 py-2 bg-red-950/60 hover:bg-red-900 border border-red-700/40 text-red-300 rounded-lg transition text-xs">
+              <span x-text="`${enemyProfile.icon} Test: przyzwij ${enemyProfile.role_label}`"></span>
+            </button>
+            <button @click="triggerManualNaming('location', 'Zapomniana biblioteka wulkanicznych magów')"
+                    class="px-3 py-2 bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-700/40 text-indigo-300 rounded-lg transition text-xs">
+              🏰 Test: Odkryj Lokację
+            </button>
+            <button @click="triggerManualNaming('npc', `Ważna postać spotkana w lokacji ${currentMapNode?.name || 'drużyny'}`)"
+                    class="px-3 py-2 bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-700/40 text-emerald-300 rounded-lg transition text-xs">
+              👤 Test: Spotkaj NPC
+            </button>
+            <button @click="triggerManualNaming('attack', 'Wyjątkowy manewr bojowy bohatera')"
+                    class="px-3 py-2 bg-amber-950/60 hover:bg-amber-900 border border-amber-700/40 text-amber-300 rounded-lg transition text-xs">
+              ⚔️ Test: Odkryj technikę
+            </button>
+          </div>
+        </div>
+
+        <button @click="lockGmTools()" type="button" class="w-full text-xs text-gray-500 hover:text-gray-300 transition">
+          🔒 Zablokuj Narzędzia MG
+        </button>
+      </div>
+    </div>
+  </div>

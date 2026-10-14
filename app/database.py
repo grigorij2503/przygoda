@@ -31,8 +31,13 @@ from sqlalchemy import text
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # Bezpieczna automatyczna migracja nowych kolumn
+        # Tymczasowy fallback zgodności dla uruchomień bez polecenia Alembic.
         new_columns = [
+            ("game_sessions", "room_password_hash", "VARCHAR(255)"),
+            ("game_sessions", "scenario_type", "VARCHAR(200)"),
+            ("game_sessions", "campaign_goal_summary", "TEXT NOT NULL DEFAULT ''"),
+            ("game_sessions", "campaign_current_clue", "TEXT NOT NULL DEFAULT ''"),
+            ("game_sessions", "campaign_goal_status", "VARCHAR(30) NOT NULL DEFAULT 'started'"),
             ("game_sessions", "active_boss_name", "VARCHAR(100)"),
             ("game_sessions", "active_boss_title", "VARCHAR(150)"),
             ("game_sessions", "active_boss_hp", "INTEGER"),
@@ -46,24 +51,45 @@ async def init_db():
             ("game_sessions", "last_loot_character_id", "INTEGER"),
             ("game_sessions", "looted_location_ids", "JSON"),
             ("game_sessions", "crafting_available_until_turn", "INTEGER NOT NULL DEFAULT 0"),
+            ("game_sessions", "market_state", "JSON NOT NULL DEFAULT '{}'"),
+            ("game_sessions", "market_revision", "INTEGER NOT NULL DEFAULT 0"),
+            ("game_sessions", "last_image_generated_at", "DATETIME"),
             ("game_sessions", "pending_naming_category", "VARCHAR(50)"),
             ("game_sessions", "pending_naming_prompt", "TEXT"),
             ("game_sessions", "pending_naming_character_id", "INTEGER"),
             ("game_sessions", "pending_naming_character_name", "VARCHAR(100)"),
+            ("game_sessions", "pending_naming_turn_number", "INTEGER"),
+            ("game_sessions", "pending_naming_map_node_id", "VARCHAR(100)"),
+            ("game_sessions", "pending_naming_question", "TEXT"),
             ("game_sessions", "status", "VARCHAR(50)"),
+            ("game_sessions", "campaign_epilogue", "TEXT NOT NULL DEFAULT ''"),
+            ("game_sessions", "world_pack_id", "VARCHAR(80) NOT NULL DEFAULT 'dark_fantasy'"),
+            ("game_sessions", "world_pack_version", "INTEGER NOT NULL DEFAULT 1"),
             ("characters", "is_ready", "BOOLEAN"),
+            ("characters", "class_id", "VARCHAR(80) NOT NULL DEFAULT 'cleric'"),
+            ("characters", "narrative_form", "VARCHAR(20) NOT NULL DEFAULT 'neutral'"),
+            ("characters", "perception", "INTEGER NOT NULL DEFAULT 0"),
             ("characters", "personal_note", "TEXT NOT NULL DEFAULT ''"),
             ("characters", "unspent_stat_points", "INTEGER NOT NULL DEFAULT 0"),
+            ("characters", "coins", "INTEGER NOT NULL DEFAULT 0"),
             ("characters", "status_effects", "JSON"),
             ("characters", "death_state", "VARCHAR(20) NOT NULL DEFAULT 'alive'"),
             ("characters", "death_failures", "INTEGER NOT NULL DEFAULT 0"),
+            ("characters", "participation_status", "VARCHAR(20) NOT NULL DEFAULT 'active'"),
+            ("characters", "break_started_turn", "INTEGER"),
             ("inventory_items", "hands_required", "INTEGER NOT NULL DEFAULT 1"),
             ("inventory_items", "damage_power", "INTEGER NOT NULL DEFAULT 0"),
+            ("inventory_items", "curse_stat", "VARCHAR(50)"),
+            ("inventory_items", "curse_penalty", "INTEGER NOT NULL DEFAULT 0"),
             ("turns", "suggested_actions", "TEXT"),
+            ("turns", "character_suggested_actions", "JSON NOT NULL DEFAULT '{}'"),
+            ("turns", "challenge_tier", "VARCHAR(20) NOT NULL DEFAULT 'standard'"),
             ("turns", "mechanics_resolved_at", "DATETIME"),
             ("turns", "combat_events", "JSON"),
             ("player_actions", "intent", "VARCHAR(30)"),
             ("player_actions", "magic_ability_id", "VARCHAR(80)"),
+            ("player_actions", "ability_id", "VARCHAR(80)"),
+            ("player_actions", "named_attack_id", "INTEGER"),
             ("player_actions", "target_ref", "VARCHAR(100)"),
             ("player_actions", "status_modifier", "INTEGER NOT NULL DEFAULT 0"),
             ("player_actions", "damage_dealt", "INTEGER NOT NULL DEFAULT 0"),
@@ -73,12 +99,83 @@ async def init_db():
             ("player_actions", "hp_delta", "INTEGER NOT NULL DEFAULT 0"),
             ("player_actions", "xp_gained", "INTEGER NOT NULL DEFAULT 0"),
             ("player_actions", "submission_source", "VARCHAR(30) NOT NULL DEFAULT 'player'"),
+            ("player_actions", "craft_item_ids", "JSON"),
+            ("named_lore_entities", "discovered_turn_number", "INTEGER"),
+            ("named_lore_entities", "map_node_id", "VARCHAR(100)"),
+            ("named_lore_entities", "npc_disposition", "VARCHAR(20)"),
+            ("named_lore_entities", "npc_catchphrase", "VARCHAR(150)"),
+            ("named_lore_entities", "npc_goal", "VARCHAR(200)"),
         ]
         for table, col, col_type in new_columns:
             try:
                 await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type};"))
             except Exception:
                 pass
+        await conn.execute(text(
+            "UPDATE characters SET coins = 0 WHERE coins IS NULL OR coins < 0"
+        ))
+        await conn.execute(text(
+            "UPDATE characters SET participation_status = 'active' "
+            "WHERE participation_status IS NULL OR participation_status NOT IN ('active', 'on_break')"
+        ))
+        await conn.execute(text(
+            "UPDATE characters SET narrative_form = 'neutral' "
+            "WHERE narrative_form IS NULL "
+            "OR narrative_form NOT IN ('masculine', 'feminine', 'neutral')"
+        ))
+        await conn.execute(text(
+            "UPDATE named_lore_entities SET discovered_turn_number = "
+            "(SELECT current_turn_number FROM game_sessions "
+            "WHERE game_sessions.id = named_lore_entities.session_id) "
+            "WHERE category = 'attack' AND discovered_turn_number IS NULL"
+        ))
+        # Ten fallback utrzymuje start przez samo `uvicorn` dla starszej bazy.
+        # Alembic pozostaje źródłem wersji schematu i jest uruchamiany w Dockerze.
+        await conn.execute(text(
+            "UPDATE game_sessions SET world_pack_id = 'dark_fantasy' "
+            "WHERE world_pack_id IS NULL OR world_pack_id = ''"
+        ))
+        await conn.execute(text(
+            "UPDATE game_sessions SET world_pack_version = 1 "
+            "WHERE world_pack_version IS NULL OR world_pack_version < 1"
+        ))
+        await conn.execute(text(
+            "UPDATE game_sessions SET campaign_goal_summary = '' "
+            "WHERE campaign_goal_summary IS NULL"
+        ))
+        await conn.execute(text(
+            "UPDATE game_sessions SET campaign_current_clue = '' "
+            "WHERE campaign_current_clue IS NULL"
+        ))
+        await conn.execute(text(
+            "UPDATE game_sessions SET campaign_goal_status = "
+            "CASE WHEN status = 'completed' THEN 'completed' ELSE 'started' END "
+            "WHERE campaign_goal_status IS NULL OR campaign_goal_status NOT IN "
+            "('started', 'in_progress', 'near_resolution', 'completed')"
+        ))
+        await conn.execute(text(
+            """
+            UPDATE characters
+            SET class_id = CASE
+                WHEN lower(character_class) LIKE '%woj%' OR lower(character_class) LIKE '%rycerz%' THEN 'warrior'
+                WHEN character_class LIKE '%Łot%' OR character_class LIKE '%łot%'
+                  OR lower(character_class) LIKE '%zabójc%' OR lower(character_class) LIKE '%zabojc%'
+                  OR character_class LIKE '%Złodziej%' OR character_class LIKE '%złodziej%'
+                  OR lower(character_class) LIKE '%zlodziej%' THEN 'rogue'
+                WHEN lower(character_class) LIKE '%mag%' OR lower(character_class) LIKE '%czaro%' THEN 'wizard'
+                ELSE 'cleric'
+            END
+            WHERE (class_id IS NULL OR class_id = '' OR class_id = 'cleric')
+              AND session_id IN (
+                  SELECT id FROM game_sessions
+                  WHERE world_pack_id = 'dark_fantasy' AND world_pack_version = 1
+              )
+            """
+        ))
+        await conn.execute(text(
+            "UPDATE player_actions SET ability_id = magic_ability_id "
+            "WHERE ability_id IS NULL AND magic_ability_id IS NOT NULL"
+        ))
         try:
             await conn.execute(text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS uq_player_action_turn_character "

@@ -8,7 +8,7 @@ from sqlalchemy import delete, select
 
 from app.config import settings
 from app.database import AsyncSessionLocal
-from app.models import WebPushSubscription
+from app.models import GameSession, WebPushSubscription
 
 logger = logging.getLogger("ttrpg.push")
 
@@ -70,6 +70,9 @@ async def send_web_push(
         return
 
     async with AsyncSessionLocal() as db:
+        room_code = (
+            await db.execute(select(GameSession.room_code).where(GameSession.id == session_id))
+        ).scalar_one_or_none()
         query = select(WebPushSubscription).where(WebPushSubscription.session_id == session_id)
         if character_ids is not None:
             target_ids = set(character_ids)
@@ -87,6 +90,8 @@ async def send_web_push(
 
     if not subscriptions:
         return
+    if url == "/" and room_code:
+        url = f"/?room={room_code}"
 
     data = json.dumps(
         {"title": title, "body": body, "tag": tag, "url": url},

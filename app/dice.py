@@ -2,10 +2,13 @@ import re
 import secrets
 import unicodedata
 from typing import Tuple
+from app.action_dialogue import action_mechanics_text
 from app.inventory import get_effectively_equipped_items
 from app.models import Character
+from app.worlds.models import WorldPack
 
 _POLISH_CHAR_TRANSLATION = str.maketrans("ąćęłńóśźż", "acelnoszz")
+CANONICAL_STATS = ("strength", "agility", "intellect", "charisma", "perception")
 
 # Reguły korzystają z rdzeni słów, aby obejmować polską odmianę. Waga 4 oznacza
 # jawną deklarację cechy lub magii, 3 jednoznaczny sposób wykonania akcji,
@@ -28,7 +31,7 @@ ATTRIBUTE_RULES: dict[str, tuple[tuple[str, int], ...]] = {
         (r"\b(?:skocz\w*|wspin\w*|wslizg\w*|czolg\w*|akrobat\w*|balans\w*|uciek\w*)\b", 2),
         (r"\b(?:wytrych\w*|pulapk\w*|krad\w*|kieszon\w*|zwod\w*)\b", 2),
         (r"\b(?:sztylet\w*|noz\w*|rapier\w*|dystans\w*|celuj\w*)\b", 2),
-        (r"\b(?:rzuc\w*|szybk\w*|cich\w*|zwinn\w*)\b", 1),
+        (r"\b(?:rzuc\w*|tarz\w*|szybk\w*|cich\w*|zwinn\w*)\b", 1),
     ),
     "intellect": (
         (r"\b(?:rozum\w*|intelekt\w*|logik\w*)\b", 4),
@@ -39,8 +42,7 @@ ATTRIBUTE_RULES: dict[str, tuple[tuple[str, int], ...]] = {
         (r"\b(?:kula\s+ognia|ognist\w*\s+kula\w*|blyskawic\w*|telekinez\w*|teleport\w*)\b", 3),
         (r"\b(?:bada\w*|zbada\w*|analiz\w*|rozpozn\w*|rozszyfr\w*|odczyt\w*)\b", 2),
         (r"\b(?:wiedz\w*|przypomn\w*|histori\w*|legend\w*|zagad\w*|deduk\w*)\b", 2),
-        (r"\b(?:wykry\w*|wytrop\w*|trop\w*|nasluch\w*|obserw\w*|dostrzeg\w*)\b", 2),
-        (r"\b(?:ksieg\w*|bibliotek\w*|map\w*|mechanizm\w*|slad\w*|skup\w*)\b", 1),
+        (r"\b(?:ksieg\w*|bibliotek\w*|map\w*|mechanizm\w*|skup\w*)\b", 1),
     ),
     "charisma": (
         (r"\b(?:charyzm\w*|autorytet\w*|retory\w*)\b", 4),
@@ -50,6 +52,13 @@ ATTRIBUTE_RULES: dict[str, tuple[tuple[str, int], ...]] = {
         (r"\b(?:uspok\w*|pociesz\w*|blag\w*|dyskut\w*|wypyt\w*|targuj\w*|naklon\w*)\b", 2),
         (r"\b(?:krzycz\w*|zawol\w*|spiew\w*|wystep\w*|opowiad\w*)\b", 1),
         (r"\b(?:modlitw\w*|modl\w*|bostw\w*|kaplan\w*)\b", 2),
+    ),
+    "perception": (
+        (r"\b(?:percepc\w*|spostrzeg\w*|czujn\w*)\b", 4),
+        (r"\b(?:nasluch\w*|wypatruj\w*|dostrzeg\w*|zauwaz\w*)\b", 3),
+        (r"\b(?:wykry\w*|wytrop\w*|trop\w*|obserw\w*)\b", 3),
+        (r"\b(?:zasadzk\w*|ukryt\w*|szmer\w*|halas\w*|zapach\w*|odglos\w*)\b", 2),
+        (r"\b(?:slad\w*|widze\w*|slysze\w*|wechu\w*|zmysl\w*)\b", 2),
     ),
 }
 
@@ -61,13 +70,27 @@ def _normalize_action_text(action_text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", normalized).strip()
 
 
-def deduce_tested_attribute(action_text: str, character: Character) -> str:
+def deduce_tested_attribute_details(
+    action_text: str,
+    character: Character,
+    intent: str | None = None,
+    explicit_stat: str | None = None,
+    world_pack: WorldPack | None = None,
+) -> dict[str, str | float]:
     """
-    Dedukuje najbardziej adekwatną statystykę do rzutu na podstawie tekstu akcji gracza.
-    Jeżeli akcja nie zawiera wyraźnych słów kluczowych, bierze najwyższą pasującą statystykę postaci.
+    Dedukuje cechę z dominującego sposobu wykonania akcji. Słabe ozdobniki
+    narracyjne nie przebijają rodzaju akcji ani statystyki używanej broni.
     """
-    cleaned_text = _normalize_action_text(action_text)
-    scores = {"strength": 0, "agility": 0, "intellect": 0, "charisma": 0}
+    valid_stats = set(CANONICAL_STATS)
+    if explicit_stat in valid_stats:
+        return {
+            "tested_stat": explicit_stat,
+            "confidence": 1.0,
+            "reason": "korekta gracza lub reguła wybranej zdolności",
+        }
+
+    cleaned_text = _normalize_action_text(action_mechanics_text(action_text))
+    scores = {stat: 0 for stat in CANONICAL_STATS}
     strongest_evidence = {stat: 0 for stat in scores}
 
     for stat, rules in ATTRIBUTE_RULES.items():
@@ -75,6 +98,18 @@ def deduce_tested_attribute(action_text: str, character: Character) -> str:
             if re.search(pattern, cleaned_text):
                 scores[stat] += weight
                 strongest_evidence[stat] = max(strongest_evidence[stat], weight)
+    if world_pack:
+        for cue in world_pack.action_stat_cues:
+            marker = _normalize_action_text(cue.marker)
+            if marker and re.search(r"\b" + re.escape(marker) + r"\w*\b", cleaned_text):
+                scores[cue.stat] += cue.weight
+                strongest_evidence[cue.stat] = max(strongest_evidence[cue.stat], cue.weight)
+
+    # Okrzyk, szybki ruch lub inny detal o wadze 1 jest tylko kolorytem, kiedy
+    # główny zamiar jest fizycznym atakiem albo obroną.
+    if intent in {"attack", "defend"} and max(strongest_evidence.values()) <= 1:
+        scores = {stat: 0 for stat in scores}
+        strongest_evidence = {stat: 0 for stat in scores}
 
     # Najpierw liczy się najbardziej jednoznaczna przesłanka, potem suma kontekstu.
     # Dzięki temu np. jawne "zaklęcie" nie przegrywa z kilkoma słabszymi
@@ -86,27 +121,143 @@ def deduce_tested_attribute(action_text: str, character: Character) -> str:
     best_rank = max(ranks.values())
     if best_rank > (0, 0):
         candidates = [stat for stat, rank in ranks.items() if rank == best_rank]
-        return max(candidates, key=lambda stat: getattr(character, stat, 0))
+        selected = max(
+            candidates,
+            key=lambda stat: int(getattr(character, stat, 0) or 0),
+        )
+        confidence = 0.92 if best_rank[0] >= 3 else 0.78
+        return {
+            "tested_stat": selected,
+            "confidence": confidence,
+            "reason": "sposób wykonania opisany przez gracza",
+        }
 
-    # Fallback dla akcji bez rozpoznawalnego kontekstu: najwyższa statystyka postaci.
-    char_stats = {
-        "strength": character.strength,
-        "agility": character.agility,
-        "intellect": character.intellect,
-        "charisma": character.charisma
+    equipped = get_effectively_equipped_items(character.inventory)
+    preferred_types = {"weapon"} if intent == "attack" else {"shield"} if intent == "defend" else set()
+    matching_items = [
+        item for item in equipped
+        if item.item_type in preferred_types and item.target_stat in valid_stats
+    ]
+    if matching_items:
+        selected_item = max(
+            matching_items,
+            key=lambda item: (int(getattr(item, "damage_power", 0) or 0), int(item.stat_bonus or 0)),
+        )
+        return {
+            "tested_stat": selected_item.target_stat,
+            "confidence": 0.82,
+            "reason": f"cecha używanego wyposażenia: {selected_item.name}",
+        }
+
+    fallback_stats = {
+        "attack": ("strength", "agility"),
+        "defend": ("strength", "agility"),
+        "interact": ("agility", "intellect", "perception"),
+        "support": ("intellect", "charisma"),
+    }.get(intent, ("strength", "agility", "intellect", "charisma", "perception"))
+    selected = max(
+        fallback_stats,
+        key=lambda stat: int(getattr(character, stat, 0) or 0),
+    )
+    return {
+        "tested_stat": selected,
+        "confidence": 0.48,
+        "reason": "najlepsza cecha pasująca do ogólnego zamiaru",
     }
-    return max(char_stats, key=char_stats.get)
+
+
+def deduce_tested_attribute(
+    action_text: str,
+    character: Character,
+    intent: str | None = None,
+) -> str:
+    return str(deduce_tested_attribute_details(action_text, character, intent)["tested_stat"])
+
+
+def calculate_item_modifier_details(
+    character: Character,
+    tested_stat: str,
+    action_text: str | None = None,
+    intent: str | None = None,
+) -> tuple[int, list[dict[str, str | int]]]:
+    """
+    Zlicza pasujące bonusy i zwraca ich źródła. Broń i tarcza pomagają tylko
+    w działaniach, w których faktycznie mogą zostać użyte; klątwy pozostają
+    aktywne przez cały czas noszenia przedmiotu.
+    """
+    equipped = get_effectively_equipped_items(character.inventory)
+    normalized_action = _normalize_action_text(action_mechanics_text(action_text or ""))
+    legacy_mode = action_text is None
+    shield_action = bool(re.search(
+        r"\b(?:broni|blokuj|paruj|oslani|zaslani|tarc)\w*\b",
+        normalized_action,
+    ))
+    candidates = []
+    mentioned_item_ids: set[int] = set()
+    for item in equipped:
+        if item.target_stat not in {tested_stat, "all"}:
+            continue
+        item_tokens = [
+            token for token in _normalize_action_text(item.name or "").split()
+            if len(token) >= 3
+        ]
+        mentioned = any(
+            re.search(r"\b" + re.escape(token) + r"\w*\b", normalized_action)
+            for token in item_tokens
+        )
+        if mentioned:
+            mentioned_item_ids.add(id(item))
+        relevant = (
+            legacy_mode
+            or item.item_type not in {"weapon", "shield"}
+            or mentioned
+            or (item.item_type == "weapon" and intent == "attack")
+            or (item.item_type == "weapon" and intent == "defend" and bool(
+                re.search(r"\b(?:paruj|blokuj|odbij)\w*\b", normalized_action)
+            ))
+            or (item.item_type == "shield" and intent == "defend" and shield_action)
+        )
+        if relevant:
+            candidates.append(item)
+
+    # Dwa trzymane oręża nie powinny automatycznie podwajać premii do jednego
+    # rzutu. Gdy akcja nie wymienia obu, liczy się tylko najlepsza broń.
+    weapons = [item for item in candidates if item.item_type == "weapon"]
+    if len(weapons) > 1 and not legacy_mode:
+        mentioned_weapons = [
+            item for item in weapons if id(item) in mentioned_item_ids
+        ]
+        strongest = max(
+            mentioned_weapons or weapons,
+            key=lambda item: (
+                int(item.stat_bonus or 0),
+                int(getattr(item, "damage_power", 0) or 0),
+            ),
+        )
+        candidates = [
+            item for item in candidates
+            if item.item_type != "weapon" or item is strongest
+        ]
+
+    modifier = 0
+    sources: list[dict[str, str | int]] = []
+    for item in candidates:
+        bonus = int(item.stat_bonus or 0)
+        if bonus:
+            modifier += bonus
+            sources.append({"name": item.name, "modifier": bonus, "kind": "bonus"})
+    for item in equipped:
+        if item.curse_stat == tested_stat:
+            penalty = int(item.curse_penalty or 0)
+            if penalty:
+                modifier += penalty
+                sources.append({"name": item.name, "modifier": penalty, "kind": "curse"})
+    return modifier, sources
 
 
 def calculate_item_modifier(character: Character, tested_stat: str) -> int:
-    """
-    Zlicza bonusy z aktualnie wyekwipowanych przedmiotów gracza pasujące do testowanego atrybutu.
-    """
-    modifier = 0
-    for item in get_effectively_equipped_items(character.inventory):
-        if item.target_stat == tested_stat or item.target_stat == "all":
-            modifier += item.stat_bonus
-    return modifier
+    """Zachowuje publiczny adapter używany przez ekwipunek i starsze testy."""
+    return calculate_item_modifier_details(character, tested_stat)[0]
 
 
 def resolve_dice_roll(
@@ -115,6 +266,7 @@ def resolve_dice_roll(
     dc: int = 12,
     tested_stat_override: str | None = None,
     roll_modifier: int = 0,
+    intent: str | None = None,
 ) -> Tuple[str, int, int, int, int, str]:
     """
     Wykonuje deterministyczny, kryptograficznie bezpieczny rzut kością k20
@@ -125,15 +277,20 @@ def resolve_dice_roll(
     """
     tested_stat = (
         tested_stat_override
-        if tested_stat_override in {"strength", "agility", "intellect", "charisma"}
-        else deduce_tested_attribute(action_text, character)
+        if tested_stat_override in {"strength", "agility", "intellect", "charisma", "perception"}
+        else deduce_tested_attribute(action_text, character, intent)
     )
 
     # Wartość cechy postaci
-    stat_val = getattr(character, tested_stat, 0)
+    stat_val = int(getattr(character, tested_stat, 0) or 0)
 
     # Bonus z ekwipunku
-    item_mod = calculate_item_modifier(character, tested_stat)
+    item_mod = calculate_item_modifier_details(
+        character,
+        tested_stat,
+        action_text=action_text,
+        intent=intent,
+    )[0]
 
     # Rzut kością k20 (1-20)
     dice_roll_raw = secrets.randbelow(20) + 1

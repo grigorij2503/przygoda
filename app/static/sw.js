@@ -1,16 +1,39 @@
-const CACHE_NAME = 'ttrpg-gemini-v26';
+const CACHE_NAME = 'ttrpg-gemini-v68';
 const PRECACHE_ASSETS = [
   '/',
-  '/static/css/style.css?v=18',
-  '/static/js/app.js?v=25',
-  '/static/manifest.json',
-  '/static/icons/icon.svg',
-  '/static/icons/icon-192.png',
-  '/static/icons/icon-512.png',
-  '/static/icons/icon-maskable-192.png',
-  '/static/icons/icon-maskable-512.png',
-  '/static/icons/apple-touch-icon.png',
-  '/static/icons/favicon.png',
+  '/static/css/style.css?v=33',
+  '/static/css/modules/tokens.css?v=21',
+  '/static/css/modules/base.css?v=21',
+  '/static/css/modules/components.css?v=23',
+  '/static/css/modules/inventory.css?v=24',
+  '/static/css/modules/market.css?v=2',
+  '/static/css/modules/map.css?v=22',
+  '/static/css/modules/lore.css?v=21',
+  '/static/css/modules/feedback.css?v=21',
+  '/static/css/modules/responsive.css?v=21',
+  '/static/css/modules/theme.css?v=24',
+  '/static/css/modules/theme-art.css?v=5',
+  '/static/js/theme-bootstrap.js?v=33',
+  '/static/js/modules/core.js?v=44',
+  '/static/js/modules/pwa-notifications.js?v=32',
+  '/static/js/modules/auth-admin.js?v=42',
+  '/static/js/modules/session-character.js?v=39',
+  '/static/js/modules/story-map-proxy.js?v=42',
+  '/static/js/modules/realtime-chat.js?v=39',
+  '/static/js/modules/campaign-actions.js?v=37',
+  '/static/js/modules/equipment-images.js?v=34',
+  '/static/js/modules/market.js?v=2',
+  '/static/js/modules/local-components.js?v=32',
+  '/static/js/app.js?v=38',
+  '/manifest.json?v=2',
+  '/static/icons/icon.svg?v=2',
+  '/static/icons/d20.svg',
+  '/static/icons/icon-192.png?v=2',
+  '/static/icons/icon-512.png?v=2',
+  '/static/icons/icon-maskable-192.png?v=2',
+  '/static/icons/icon-maskable-512.png?v=2',
+  '/static/icons/apple-touch-icon.png?v=2',
+  '/static/icons/favicon.png?v=2',
   'https://cdn.tailwindcss.com',
   'https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js'
 ];
@@ -62,11 +85,11 @@ self.addEventListener('push', (event) => {
       payload = { body: event.data?.text() || 'W grze wydarzyło się coś nowego.' };
     }
 
-    const title = payload.title || 'TTRPG Gemini Master';
+    const title = payload.title || 'Przygoda RPG';
     await self.registration.showNotification(title, {
       body: payload.body || 'W grze wydarzyło się coś nowego.',
-      icon: '/static/icons/icon-192.png',
-      badge: '/static/icons/icon-192.png',
+      icon: '/static/icons/icon-192.png?v=2',
+      badge: '/static/icons/icon-192.png?v=2',
       tag: payload.tag || 'ttrpg-update',
       renotify: true,
       data: { url: payload.url || '/' }

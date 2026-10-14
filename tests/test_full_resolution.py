@@ -1,20 +1,24 @@
 import asyncio
+import time
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from app.main import app, resolve_turn_background
 from app.database import get_db
-from app.models import GameSession, Character, Turn
+from app.models import GameSession, Character, PlayerAction, Turn
+from app.services.room_access import ROOM_SESSION_COOKIE, create_room_session_token
+from app.services.turn_service import xp_for_outcome
 
 @pytest_asyncio.fixture(autouse=True)
-async def setup_resolution_app():
+async def setup_resolution_app(isolated_dark_fantasy_db):
     async with app.router.lifespan_context(app):
         yield
 
 @pytest.mark.asyncio
 async def test_full_turn_resolution_and_level_up():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        ac.cookies.set(ROOM_SESSION_COOKIE, create_room_session_token(int(time.time()) + 3600))
         # Pobierz sesję
         sess_res = await ac.get("/api/session?room_code=kampania-1")
         assert sess_res.status_code == 200
@@ -44,11 +48,20 @@ async def test_full_turn_resolution_and_level_up():
             if not current_turn:
                 pytest.skip("Brak aktywnej tury – uruchom testy w izolacji lub zresetuj DB")
 
+            session.is_turn_resolving = False
+            current_turn.status = "waiting_for_actions"
+            current_turn.resolved_at = None
+            current_turn.mechanics_resolved_at = None
+            current_turn.combat_events = []
+            await db.execute(delete(PlayerAction).where(PlayerAction.turn_id == current_turn.id))
+            await db.commit()
+
             # Złóż akcję
-            await ac.post("/api/actions", json={
+            action_res = await ac.post("/api/actions", json={
                 "character_id": char_id,
-                "action_text": "Zasłaniam się tarczą i tnę mieczem wroga."
+                "action_text": "Tnę mieczem wroga i utrzymuję mocną pozycję."
             })
+            assert action_res.status_code == 200
 
             # Bezpośrednio wywołaj resolve_turn_background
             await resolve_turn_background(session_id, current_turn.id)
@@ -59,3 +72,11 @@ async def test_full_turn_resolution_and_level_up():
         data = updated_sess.json()
         assert data["current_turn_number"] >= 2
         assert any(t["status"] == "completed" for t in data["turns"])
+
+
+def test_xp_is_derived_from_the_persisted_outcome_tier():
+    assert xp_for_outcome("critical_success") == 120
+    assert xp_for_outcome("success") == 80
+    assert xp_for_outcome("partial_success") == 60
+    assert xp_for_outcome("failure") == 50
+    assert xp_for_outcome("critical_failure") == 40
